@@ -4,7 +4,7 @@ import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, S
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib_supabase";
 
-const logo = /logo/hafiz-mart-logo.png;
+const logo = `${import.meta.env.BASE_URL}logo/hafiz-mart-logo.png`;
 const AuthContext = createContext(null);
 function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
