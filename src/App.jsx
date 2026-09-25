@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut } from "lucide-react";
+import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut, Eye, EyeOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib_supabase";
 
@@ -278,6 +278,7 @@ function Account(){
 function Login(){
   const { user, profile } = useAuth(); const navigate = useNavigate();
   const [mode,setMode]=useState('login'); const [email,setEmail]=useState(''); const [password,setPassword]=useState(''); const [name,setName]=useState(''); const [busy,setBusy]=useState(false); const [error,setError]=useState(''); const [message,setMessage]=useState('');
+  const [showPassword,setShowPassword]=useState(false);
   useEffect(()=>{ if(user && profile) navigate(profile.role==='admin'?'/admin':'/account'); },[user,profile,navigate]);
   const submit=async e=>{ e.preventDefault(); setBusy(true); setError(''); setMessage('');
     const result = mode==='login' ? await supabase.auth.signInWithPassword({email,password}) : await supabase.auth.signUp({email,password,options:{data:{full_name:name}}});
@@ -286,7 +287,25 @@ function Login(){
   };
   return <main className="auth-page"><div className="auth-card"><img src={logo} alt="Hafiz Mart"/><p className="eyebrow">ACCOUNT</p><h1>{mode==='login'?'Welcome back':'Create account'}</h1><p className="muted">{mode==='login'?'Hafiz Mart admin/customer account mein sign in karein.':'Hafiz Mart par apna account create karein.'}</p>
     {mode==='register'&&<label>Full Name<input value={name} onChange={e=>setName(e.target.value)} required/></label>}
-    <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={6}/></label>
+    <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password
+  <div className="password-wrap">
+    <input
+      type={showPassword ? "text" : "password"}
+      value={password}
+      onChange={e=>setPassword(e.target.value)}
+      required
+      minLength={6}
+    />
+    <button
+      type="button"
+      className="password-toggle"
+      onClick={()=>setShowPassword(!showPassword)}
+      aria-label={showPassword ? "Hide password" : "Show password"}
+    >
+      {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+    </button>
+  </div>
+</label>
     {error&&<p className="muted" style={{color:'#d66'}}>{error}</p>}{message&&<p className="muted">{message}</p>}
     <button className="gold-btn full" type="button" disabled={busy} onClick={submit}>{busy?'Please wait...':mode==='login'?'Login':'Create Account'} <ArrowRight size={17}/></button>
     <button className="text-link center" type="button" onClick={()=>{setMode(mode==='login'?'register':'login');setError('');setMessage('')}}>{mode==='login'?'Create a new account':'Already have an account? Login'}</button>
