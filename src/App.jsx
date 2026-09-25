@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck } from "lucide-react";
+import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib_supabase";
 
@@ -251,13 +251,29 @@ function Checkout(){
 }
 
 function Account(){
-  const { user, profile, refreshProfile }=useAuth(); const [orders,setOrders]=useState([]); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState("");
+  const { user, profile, refreshProfile, signOut }=useAuth(); const [orders,setOrders]=useState([]); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState("");
   const [form,setForm]=useState({full_name:profile?.full_name||"",phone:profile?.phone||""});
   useEffect(()=>{setForm({full_name:profile?.full_name||"",phone:profile?.phone||""})},[profile]);
   useEffect(()=>{ if(!user){setLoading(false);return;} (async()=>{const {data,error}=await supabase.from('orders').select('*').eq('user_id',user.id).order('created_at',{ascending:false}); if(error) console.error(error); else setOrders(data||[]); setLoading(false);})()},[user]);
   const saveProfile=async e=>{e.preventDefault();setSaving(true);setMessage('');const {error}=await supabase.from('profiles').update({full_name:form.full_name.trim(),phone:form.phone.trim()}).eq('id',user.id);if(error)setMessage(error.message);else{setMessage('Profile update ho gaya.');refreshProfile()}setSaving(false)};
   if(!user) return <main className="page container"><EmptyState title="Login Required" text="Apni profile aur order history dekhne ke liye customer account mein login karein." action="Login" to="/login" icon={User}/></main>;
-  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">MY ACCOUNT</p><h1>{profile?.full_name||'Account'}</h1><p>{user.email}</p></div></div><div className="account-grid"><section className="form-card"><div className="panel-head-row"><div><p className="eyebrow">PROFILE</p><h2>Your details</h2></div><User size={20}/></div><form onSubmit={saveProfile}><label>Full Name<input value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})} placeholder="Your name"/></label><label>Phone<input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="03xx..."/></label><label>Email<input value={user.email||''} disabled/></label><button className="gold-btn" disabled={saving}>{saving?'Saving...':'Save Profile'}</button>{message&&<p className="review-message">{message}</p>}</form></section><section><div className="section-heading"><div><p className="eyebrow">ORDERS</p><h2>Order History</h2></div><Link className="text-link" to="/shop">Shop more <ArrowRight size={15}/></Link></div>{loading?<div className="mini-empty">Orders load ho rahe hain...</div>:orders.length?<div className="account-orders">{orders.map(o=><div className="account-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{String(o.status||'pending').replaceAll('_',' ')}</em></div></div>)}</div>:<EmptyState title="No Orders Yet" text="Aapki placed orders yahan appear hongi." action="Start Shopping" to="/shop" icon={ShoppingCart}/>}</section></div></div></main>;
+  return <main className="page"><div className="container"><div className="page-head">
+  <div>
+    <p className="eyebrow">MY ACCOUNT</p>
+    <h1>{profile?.full_name||'Account'}</h1>
+    <p>{user.email}</p>
+  </div>
+
+  <button
+    className="ghost-btn"
+    onClick={async ()=>{
+      await signOut();
+    }}
+  >
+    <LogOut size={16}/>
+    Logout
+  </button>
+</div><div className="account-grid"><section className="form-card"><div className="panel-head-row"><div><p className="eyebrow">PROFILE</p><h2>Your details</h2></div><User size={20}/></div><form onSubmit={saveProfile}><label>Full Name<input value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})} placeholder="Your name"/></label><label>Phone<input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="03xx..."/></label><label>Email<input value={user.email||''} disabled/></label><button className="gold-btn" disabled={saving}>{saving?'Saving...':'Save Profile'}</button>{message&&<p className="review-message">{message}</p>}</form></section><section><div className="section-heading"><div><p className="eyebrow">ORDERS</p><h2>Order History</h2></div><Link className="text-link" to="/shop">Shop more <ArrowRight size={15}/></Link></div>{loading?<div className="mini-empty">Orders load ho rahe hain...</div>:orders.length?<div className="account-orders">{orders.map(o=><div className="account-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{String(o.status||'pending').replaceAll('_',' ')}</em></div></div>)}</div>:<EmptyState title="No Orders Yet" text="Aapki placed orders yahan appear hongi." action="Start Shopping" to="/shop" icon={ShoppingCart}/>}</section></div></div></main>;
 }
 function Login(){
   const { user, profile } = useAuth(); const navigate = useNavigate();
