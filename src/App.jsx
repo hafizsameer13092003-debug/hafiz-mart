@@ -218,7 +218,14 @@ function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const deliv
 function Checkout(){
   const { cartItems, subtotal, update } = useStore();
   const { user } = useAuth();
-  const [form,setForm]=useState({name:'',phone:'',email:user?.email||'',address:'',city:''});
+  const [form,setForm]=useState({
+    name:'',
+    phone:'',
+    email:user?.email||'',
+    address:'',
+    city:''
+});
+const [paymentMethod,setPaymentMethod]=useState('');
   const [couponCode,setCouponCode]=useState(''); const [coupon,setCoupon]=useState(null);
   const [busy,setBusy]=useState(false); const [couponBusy,setCouponBusy]=useState(false); const [error,setError]=useState(''); const [couponError,setCouponError]=useState(''); const [order,setOrder]=useState(null);
   const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||'923000000000';
@@ -235,19 +242,51 @@ function Checkout(){
   if(order) return <main className="page container"><EmptyState title="Order Placed Successfully" text={`Aapka order ${order.order_number} successfully create ho gaya hai. WhatsApp mein order details bhi open ho rahi hain.`} action="Continue Shopping" to="/shop" icon={Check}/><div className="order-success-card"><span>ORDER NUMBER</span><strong>{order.order_number}</strong><small>Total: Rs. {Number(order.total).toLocaleString()}</small></div></main>;
   if(!cartItems.length) return <main className="page container"><EmptyState title="Cart Empty" text="Checkout se pehle cart mein product add karein." action="Go to Shop" to="/shop"/> </main>;
   const submit=async e=>{
-    e.preventDefault(); setBusy(true); setError('');
+    e.preventDefault();if (!paymentMethod) {
+  setError('Please select a payment method.');
+  return;
+} setBusy(true); setError('');
     const items=cartItems.map(x=>({product_id:x.product.id,quantity:x.qty}));
-    const {data,error:rpcError}=await supabase.rpc('create_hafiz_order',{p_customer:form,p_items:items,p_coupon_code:coupon?.code||null});
+    const {data,error:rpcError}=await supabase.rpc('create_hafiz_order',{
+  p_customer:{
+    ...form,
+    payment_method:paymentMethod
+  },
+  p_items:items,
+  p_coupon_code:coupon?.code||null
+});
     if(rpcError){setError(rpcError.message);setBusy(false);return;}
     const created=Array.isArray(data)?data[0]:data;
     if(!created){setError('Order create nahi hua. Dobara try karein.');setBusy(false);return;}
     const lines=cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join('\n');
-    const couponLine=coupon?`\nCoupon: ${coupon.code} (-Rs. ${Number(created.discount||0).toLocaleString()})`:'';
-    const text=`Assalam o Alaikum, Hafiz Mart se order confirm karna hai.\n\nOrder: ${created.order_number}\nCustomer: ${form.name}\nPhone: ${form.phone}\nEmail: ${form.email||'N/A'}\nAddress: ${form.address}, ${form.city}\n\n${lines}${couponLine}\n\nTotal: Rs. ${Number(created.total).toLocaleString()}`;
+   const couponLine=coupon?`\nCoupon: ${coupon.code} (-Rs. ${Number(created.discount||0).toLocaleString()})`:'';
+
+  const text=`Assalam o Alaikum, Hafiz Mart se order confirm karna hai.\n\nOrder: ${created.order_number}\nCustomer: ${form.name}\nPhone: ${form.phone}\nEmail: ${form.email||'N/A'}\nAddress: ${form.address}, ${form.city}\nPayment Method: ${paymentMethod==='cod'?'Cash on Delivery':'Cash on Delivery'}\n\n${lines}${couponLine}\n\nTotal: Rs. ${Number(created.total).toLocaleString()}`;
     update({cart:[]}); setOrder(created); setBusy(false);
     window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');
   };
-  return <main className="page"><div className="container checkout-layout"><div><p className="eyebrow">CHECKOUT</p><h1>Customer Details</h1><p className="muted">Order pehle Hafiz Mart database mein save hoga, phir WhatsApp par confirmation message open hoga.</p><form className="form-card" onSubmit={submit}>{[['name','Full Name',true],['phone','Phone',true],['email','Email',false],['address','Delivery Address',true],['city','City',true]].map(([key,label,required])=><label key={key}>{label}<input required={required} type={key==='email'?'email':'text'} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})} placeholder={label}/></label>)}<div className="coupon-box"><div><strong>Have a coupon?</strong><span>Discount code apply karein.</span></div><div className="coupon-row"><input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCoupon(null);setCouponError('')}} placeholder="e.g. SAVE10"/><button type="button" className="ghost-btn" disabled={couponBusy} onClick={applyCoupon}>{couponBusy?'Checking...':'Apply'}</button></div>{coupon&&<div className="coupon-success"><Check size={15}/> {coupon.code} applied — Rs. {coupon.discount.toLocaleString()} off</div>}{couponError&&<div className="coupon-error"><Tag size={14}/> {couponError}</div>}</div>{error&&<div className="error-box">{error}</div>}<button className="gold-btn full" type="submit" disabled={busy}>{busy?'Placing Order...':'Place Order & Continue to WhatsApp'} <MessageCircle size={17}/></button></form></div><aside className="summary"><p className="eyebrow">ORDER</p><h2>Summary</h2>{cartItems.map(x=><div key={x.index} className="mini-line"><span>{x.product.name} × {x.qty}</span><strong>Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong></div>)}<div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Discount</span><strong className={discount?'discount-text':''}>{discount?`- Rs. ${discount.toLocaleString()}`:'Rs. 0'}</strong></div><div><span>Delivery</span><strong>Rs. 0</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div></aside></div></main>;
+  return <main className="page"><div className="container checkout-layout"><div><p className="eyebrow">CHECKOUT</p><h1>Customer Details</h1><p className="muted">Order pehle Hafiz Mart database mein save hoga, phir WhatsApp par confirmation message open hoga.</p><form className="form-card" onSubmit={submit}>{[['name','Full Name',true],['phone','Phone',true],['email','Email',false],['address','Delivery Address',true],['city','City',true]].map(([key,label,required])=><label key={key}>{label}<input required={required} type={key==='email'?'email':'text'} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})} placeholder={label}/></label>)}<div className="payment-method-box">
+  <div className="payment-method-head">
+    <div>
+      <strong>Payment Method</strong>
+      <span>Apna payment method select karein.</span>
+    </div>
+  </div>
+
+  <label className={`payment-option ${paymentMethod==='cod'?'selected':''}`}>
+    <input
+      type="radio"
+      name="paymentMethod"
+      value="cod"
+      checked={paymentMethod==='cod'}
+      onChange={e=>setPaymentMethod(e.target.value)}
+    />
+    <div>
+      <strong>Cash on Delivery</strong>
+      <span>Order receive karte waqt cash payment karein.</span>
+    </div>
+  </label>
+</div><div className="coupon-box"><div><strong>Have a coupon?</strong><span>Discount code apply karein.</span></div><div className="coupon-row"><input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCoupon(null);setCouponError('')}} placeholder="e.g. SAVE10"/><button type="button" className="ghost-btn" disabled={couponBusy} onClick={applyCoupon}>{couponBusy?'Checking...':'Apply'}</button></div>{coupon&&<div className="coupon-success"><Check size={15}/> {coupon.code} applied — Rs. {coupon.discount.toLocaleString()} off</div>}{couponError&&<div className="coupon-error"><Tag size={14}/> {couponError}</div>}</div>{error&&<div className="error-box">{error}</div>}<button className="gold-btn full" type="submit" disabled={busy}>{busy?'Placing Order...':'Place Order & Continue to WhatsApp'} <MessageCircle size={17}/></button></form></div><aside className="summary"><p className="eyebrow">ORDER</p><h2>Summary</h2>{cartItems.map(x=><div key={x.index} className="mini-line"><span>{x.product.name} × {x.qty}</span><strong>Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong></div>)}<div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Discount</span><strong className={discount?'discount-text':''}>{discount?`- Rs. ${discount.toLocaleString()}`:'Rs. 0'}</strong></div><div><span>Delivery</span><strong>Rs. 0</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div></aside></div></main>;
 }
 
 function Account(){

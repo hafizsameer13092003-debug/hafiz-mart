@@ -59,3 +59,53 @@
   .filter-toggle { justify-content:center; }
   .review-card-head { align-items:flex-start; }
 }
+.payment-method-box{
+  margin:20px 0;
+}
+
+.payment-method-head{
+  margin-bottom:12px;
+}
+
+.payment-option{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  padding:16px;
+  border:2px solid #ddd;
+  border-radius:12px;
+  cursor:pointer;
+  transition:0.2s;
+}
+
+.payment-option:hover{
+  border-color:#d4af37;
+}
+
+.payment-option input[type="radio"]{
+  width:22px;
+  height:22px;
+  margin:0;
+  accent-color:#2563eb;
+  flex-shrink:0;
+}
+
+.payment-option div{
+  flex:1;
+}
+
+.payment-option strong{
+  display:block;
+  font-size:16px;
+  margin-bottom:4px;
+}
+
+.payment-option span{
+  font-size:14px;
+  color:#666;
+}
+
+.payment-option.selected{
+  border-color:#2563eb;
+  background:#f5f9ff;
+}
