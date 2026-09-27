@@ -916,41 +916,7 @@ const cats = categoryNames.map(name => {
   );
 }
 
-function Shop() {
-  const { store } = useStore(); const [toast,setToast]=useState("");
-  const params = new URLSearchParams(window.location.search);
-  const [query,setQuery]=useState(params.get("search")||"");
-  const [category,setCategory]=useState(params.get("category")||"");
-  const [sort,setSort]=useState("newest");
-  const [minPrice,setMinPrice]=useState(""); const [maxPrice,setMaxPrice]=useState("");
-  const [saleOnly,setSaleOnly]=useState(false); const [inStock,setInStock]=useState(false);
-  const [filtersOpen,setFiltersOpen]=useState(false);
-  const reset=()=>{setQuery("");setCategory("");setSort("newest");setMinPrice("");setMaxPrice("");setSaleOnly(false);setInStock(false)};
-  let products=store.products.filter(p=>p.status!=="inactive")
-    .filter(p => {
-  if (!category) return true;
 
-  const selectedCategory = store.categories.find(
-    c =>
-      c.name?.trim().toLowerCase() ===
-      category.trim().toLowerCase()
-  );
-
-  return selectedCategory
-    ? p.categoryId === selectedCategory.id
-    : false;
-})
-    .filter(p=>!query||`${p.name} ${p.brand||""} ${p.sku||""} ${p.shortDescription||""}`.toLowerCase().includes(query.toLowerCase()))
-    .filter(p=>!minPrice||Number(p.salePrice||p.price)>=Number(minPrice))
-    .filter(p=>!maxPrice||Number(p.salePrice||p.price)<=Number(maxPrice))
-    .filter(p=>!saleOnly||Boolean(p.salePrice))
-    .filter(p=>!inStock||Number(p.stock||0)>0);
-  products=[...products].sort((a,b)=>sort==="price-low"?(Number(a.salePrice||a.price)-Number(b.salePrice||b.price)):sort==="price-high"?(Number(b.salePrice||b.price)-Number(a.salePrice||a.price)):sort==="name"?a.name.localeCompare(b.name):new Date(b.createdAt)-new Date(a.createdAt));
-  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">CATALOG</p><h1>Shop</h1><p>Browse the live products in Hafiz Mart.</p></div><span className="result-count">{products.length} products</span></div>
-    <div className="filters"><div className="filter-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products, brand or SKU..."/></div><select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{store.categories.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</select><select value={sort} onChange={e=>setSort(e.target.value)}><option value="newest">Newest</option><option value="name">Name A–Z</option><option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option></select><button className="ghost-btn filter-toggle" onClick={()=>setFiltersOpen(v=>!v)}><SlidersHorizontal size={16}/> Filters</button></div>
-    <AnimatePresence>{filtersOpen&&<motion.div className="advanced-filters" initial={{opacity:0,height:0}} animate={{opacity:1,height:"auto"}} exit={{opacity:0,height:0}}><label>Min Price<input type="number" min="0" value={minPrice} onChange={e=>setMinPrice(e.target.value)} placeholder="Rs. 0"/></label><label>Max Price<input type="number" min="0" value={maxPrice} onChange={e=>setMaxPrice(e.target.value)} placeholder="No limit"/></label><label className="check-filter"><input type="checkbox" checked={saleOnly} onChange={e=>setSaleOnly(e.target.checked)}/> Sale only</label><label className="check-filter"><input type="checkbox" checked={inStock} onChange={e=>setInStock(e.target.checked)}/> In stock only</label><button className="text-link" onClick={reset}><RotateCcw size={14}/> Reset filters</button></motion.div>}</AnimatePresence>
-    {products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p} onToast={setToast}/>)}</div>:<EmptyState title="No Products Found" text={store.products.length?"Search/filter change karke dobara try karein.":"Abhi store mein koi product nahi hai."} action="Reset Filters" to="/shop" icon={Search}/>}</div><Toast message={toast} onClose={()=>setToast("")}/></main>;
-}
 function StarRating({value=0,size=16}){
   return <span className="stars" aria-label={`${value} out of 5 stars`}>{[1,2,3,4,5].map(n=><Star key={n} size={size} fill={n<=Math.round(value)?"currentColor":"none"}/>)}</span>;
 }
@@ -979,6 +945,340 @@ function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=
 function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Product cards par heart icon press karke items save karein." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
 
 function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt=""/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty"><button onClick={()=>changeQty(x.index,-1)}><Minus size={14}/></button><strong>{x.qty}</strong><button onClick={()=>changeQty(x.index,1)}><Plus size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button className="remove-btn" onClick={()=>remove(x.index)}><Trash2 size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
+
+function Shop() {
+  const { store } = useStore();
+  const [toast, setToast] = useState("");
+
+  const hashQuery = window.location.hash.split("?")[1] || "";
+  const params = new URLSearchParams(hashQuery);
+
+  const [query, setQuery] = useState(
+    params.get("search") || ""
+  );
+
+  const [category, setCategory] = useState(
+    params.get("category") || ""
+  );
+
+  const [sort, setSort] = useState("newest");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [saleOnly, setSaleOnly] = useState(false);
+  const [inStock, setInStock] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const normalize = value =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  const reset = () => {
+    setQuery("");
+    setCategory("");
+    setSort("newest");
+    setMinPrice("");
+    setMaxPrice("");
+    setSaleOnly(false);
+    setInStock(false);
+  };
+
+  const selectedCategory = store.categories.find(
+    c =>
+      normalize(c.name) ===
+      normalize(category)
+  );
+
+  let products = store.products
+    .filter(p => p.status !== "inactive")
+    .filter(p => {
+      if (!category) return true;
+
+      if (!selectedCategory) return false;
+
+      const productCategoryId = String(
+        p.categoryId || ""
+      );
+
+      const selectedCategoryId = String(
+        selectedCategory.id || ""
+      );
+
+      const productCategoryName = normalize(
+        p.category
+      );
+
+      const selectedCategoryName = normalize(
+        selectedCategory.name
+      );
+
+      return (
+        productCategoryId === selectedCategoryId ||
+        productCategoryName === selectedCategoryName
+      );
+    })
+    .filter(
+      p =>
+        !query ||
+        `${p.name} ${p.brand || ""} ${p.sku || ""} ${
+          p.shortDescription || ""
+        }`
+          .toLowerCase()
+          .includes(query.toLowerCase())
+    )
+    .filter(
+      p =>
+        !minPrice ||
+        Number(p.salePrice || p.price) >=
+          Number(minPrice)
+    )
+    .filter(
+      p =>
+        !maxPrice ||
+        Number(p.salePrice || p.price) <=
+          Number(maxPrice)
+    )
+    .filter(
+      p =>
+        !saleOnly ||
+        Boolean(p.salePrice)
+    )
+    .filter(
+      p =>
+        !inStock ||
+        Number(p.stock || 0) > 0
+    );
+
+  products = [...products].sort((a, b) =>
+    sort === "price-low"
+      ? Number(a.salePrice || a.price) -
+        Number(b.salePrice || b.price)
+      : sort === "price-high"
+      ? Number(b.salePrice || b.price) -
+        Number(a.salePrice || a.price)
+      : sort === "name"
+      ? a.name.localeCompare(b.name)
+      : new Date(b.createdAt) -
+        new Date(a.createdAt)
+  );
+
+  return (
+    <main className="page">
+      <div className="container">
+
+        <div className="page-head">
+          <div>
+            <p className="eyebrow">
+              CATALOG
+            </p>
+
+            <h1>
+              {selectedCategory
+                ? selectedCategory.name
+                : "Shop"}
+            </h1>
+
+            <p>
+              Browse the live products in Hafiz Mart.
+            </p>
+          </div>
+
+          <span className="result-count">
+            {products.length} products
+          </span>
+        </div>
+
+        <div className="filters">
+
+          <div className="filter-search">
+            <Search size={17}/>
+
+            <input
+              value={query}
+              onChange={e =>
+                setQuery(e.target.value)
+              }
+              placeholder="Search products, brand or SKU..."
+            />
+          </div>
+
+          <select
+            value={category}
+            onChange={e =>
+              setCategory(e.target.value)
+            }
+          >
+            <option value="">
+              All categories
+            </option>
+
+            {store.categories.map(c => (
+              <option
+                key={c.id}
+                value={c.name}
+              >
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={sort}
+            onChange={e =>
+              setSort(e.target.value)
+            }
+          >
+            <option value="newest">
+              Newest
+            </option>
+
+            <option value="name">
+              Name A–Z
+            </option>
+
+            <option value="price-low">
+              Price: Low to High
+            </option>
+
+            <option value="price-high">
+              Price: High to Low
+            </option>
+          </select>
+
+          <button
+            className="ghost-btn filter-toggle"
+            onClick={() =>
+              setFiltersOpen(v => !v)
+            }
+          >
+            <SlidersHorizontal size={16}/>
+            Filters
+          </button>
+
+        </div>
+
+        <AnimatePresence>
+          {filtersOpen && (
+            <motion.div
+              className="advanced-filters"
+              initial={{
+                opacity: 0,
+                height: 0
+              }}
+              animate={{
+                opacity: 1,
+                height: "auto"
+              }}
+              exit={{
+                opacity: 0,
+                height: 0
+              }}
+            >
+
+              <label>
+                Min Price
+
+                <input
+                  type="number"
+                  min="0"
+                  value={minPrice}
+                  onChange={e =>
+                    setMinPrice(e.target.value)
+                  }
+                  placeholder="Rs. 0"
+                />
+              </label>
+
+              <label>
+                Max Price
+
+                <input
+                  type="number"
+                  min="0"
+                  value={maxPrice}
+                  onChange={e =>
+                    setMaxPrice(e.target.value)
+                  }
+                  placeholder="No limit"
+                />
+              </label>
+
+              <label className="check-filter">
+                <input
+                  type="checkbox"
+                  checked={saleOnly}
+                  onChange={e =>
+                    setSaleOnly(e.target.checked)
+                  }
+                />
+
+                Sale only
+              </label>
+
+              <label className="check-filter">
+                <input
+                  type="checkbox"
+                  checked={inStock}
+                  onChange={e =>
+                    setInStock(e.target.checked)
+                  }
+                />
+
+                In stock only
+              </label>
+
+              <button
+                className="text-link"
+                onClick={reset}
+              >
+                <RotateCcw size={14}/>
+                Reset filters
+              </button>
+
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {products.length ? (
+
+          <div className="product-grid">
+            {products.map(p => (
+              <ProductCard
+                key={p.id}
+                product={p}
+                onToast={setToast}
+              />
+            ))}
+          </div>
+
+        ) : (
+
+          <EmptyState
+            title="No Products Found"
+            text={
+              category
+                ? `${selectedCategory?.name || category} mein abhi koi product nahi hai.`
+                : store.products.length
+                ? "Search/filter change karke dobara try karein."
+                : "Abhi store mein koi product nahi hai."
+            }
+            action="Reset Filters"
+            to="/shop"
+            icon={Search}
+          />
+
+        )}
+
+      </div>
+
+      <Toast
+        message={toast}
+        onClose={() => setToast("")}
+      />
+
+    </main>
+  );
+}
 
 function Checkout(){
   const { cartItems, subtotal, update } = useStore();
