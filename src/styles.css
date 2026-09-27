@@ -2341,3 +2341,536 @@ font-size:30px;
     padding: 24px;
   }
 }
+/* ================================
+   FINAL RESPONSIVE LAYOUT FIX
+   ================================ */
+
+/* Testimonials / Newsletter / Trust sections */
+.testimonials-grid,
+.review-grid,
+.customer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
+}
+
+/* Individual cards */
+.testimonial-card,
+.review-card,
+.customer-card {
+  min-width: 0;
+  height: auto;
+}
+
+/* Newsletter / Stay Updated */
+.newsletter,
+.newsletter-card,
+.subscribe-card {
+  min-width: 0;
+  height: auto;
+}
+
+/* Prevent text from breaking the layout */
+.testimonial-card *,
+.review-card *,
+.customer-card *,
+.newsletter *,
+.newsletter-card *,
+.subscribe-card * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Desktop spacing */
+.testimonial-card,
+.review-card,
+.customer-card {
+  padding: 24px;
+}
+
+/* ================================
+   TABLET
+   ================================ */
+
+@media (max-width: 900px) {
+
+  .container {
+    width: min(100% - 30px, 760px);
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .category-grid,
+  .category-grid.large {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .testimonials-grid,
+  .review-grid,
+  .customer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 35px;
+  }
+
+  .hero-card {
+    min-height: 280px;
+  }
+
+  .trust-section {
+    grid-template-columns: 1fr;
+  }
+
+  .cart-layout,
+  .checkout-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .summary {
+    position: static;
+  }
+
+  .product-detail {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .admin-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #1e1e1e;
+  }
+
+  .admin-sidebar nav {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}
+
+
+/* ================================
+   MOBILE
+   ================================ */
+
+@media (max-width: 600px) {
+
+  .container {
+    width: calc(100% - 24px);
+  }
+
+  .hero {
+    min-height: auto;
+    padding: 70px 0;
+  }
+
+  .hero h1 {
+    font-size: 42px;
+    letter-spacing: -2px;
+  }
+
+  .hero-card {
+    min-height: 240px;
+    border-radius: 20px;
+  }
+
+  .section {
+    padding-top: 65px;
+    padding-bottom: 65px;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    gap: 15px;
+    flex-direction: column;
+  }
+
+  .section-heading h2 {
+    font-size: 28px;
+  }
+
+  .product-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .product-image-wrap {
+    height: 190px;
+  }
+
+  .category-grid,
+  .category-grid.large {
+    grid-template-columns: 1fr;
+  }
+
+  /* IMPORTANT:
+     Customer reviews ab vertically clean show honge */
+  .testimonials-grid,
+  .review-grid,
+  .customer-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .testimonial-card,
+  .review-card,
+  .customer-card {
+    width: 100%;
+    padding: 20px;
+  }
+
+  /* Newsletter full width */
+  .newsletter,
+  .newsletter-card,
+  .subscribe-card {
+    width: 100%;
+    margin: 0;
+  }
+
+  .trust-section {
+    margin-top: 40px;
+    margin-bottom: 40px;
+  }
+
+  .trust-section div {
+    padding: 22px;
+  }
+
+  .page {
+    padding: 50px 0 70px;
+  }
+
+  .page-head h1 {
+    font-size: 34px;
+  }
+
+  .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .cart-row {
+    grid-template-columns: 55px 1fr auto;
+    gap: 10px;
+  }
+
+  .cart-row img {
+    width: 55px;
+    height: 55px;
+  }
+
+  .line-total {
+    grid-column: 2 / -1;
+  }
+
+  .detail-copy h1 {
+    font-size: 36px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid .span-2 {
+    grid-column: auto;
+  }
+
+  .admin-content {
+    padding: 35px 15px 60px;
+  }
+
+  .stats-grid,
+  .stats-grid.six {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-head {
+    display: none;
+  }
+
+  .table-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+/* ================================
+   STAY UPDATED
+================================ */
+
+.home-newsletter-section{
+  width:100%;
+}
+
+.home-newsletter{
+  width:100%;
+  max-width:1180px;
+  margin:0 auto;
+  padding:35px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:35px;
+  box-sizing:border-box;
+  background:#151515;
+  border:1px solid #2d2d2d;
+  border-radius:18px;
+}
+
+.home-newsletter-content{
+  flex:1;
+  min-width:0;
+}
+
+.home-newsletter-content h2{
+  margin:6px 0 10px;
+  font-size:30px;
+  color:#fff;
+}
+
+.home-newsletter-content p:last-child{
+  margin:0;
+  max-width:600px;
+  color:#aaa;
+  line-height:1.6;
+}
+
+.home-newsletter-form{
+  width:430px;
+  max-width:100%;
+  display:flex;
+  gap:10px;
+  flex-shrink:0;
+}
+
+.home-newsletter-form input{
+  flex:1;
+  min-width:0;
+  height:48px;
+  padding:0 15px;
+  box-sizing:border-box;
+  border:1px solid #3a3a3a;
+  border-radius:10px;
+  background:#0d0d0d;
+  color:#fff;
+  outline:none;
+}
+
+.home-newsletter-form input::placeholder{
+  color:#777;
+}
+
+.home-newsletter-form .gold-btn{
+  height:48px;
+  white-space:nowrap;
+}
+
+/* Tablet */
+@media (max-width:900px){
+  .home-newsletter{
+    flex-direction:column;
+    align-items:stretch;
+    padding:28px;
+  }
+
+  .home-newsletter-form{
+    width:100%;
+  }
+}
+
+/* Mobile */
+@media (max-width:600px){
+  .home-newsletter{
+    padding:22px;
+  }
+
+  .home-newsletter-content h2{
+    font-size:25px;
+  }
+
+  .home-newsletter-form{
+    flex-direction:column;
+  }
+
+  .home-newsletter-form input,
+  .home-newsletter-form .gold-btn{
+    width:100%;
+  }
+}
+/* ================================
+   HOME TRUST SECTION
+================================ */
+
+.home-trust{
+  width:100%;
+  padding:0 0 70px;
+}
+
+.home-trust-grid{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:16px;
+}
+
+.home-trust-item{
+  min-width:0;
+  padding:28px 22px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  gap:8px;
+  background:#151515;
+  border:1px solid #2d2d2d;
+  border-radius:16px;
+  box-sizing:border-box;
+}
+
+.home-trust-item > div{
+  font-size:28px;
+  margin-bottom:4px;
+}
+
+.home-trust-item strong{
+  color:#fff;
+  font-size:17px;
+}
+
+.home-trust-item span{
+  color:#999;
+  font-size:14px;
+  line-height:1.5;
+}
+
+/* Tablet */
+@media (max-width:900px){
+  .home-trust-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+/* Mobile */
+@media (max-width:600px){
+  .home-trust{
+    padding-bottom:40px;
+  }
+
+  .home-trust-item{
+    padding:22px 18px;
+  }
+}
+/* ================================
+   HOME TESTIMONIALS
+================================ */
+
+.home-testimonials{
+  width:100%;
+}
+
+.home-testimonial-grid{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:18px;
+}
+
+.home-testimonial-card{
+  min-width:0;
+  padding:28px;
+  background:#151515;
+  border:1px solid #2d2d2d;
+  border-radius:16px;
+  box-sizing:border-box;
+}
+
+.testimonial-stars{
+  color:#f5c542;
+  letter-spacing:3px;
+  font-size:15px;
+  margin-bottom:15px;
+}
+
+.home-testimonial-card p{
+  margin:0 0 18px;
+  color:#c8c8c8;
+  line-height:1.7;
+  font-size:15px;
+}
+
+.home-testimonial-card strong{
+  color:#fff;
+  font-size:14px;
+}
+
+/* Tablet */
+@media (max-width:900px){
+  .home-testimonial-grid{
+    grid-template-columns:1fr;
+  }
+}
+/* HOME PAGE SPACING FIX */
+
+.home-page {
+  width: 100%;
+  overflow: hidden;
+}
+
+.home-page .home-section {
+  width: 100%;
+  box-sizing: border-box;
+  padding-top: 42px;
+  padding-bottom: 42px;
+}
+
+.home-page .home-section-heading {
+  margin-bottom: 24px;
+}
+
+.home-page .home-promo-section {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 30px;
+  padding-bottom: 30px;
+}
+
+.home-page .home-trust {
+  margin-top: 0;
+  padding-top: 10px;
+  padding-bottom: 45px;
+}
+
+.home-page .home-testimonials,
+.home-page .home-newsletter-section {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+  .home-page .home-section {
+    padding-top: 28px;
+    padding-bottom: 28px;
+  }
+
+  .home-page .home-promo-section {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+
+  .home-page .home-trust {
+    padding-bottom: 30px;
+  }
+}

@@ -672,6 +672,84 @@ function Home() {
             </div>
           </section>
         )}
+                {/* STAY UPDATED */}
+        <section className="home-section home-newsletter-section">
+          <div className="container">
+
+            <div className="home-newsletter">
+              <div className="home-newsletter-content">
+                <p className="eyebrow">STAY CONNECTED</p>
+
+                <h2>Stay Updated</h2>
+
+                <p>
+                  Get updates about new products, special offers
+                  and the latest deals from Hafiz Mart.
+                </p>
+              </div>
+
+              <form
+                className="home-newsletter-form"
+                onSubmit={(e) => e.preventDefault()}
+              >
+                <input
+                  type="email"
+                  placeholder="Enter your email address"
+                  required
+                />
+
+                <button type="submit" className="gold-btn">
+                  Subscribe
+                </button>
+              </form>
+            </div>
+
+          </div>
+        </section>
+                {/* TESTIMONIALS */}
+        <section className="home-section home-testimonials">
+          <div className="container">
+
+            <div className="home-section-heading">
+              <div>
+                <p className="eyebrow">CUSTOMER LOVE</p>
+                <h2>What Our Customers Say</h2>
+              </div>
+            </div>
+
+            <div className="home-testimonial-grid">
+
+              <div className="home-testimonial-card">
+                <div className="testimonial-stars">★★★★★</div>
+                <p>
+                  “Great shopping experience. The website is simple
+                  and easy to use.”
+                </p>
+                <strong>Happy Customer</strong>
+              </div>
+
+              <div className="home-testimonial-card">
+                <div className="testimonial-stars">★★★★★</div>
+                <p>
+                  “Good products and a smooth ordering experience.
+                  I will shop again.”
+                </p>
+                <strong>Verified Customer</strong>
+              </div>
+
+              <div className="home-testimonial-card">
+                <div className="testimonial-stars">★★★★★</div>
+                <p>
+                  “Fast support and a clean shopping experience.
+                  Everything was easy to find.”
+                </p>
+                <strong>Hafiz Mart Customer</strong>
+              </div>
+
+            </div>
+
+          </div>
+        </section>
 
         {/* TRUST */}
         <section className="home-trust">
