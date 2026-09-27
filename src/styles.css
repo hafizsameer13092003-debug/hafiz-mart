@@ -3288,3 +3288,493 @@ font-size:30px;
     justify-content: center;
   }
 }
+/* ORDER TRACKER - TEXT VISIBILITY FIX */
+
+.track-order-card,
+.track-order-result {
+  color: #111;
+}
+
+.track-order-card h1,
+.track-order-card h2,
+.track-order-card h3,
+.track-order-card p,
+.track-order-card label,
+.track-order-card span,
+.track-order-card strong,
+.track-order-result h1,
+.track-order-result h2,
+.track-order-result h3,
+.track-order-result p,
+.track-order-result label,
+.track-order-result span,
+.track-order-result strong {
+  color: #111;
+}
+
+.track-order-card .eyebrow,
+.track-order-result .eyebrow {
+  color: #b28a24;
+}
+
+.track-order-head h2 {
+  color: #111;
+}
+
+.track-order-head span {
+  color: #666;
+}
+
+.track-order-total {
+  color: #111;
+}
+
+.track-step strong {
+  color: #222;
+}
+
+.track-step span {
+  color: #b28a24;
+}
+
+.track-order-info span {
+  color: #777;
+}
+
+.track-order-info strong {
+  color: #111;
+}
+
+.track-items .section-heading h2 {
+  color: #111;
+}
+
+.track-item strong {
+  color: #111;
+}
+
+.track-item span {
+  color: #777;
+}
+
+.track-breakdown span {
+  color: #666;
+}
+
+.track-breakdown strong {
+  color: #111;
+}
+
+.track-breakdown .track-total span,
+.track-breakdown .track-total strong {
+  color: #111;
+}
+
+.track-cancelled strong {
+  color: #b42318;
+}
+
+.track-cancelled span {
+  color: #8f1d17;
+}
+
+.track-order-form label {
+  color: #222;
+}
+
+.track-order-form input {
+  color: #111;
+  background: #fff;
+}
+
+.track-order-form input::placeholder {
+  color: #999;
+}
+
+.track-order-error {
+  color: #b42318;
+}
+/* ACCOUNT PAGE - TRACK YOUR ORDER CARD TEXT FIX */
+
+.account-track-card {
+  color: #111;
+  background: #fff;
+}
+
+.account-track-card .eyebrow {
+  color: #b28a24 !important;
+}
+
+.account-track-card h2 {
+  color: #111 !important;
+}
+
+.account-track-card p:not(.eyebrow) {
+  color: #666 !important;
+}
+
+.account-track-card .gold-btn {
+  color: #111 !important;
+}
+/* =========================================
+   HAFIZ MART - PREMIUM DARK BACKGROUND
+   ========================================= */
+
+body {
+  background:
+    radial-gradient(
+      circle at 15% 10%,
+      rgba(214, 174, 73, 0.09),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 85% 25%,
+      rgba(214, 174, 73, 0.06),
+      transparent 30%
+    ),
+    linear-gradient(
+      135deg,
+      #090909 0%,
+      #111111 45%,
+      #0b0b0b 100%
+    );
+  color: #f5f5f5;
+}
+
+/* Main page background */
+.page {
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(214, 174, 73, 0.045),
+      transparent 35%
+    ),
+    transparent;
+}
+
+/* Main containers */
+.container {
+  position: relative;
+}
+
+/* Premium subtle background glow */
+.page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 700px;
+  height: 400px;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    circle,
+    rgba(214, 174, 73, 0.045),
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Keep page content above background glow */
+.page > .container {
+  position: relative;
+  z-index: 1;
+}
+
+/* White cards stay clean and premium */
+.form-card,
+.account-track-card,
+.track-order-card,
+.track-order-result,
+.product-card,
+.category-card,
+.empty-state,
+.checkout-card,
+.summary-card {
+  background: #ffffff;
+  color: #111111;
+}
+
+/* Premium card shadow */
+.form-card,
+.account-track-card,
+.track-order-card,
+.track-order-result {
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.28),
+    0 2px 10px rgba(214, 174, 73, 0.04);
+}
+
+/* Account page heading */
+.page-head h1,
+.section-heading h2 {
+  color: #ffffff;
+}
+
+/* Secondary text on dark background */
+.page-head > div > p:not(.eyebrow) {
+  color: #bdbdbd;
+}
+
+/* Gold eyebrow */
+.eyebrow {
+  color: #d6ae49;
+}
+
+/* Premium gold buttons */
+.gold-btn {
+  background: linear-gradient(
+    135deg,
+    #e0bc5d 0%,
+    #c99d35 100%
+  );
+  color: #111111;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 8px 22px rgba(214, 174, 73, 0.18);
+}
+
+.gold-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 28px rgba(214, 174, 73, 0.25);
+}
+
+/* Ghost buttons on dark background */
+.ghost-btn {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ghost-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(214, 174, 73, 0.45);
+}
+
+/* Links */
+.text-link {
+  color: #e0bc5d;
+}
+
+.text-link:hover {
+  color: #f0d27d;
+}
+
+/* Account tracker card */
+.account-track-card {
+  border: 1px solid rgba(214, 174, 73, 0.16);
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #faf9f5 100%
+    );
+}
+
+/* Subtle gold line on tracker card */
+.account-track-card::before {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #d6ae49,
+    transparent
+  );
+}
+
+/* Make tracker card positioning work */
+.account-track-card {
+  position: relative;
+  overflow: hidden;
+}
+/* =========================================
+   PREMIUM CATEGORY DROPDOWN
+   ========================================= */
+
+.category-menu,
+.category-dropdown,
+.dropdown-menu {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(214, 174, 73, 0.45);
+  border-radius: 14px;
+  box-shadow:
+    0 18px 45px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(214, 174, 73, 0.06),
+    0 0 25px rgba(214, 174, 73, 0.08);
+  overflow: hidden;
+}
+
+/* Menu ke andar subtle top gold line */
+.category-menu::before,
+.category-dropdown::before,
+.dropdown-menu::before {
+  content: "";
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #d6ae49,
+    transparent
+  );
+}
+
+/* Menu links */
+.category-menu a,
+.category-dropdown a,
+.dropdown-menu a {
+  color: #222;
+  background: transparent;
+  transition:
+    background .2s ease,
+    color .2s ease,
+    padding-left .2s ease;
+}
+
+/* Hover */
+.category-menu a:hover,
+.category-dropdown a:hover,
+.dropdown-menu a:hover {
+  color: #b28a24;
+  background: rgba(214, 174, 73, 0.08);
+}
+
+/* Coming Soon */
+.category-menu-coming-soon {
+  color: #777;
+  background: transparent;
+}
+
+.category-menu-coming-soon small {
+  color: #c59b35;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+/* Menu ke andar items ke beech subtle divider */
+.category-menu a + a,
+.category-menu-coming-soon + a,
+.category-menu a + .category-menu-coming-soon,
+.category-menu-coming-soon + .category-menu-coming-soon {
+  border-top: 1px solid rgba(0, 0, 0, 0.045);
+}
+/* =========================================
+   HAFIZ MART - PREMIUM CATEGORY DROPDOWN
+   ========================================= */
+
+.nav-dropdown-menu {
+  background: #ffffff !important;
+  border: 1px solid rgba(215, 174, 73, 0.55) !important;
+  border-radius: 0 0 16px 16px !important;
+
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(215, 174, 73, 0.08),
+    0 8px 30px rgba(215, 174, 73, 0.08) !important;
+
+  overflow: hidden;
+}
+
+/* Premium gold line on top */
+.nav-dropdown-menu::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #d7ae49 20%,
+    #f0d27d 50%,
+    #d7ae49 80%,
+    transparent 100%
+  );
+}
+
+/* Category column */
+.nav-dropdown-column {
+  position: relative;
+  padding: 4px 8px;
+}
+
+/* Women's / Men's / Fragrances / Other */
+.nav-dropdown-column strong {
+  color: #111111 !important;
+  font-weight: 700;
+}
+
+/* Normal category links */
+.nav-dropdown-column a {
+  color: #666666 !important;
+  border-radius: 7px;
+  padding: 7px 9px;
+  transition:
+    color .2s ease,
+    background .2s ease,
+    padding-left .2s ease;
+}
+
+/* Hover */
+.nav-dropdown-column a:hover {
+  color: #b28a24 !important;
+  background: rgba(215, 174, 73, 0.09) !important;
+  padding-left: 13px;
+}
+
+/* =========================================
+   COMING SOON STYLE
+   ========================================= */
+
+.nav-dropdown-column .category-menu-coming-soon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  padding: 7px 9px;
+  border-radius: 7px;
+
+  color: #999999 !important;
+  background: transparent;
+
+  cursor: default;
+}
+
+.nav-dropdown-column .category-menu-coming-soon small {
+  color: #c99f35 !important;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Coming Soon hover nahi karega */
+.nav-dropdown-column .category-menu-coming-soon:hover {
+  color: #999999 !important;
+  background: transparent !important;
+}
+
+/* Subtle divider between columns */
+.nav-dropdown-column + .nav-dropdown-column {
+  border-left: 1px solid rgba(0, 0, 0, 0.06);
+  padding-left: 20px;
+}
+
+/* Mobile par divider hata do */
+@media (max-width: 900px) {
+  .nav-dropdown-menu {
+    display: none !important;
+  }
+}
