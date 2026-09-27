@@ -844,7 +844,7 @@ const cats = categoryNames.map(name => {
       setNewsletterMessage(error.message);
     } else {
       setNewsletterMessage(
-        "Thank you! You are now subscribed to Hafiz Mart updates."
+        "Thank you for subscribing!"
       );
       setNewsletterEmail("");
     }
@@ -3070,29 +3070,254 @@ Total: Rs. ${Number(created.total).toLocaleString()}`;
 }
 
 function Account(){
-  const { user, profile, refreshProfile, signOut }=useAuth(); const [orders,setOrders]=useState([]); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [message,setMessage]=useState("");
-  const [form,setForm]=useState({full_name:profile?.full_name||"",phone:profile?.phone||""});
-  useEffect(()=>{setForm({full_name:profile?.full_name||"",phone:profile?.phone||""})},[profile]);
-  useEffect(()=>{ if(!user){setLoading(false);return;} (async()=>{const {data,error}=await supabase.from('orders').select('*').eq('user_id',user.id).order('created_at',{ascending:false}); if(error) console.error(error); else setOrders(data||[]); setLoading(false);})()},[user]);
-  const saveProfile=async e=>{e.preventDefault();setSaving(true);setMessage('');const {error}=await supabase.from('profiles').update({full_name:form.full_name.trim(),phone:form.phone.trim()}).eq('id',user.id);if(error)setMessage(error.message);else{setMessage('Profile update ho gaya.');refreshProfile()}setSaving(false)};
-  if(!user) return <main className="page container"><EmptyState title="Login Required" text="Apni profile aur order history dekhne ke liye customer account mein login karein." action="Login" to="/login" icon={User}/></main>;
-  return <main className="page"><div className="container"><div className="page-head">
-  <div>
-    <p className="eyebrow">MY ACCOUNT</p>
-    <h1>{profile?.full_name||'Account'}</h1>
-    <p>{user.email}</p>
-  </div>
+  const { user, profile, refreshProfile, signOut }=useAuth();
+  const [orders,setOrders]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [message,setMessage]=useState("");
 
-  <button
-    className="ghost-btn"
-    onClick={async ()=>{
-      await signOut();
-    }}
-  >
-    <LogOut size={16}/>
-    Logout
-  </button>
-</div><div className="account-grid"><section className="form-card"><div className="panel-head-row"><div><p className="eyebrow">PROFILE</p><h2>Your details</h2></div><User size={20}/></div><form onSubmit={saveProfile}><label>Full Name<input value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})} placeholder="Your name"/></label><label>Phone<input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="03xx..."/></label><label>Email<input value={user.email||''} disabled/></label><button className="gold-btn" disabled={saving}>{saving?'Saving...':'Save Profile'}</button>{message&&<p className="review-message">{message}</p>}</form></section><section><div className="section-heading"><div><p className="eyebrow">ORDERS</p><h2>Order History</h2></div><Link className="text-link" to="/shop">Shop more <ArrowRight size={15}/></Link></div>{loading?<div className="mini-empty">Orders load ho rahe hain...</div>:orders.length?<div className="account-orders">{orders.map(o=><div className="account-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{String(o.status||'pending').replaceAll('_',' ')}</em></div></div>)}</div>:<EmptyState title="No Orders Yet" text="Aapki placed orders yahan appear hongi." action="Start Shopping" to="/shop" icon={ShoppingCart}/>}</section></div></div></main>;
+  const [form,setForm]=useState({
+    full_name:profile?.full_name||"",
+    phone:profile?.phone||""
+  });
+
+  useEffect(()=>{
+    setForm({
+      full_name:profile?.full_name||"",
+      phone:profile?.phone||""
+    })
+  },[profile]);
+
+  useEffect(()=>{
+    if(!user){
+      setLoading(false);
+      return;
+    }
+
+    (async()=>{
+      const {data,error}=await supabase
+        .from('orders')
+        .select('*')
+        .eq('user_id',user.id)
+        .order('created_at',{ascending:false});
+
+      if(error) console.error(error);
+      else setOrders(data||[]);
+
+      setLoading(false);
+    })()
+  },[user]);
+
+  const saveProfile=async e=>{
+    e.preventDefault();
+    setSaving(true);
+    setMessage('');
+
+    const {error}=await supabase
+      .from('profiles')
+      .update({
+        full_name:form.full_name.trim(),
+        phone:form.phone.trim()
+      })
+      .eq('id',user.id);
+
+    if(error){
+      setMessage(error.message);
+    }else{
+      setMessage('Profile update ho gaya.');
+      refreshProfile();
+    }
+
+    setSaving(false)
+  };
+
+  if(!user) return (
+    <main className="page container">
+      <EmptyState
+        title="Login Required"
+        text="Apni profile aur order history dekhne ke liye customer account mein login karein."
+        action="Login"
+        to="/login"
+        icon={User}
+      />
+    </main>
+  );
+
+  return (
+    <main className="page">
+      <div className="container">
+
+        <div className="page-head">
+          <div>
+            <p className="eyebrow">MY ACCOUNT</p>
+            <h1>{profile?.full_name||'Account'}</h1>
+            <p>{user.email}</p>
+          </div>
+
+          <button
+            className="ghost-btn"
+            onClick={async ()=>{
+              await signOut();
+            }}
+          >
+            <LogOut size={16}/>
+            Logout
+          </button>
+        </div>
+
+        <div className="account-grid">
+
+          <section className="form-card">
+            <div className="panel-head-row">
+              <div>
+                <p className="eyebrow">PROFILE</p>
+                <h2>Your details</h2>
+              </div>
+              <User size={20}/>
+            </div>
+
+            <form onSubmit={saveProfile}>
+              <label>
+                Full Name
+                <input
+                  value={form.full_name}
+                  onChange={e=>setForm({
+                    ...form,
+                    full_name:e.target.value
+                  })}
+                  placeholder="Your name"
+                />
+              </label>
+
+              <label>
+                Phone
+                <input
+                  value={form.phone}
+                  onChange={e=>setForm({
+                    ...form,
+                    phone:e.target.value
+                  })}
+                  placeholder="03xx..."
+                />
+              </label>
+
+              <label>
+                Email
+                <input
+                  value={user.email||''}
+                  disabled
+                />
+              </label>
+
+              <button
+                className="gold-btn"
+                disabled={saving}
+              >
+                {saving?'Saving...':'Save Profile'}
+              </button>
+
+              {message&&(
+                <p className="review-message">
+                  {message}
+                </p>
+              )}
+            </form>
+          </section>
+
+          <section>
+
+            {/* ORDER TRACKER */}
+            <div className="account-track-card">
+              <div>
+                <p className="eyebrow">ORDER TRACKING</p>
+                <h2>Track Your Order</h2>
+                <p>
+                  Apna order number enter karke latest order status aur delivery progress dekhein.
+                </p>
+              </div>
+
+              <Link
+                className="gold-btn"
+                to="/track-order"
+              >
+                Track Order
+                <ArrowRight size={17}/>
+              </Link>
+            </div>
+
+            {/* ORDER HISTORY */}
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">ORDERS</p>
+                <h2>Order History</h2>
+              </div>
+
+              <Link
+                className="text-link"
+                to="/shop"
+              >
+                Shop more
+                <ArrowRight size={15}/>
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="mini-empty">
+                Orders load ho rahe hain...
+              </div>
+            ) : orders.length ? (
+              <div className="account-orders">
+                {orders.map(o=>(
+                  <div
+                    className="account-order"
+                    key={o.id}
+                  >
+                    <div>
+                      <strong>
+                        {o.order_number||o.id.slice(0,8)}
+                      </strong>
+
+                      <span>
+                        {new Date(
+                          o.created_at
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div>
+                      <b>
+                        Rs. {Number(
+                          o.total||0
+                        ).toLocaleString()}
+                      </b>
+
+                      <em
+                        className={`status status-${o.status}`}
+                      >
+                        {String(
+                          o.status||'pending'
+                        ).replaceAll('_',' ')}
+                      </em>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No Orders Yet"
+                text="Aapki placed orders yahan appear hongi."
+                action="Start Shopping"
+                to="/shop"
+                icon={ShoppingCart}
+              />
+            )}
+
+          </section>
+
+        </div>
+      </div>
+    </main>
+  );
 }
 function OrderTracker() {
   const { user } = useAuth();
@@ -3995,5 +4220,5 @@ function AdminReviews(){
 
 function AdminPlaceholder({title,icon:Icon=Settings}){return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN</p><h1>{title}</h1><p>Is module ka workflow abhi next phase mein expand hoga.</p></div></div><EmptyState title={`${title} is empty`} text="No dummy records have been added." icon={Icon}/></AdminLayout>}
 
-export default function App(){ return <AuthProvider><StoreProvider><div className="app"><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
+export default function App(){ return <AuthProvider><StoreProvider><div className="app"><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
 <Route path="/reset-password" element={<ResetPassword/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminPlaceholder title="Settings"/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }
