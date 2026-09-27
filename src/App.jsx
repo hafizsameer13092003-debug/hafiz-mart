@@ -124,74 +124,76 @@ function Navbar() {
   const closeMenu = () => setOpen(false);
 
   const slugify = (value = "") =>
-    value
-      .toLowerCase()
-      .trim()
-      .replace(/['’]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
-  const getMenuCategory = (label, categorySlug) => {
-    const category = store.categories.find(
-      c => slugify(c.name) === categorySlug
-    );
+const getMenuCategory = (label, categorySlug) => {
+  const category = store.categories.find(
+    c => slugify(c.name || "") === categorySlug
+  );
 
-    const productCount = category
-      ? store.products.filter(
-          product =>
-            product.status !== "inactive" &&
-            product.categoryId === category.id
-        ).length
-      : 0;
+  const productCount = category
+    ? store.products.filter(
+        product =>
+          product.status !== "inactive" &&
+          product.categoryId === category.id
+      ).length
+    : 0;
 
-    return {
-      label,
-      categorySlug,
-      productCount,
-      available: Boolean(category && productCount > 0),
-      path: category
-        ? `/shop?category=${encodeURIComponent(category.name)}`
-        : "#"
-    };
+  return {
+    label,
+    categorySlug,
+    productCount,
+    available: Boolean(category && productCount > 0),
+    path: category
+      ? `/shop?category=${encodeURIComponent(category.name)}`
+      : "#"
   };
+};
+const menuGroups = [
+  {
+    title: "Women's",
+    items: [
+      getMenuCategory("Women's New Arrivals", "womens-new-arrivals"),
+      getMenuCategory("Women's Trending", "womens-trending"),
+      getMenuCategory("Women's Modern Wear", "womens-modern-wear"),
+      getMenuCategory("Women's Accessories", "womens-accessories")
+    ]
+  },
 
-  const menuGroups = [
-    {
-      title: "Women's",
-      items: [
-        getMenuCategory("New Arrivals", "womens-new-arrivals"),
-        getMenuCategory("Trending", "womens-trending"),
-        getMenuCategory("Modern Wear", "womens-modern-wear"),
-        getMenuCategory("Accessories", "womens-accessories")
-      ]
-    },
-    {
-      title: "Men's",
-      items: [
-        getMenuCategory("New Arrivals", "mens-new-arrivals"),
-        getMenuCategory("Trending", "mens-trending"),
-        getMenuCategory("Modern Wear", "mens-modern-wear"),
-        getMenuCategory("Accessories", "mens-accessories")
-      ]
-    },
-    {
-      title: "Fragrances",
-      items: [
-        getMenuCategory("Men's Fragrances", "mens-fragrances"),
-        getMenuCategory("Women's Fragrances", "womens-fragrances"),
-        getMenuCategory("Unisex Fragrances", "unisex-fragrances")
-      ]
-    },
-    {
-      title: "Other",
-      items: [
-        getMenuCategory("Mobile Accessories", "mobile-accessories"),
-        getMenuCategory("Car Accessories", "car-accessories"),
-        getMenuCategory("Home Accessories", "home-accessories"),
-        getMenuCategory("Other Products", "other-products")
-      ]
-    }
-  ];
+  {
+    title: "Men's",
+    items: [
+      getMenuCategory("Men's New Arrivals", "mens-new-arrivals"),
+      getMenuCategory("Men's Trending", "mens-trending"),
+      getMenuCategory("Men's Modern Wear", "mens-modern-wear"),
+      getMenuCategory("Men's Accessories", "mens-accessories")
+    ]
+  },
+
+  {
+    title: "Fragrances",
+    items: [
+      getMenuCategory("Men's Fragrances", "mens-fragrances"),
+      getMenuCategory("Women's Fragrances", "womens-fragrances"),
+      getMenuCategory("Unisex Fragrances", "unisex-fragrances")
+    ]
+  },
+
+  {
+    title: "Other",
+    items: [
+      getMenuCategory("Mobile Accessories", "mobile-accessories"),
+      getMenuCategory("Car Accessories", "car-accessories"),
+      getMenuCategory("Home Accessories", "home-accessories"),
+      getMenuCategory("Other Products", "other-products")
+    ]
+  }
+];
 
   return (
     <>
@@ -925,7 +927,19 @@ function Shop() {
   const [filtersOpen,setFiltersOpen]=useState(false);
   const reset=()=>{setQuery("");setCategory("");setSort("newest");setMinPrice("");setMaxPrice("");setSaleOnly(false);setInStock(false)};
   let products=store.products.filter(p=>p.status!=="inactive")
-    .filter(p=>!category||p.category===category)
+    .filter(p => {
+  if (!category) return true;
+
+  const selectedCategory = store.categories.find(
+    c =>
+      c.name?.trim().toLowerCase() ===
+      category.trim().toLowerCase()
+  );
+
+  return selectedCategory
+    ? p.categoryId === selectedCategory.id
+    : false;
+})
     .filter(p=>!query||`${p.name} ${p.brand||""} ${p.sku||""} ${p.shortDescription||""}`.toLowerCase().includes(query.toLowerCase()))
     .filter(p=>!minPrice||Number(p.salePrice||p.price)>=Number(minPrice))
     .filter(p=>!maxPrice||Number(p.salePrice||p.price)<=Number(maxPrice))
@@ -2827,7 +2841,163 @@ function ProductImageUploader({images, setImages}){
 
 function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore(); const editing=Boolean(id); const existing=store.products.find(p=>p.id===id); const [form,setForm]=useState({name:'',sku:'',categoryId:'',brand:'',shortDescription:'',description:'',price:'',salePrice:'',stock:'',status:'active'}); const [images,setImages]=useState([]); const [busy,setBusy]=useState(false); const navigate=useNavigate(); useEffect(()=>{if(existing){let gallery=Array.isArray(existing.images)?existing.images:[];if(existing.image&&!gallery.includes(existing.image))gallery=[existing.image,...gallery];setForm({name:existing.name||'',sku:existing.sku||'',categoryId:existing.categoryId||'',brand:existing.brand||'',shortDescription:existing.shortDescription||'',description:existing.description||'',price:existing.price||'',salePrice:existing.salePrice||'',stock:existing.stock||0,status:existing.status||'active'});setImages(gallery)}},[existing]); const submit=async e=>{e.preventDefault();setBusy(true); const cleanImages=images.filter(Boolean); const slug=(form.name||'product').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+(id||crypto.randomUUID().slice(0,8)); const payload={name:form.name,slug,sku:form.sku||null,category_id:form.categoryId||null,brand:form.brand||null,short_description:form.shortDescription||null,description:form.description||null,price:Number(form.price||0),sale_price:form.salePrice?Number(form.salePrice):null,stock_quantity:Number(form.stock||0),main_image:cleanImages[0]||null,images:cleanImages,status:form.status}; const result=editing?await supabase.from('products').update(payload).eq('id',id).select().single():await supabase.from('products').insert(payload).select().single(); if(result.error) alert(result.error.message); else {await refresh();navigate('/admin/products');} setBusy(false);}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data ab directly Supabase database mein save hogi.</p></div></div><form className="admin-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
 
-function AdminCategories(){ const {store,refresh}=useStore(); const [name,setName]=useState(''); const add=async e=>{e.preventDefault();if(!name.trim())return;const slug=name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');const {error}=await supabase.from('categories').insert({name:name.trim(),slug}).select().single();if(error)alert(error.message);else{setName('');refresh();}}; const remove=async id=>{if(!confirm('Delete this category?'))return;const {error}=await supabase.from('categories').delete().eq('id',id);if(error)alert(error.message);else refresh();}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Categories</h1><p>Create and manage database categories.</p></div></div><form className="inline-form" onSubmit={add}><input value={name} onChange={e=>setName(e.target.value)} placeholder="New category name"/><button className="gold-btn"><Plus size={17}/> Add Category</button></form>{store.categories.length?<div className="simple-list">{store.categories.map(c=><div key={c.id}><div><Tag size={17}/><strong>{c.name}</strong><span>{store.products.filter(p=>p.categoryId===c.id).length} products</span></div><button onClick={()=>remove(c.id)}><Trash2 size={16}/></button></div>)}</div>:<EmptyState title="No Categories Yet" text="First category create karne ke liye upar form use karein." icon={Tag}/>}</AdminLayout>; }
+function AdminCategories() {
+  const { store, refresh } = useStore();
+
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const slugify = (value = "") =>
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/['’]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  const add = async (e) => {
+    e.preventDefault();
+
+    const cleanName = name.trim();
+
+    if (!cleanName) {
+      alert("Category name enter karein.");
+      return;
+    }
+
+    const slug = slugify(cleanName);
+
+    if (!slug) {
+      alert("Valid category name enter karein.");
+      return;
+    }
+
+    const existing = store.categories.find(
+      c =>
+        slugify(c.name || "") === slug ||
+        String(c.slug || "").toLowerCase() === slug
+    );
+
+    if (existing) {
+      alert(
+        `Ye category already exist karti hai: "${existing.name}"`
+      );
+      return;
+    }
+
+    setBusy(true);
+
+    const { error } = await supabase
+      .from("categories")
+      .insert({
+        name: cleanName,
+        slug
+      });
+
+    if (error) {
+      console.error("Category create error:", error);
+
+      alert(
+        `Category create nahi ho saki.\n\n${error.message}`
+      );
+
+      setBusy(false);
+      return;
+    }
+
+    setName("");
+
+    await refresh();
+
+    setBusy(false);
+  };
+
+  const remove = async (id) => {
+    if (!confirm("Delete this category?")) return;
+
+    const { error } = await supabase
+      .from("categories")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await refresh();
+  };
+
+  return (
+    <AdminLayout>
+      <div className="admin-head">
+        <div>
+          <p className="eyebrow">CATALOG</p>
+          <h1>Categories</h1>
+          <p>
+            Create and manage database categories.
+          </p>
+        </div>
+      </div>
+
+      <form
+        className="inline-form"
+        onSubmit={add}
+      >
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="New category name"
+          disabled={busy}
+        />
+
+        <button
+          className="gold-btn"
+          type="submit"
+          disabled={busy}
+        >
+          <Plus size={17} />
+          {busy ? "Creating..." : "Add Category"}
+        </button>
+      </form>
+
+      {store.categories.length ? (
+        <div className="simple-list">
+          {store.categories.map(c => (
+            <div key={c.id}>
+              <div>
+                <Tag size={17} />
+
+                <strong>{c.name}</strong>
+
+                <span>
+                  {
+                    store.products.filter(
+                      p => p.categoryId === c.id
+                    ).length
+                  } products
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => remove(c.id)}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="No Categories Yet"
+          text="First category create karne ke liye upar form use karein."
+          icon={Tag}
+        />
+      )}
+    </AdminLayout>
+  );
+}
 
 function BannerImageUploader({value,setValue}){
   const [busy,setBusy]=useState(false); const [error,setError]=useState('');
