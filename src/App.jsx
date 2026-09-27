@@ -102,30 +102,291 @@ function WhatsAppButton() {
 }
 
 function Navbar() {
-  const { store, cartItems } = useStore(); const { user } = useAuth();
+  const { store, cartItems } = useStore();
+  const { user } = useAuth();
+
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+
   const navigate = useNavigate();
-  const search = (e) => { e.preventDefault(); if (query.trim()) { navigate(`/shop?search=${encodeURIComponent(query.trim())}`); setSearchOpen(false); setOpen(false); } };
-  return <>
-    <header className="navbar">
-      <div className="container nav-inner">
-        <Link to="/" className="brand" onClick={() => setOpen(false)}><img src={logo} alt="Hafiz Mart" /></Link>
-        <nav className={`nav-links ${open ? "open" : ""}`}>
-          <Link to="/" onClick={() => setOpen(false)}>Home</Link><Link to="/shop" onClick={() => setOpen(false)}>Shop</Link><Link to="/categories" onClick={() => setOpen(false)}>Categories</Link><Link to="/deals" onClick={() => setOpen(false)}>Deals</Link>
-        </nav>
-        <div className="nav-actions">
-          <button aria-label="Search" onClick={() => setSearchOpen(v=>!v)}><Search size={19}/></button>
-          <Link to="/wishlist" aria-label="Wishlist"><Heart size={19}/><span className="nav-count">{store.wishlist.length}</span></Link>
-          <Link to="/cart" className="cart-icon" aria-label="Cart"><ShoppingBag size={20}/><span>{cartItems.reduce((n,x)=>n+x.qty,0)}</span></Link>
-          <Link to={user?"/account":"/login"} aria-label="Account"><User size={19}/></Link>
-          <button className="menu-btn" onClick={() => setOpen(!open)} aria-label="Menu">{open ? <X size={22}/> : <Menu size={22}/>}</button>
+
+  const search = (e) => {
+    e.preventDefault();
+
+    if (query.trim()) {
+      navigate(`/shop?search=${encodeURIComponent(query.trim())}`);
+      setSearchOpen(false);
+      setOpen(false);
+    }
+  };
+
+  const closeMenu = () => setOpen(false);
+
+  const menuGroups = [
+    {
+      title: "Women's",
+      items: [
+        ["New Arrivals", "/shop?category=womens-new-arrivals"],
+        ["Trending", "/shop?category=womens-trending"],
+        ["Modern Wear", "/shop?category=womens-modern-wear"],
+        ["Accessories", "/shop?category=womens-accessories"],
+      ],
+    },
+    {
+      title: "Men's",
+      items: [
+        ["New Arrivals", "/shop?category=mens-new-arrivals"],
+        ["Trending", "/shop?category=mens-trending"],
+        ["Modern Wear", "/shop?category=mens-modern-wear"],
+        ["Accessories", "/shop?category=mens-accessories"],
+      ],
+    },
+    {
+      title: "Fragrances",
+      items: [
+        ["Men's Fragrances", "/shop?category=mens-fragrances"],
+        ["Women's Fragrances", "/shop?category=womens-fragrances"],
+        ["Unisex Fragrances", "/shop?category=unisex-fragrances"],
+      ],
+    },
+    {
+      title: "Other",
+      items: [
+        ["Mobile Accessories", "/shop?category=mobile-accessories"],
+        ["Car Accessories", "/shop?category=car-accessories"],
+        ["Home Accessories", "/shop?category=home-accessories"],
+        ["Other Products", "/shop?category=other"],
+      ],
+    },
+  ];
+
+  return (
+    <>
+      <header className="navbar">
+        <div className="container nav-inner">
+
+          {/* Logo */}
+          <Link
+            to="/"
+            className="brand"
+            onClick={closeMenu}
+          >
+            <img src={logo} alt="Hafiz Mart" />
+          </Link>
+
+          {/* Desktop Navigation */}
+          <nav className="nav-links">
+
+            <Link to="/" onClick={closeMenu}>
+              Home
+            </Link>
+
+            <Link to="/shop" onClick={closeMenu}>
+              Shop
+            </Link>
+
+            <div className="nav-dropdown">
+              <button type="button">
+                Categories
+              </button>
+
+              <div className="nav-dropdown-menu">
+                {menuGroups.map((group) => (
+                  <div className="nav-dropdown-column" key={group.title}>
+                    <strong>{group.title}</strong>
+
+                    {group.items.map(([label, path]) => (
+                      <Link
+                        key={label}
+                        to={path}
+                        onClick={closeMenu}
+                      >
+                        {label}
+                      </Link>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Link to="/deals" onClick={closeMenu}>
+              Deals
+            </Link>
+
+          </nav>
+
+          {/* Actions */}
+          <div className="nav-actions">
+
+            <button
+              type="button"
+              aria-label="Search"
+              onClick={() => setSearchOpen(v => !v)}
+            >
+              <Search size={19} />
+            </button>
+
+            <Link
+              to="/wishlist"
+              aria-label="Wishlist"
+              onClick={closeMenu}
+            >
+              <Heart size={19} />
+              <span className="nav-count">
+                {store.wishlist.length}
+              </span>
+            </Link>
+
+            <Link
+              to="/cart"
+              className="cart-icon"
+              aria-label="Cart"
+              onClick={closeMenu}
+            >
+              <ShoppingBag size={20} />
+              <span>
+                {cartItems.reduce((n, x) => n + x.qty, 0)}
+              </span>
+            </Link>
+
+            <Link
+              to={user ? "/account" : "/login"}
+              aria-label="Account"
+              onClick={closeMenu}
+            >
+              <User size={19} />
+            </Link>
+
+            {/* Mobile Menu */}
+            <button
+              type="button"
+              className="menu-btn"
+              onClick={() => setOpen(v => !v)}
+              aria-label="Menu"
+              aria-expanded={open}
+            >
+              {open ? <X size={22} /> : <Menu size={22} />}
+            </button>
+
+          </div>
         </div>
-      </div>
-      <AnimatePresence>{searchOpen && <motion.form className="search-panel" onSubmit={search} initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}}><div className="container search-box"><Search size={18}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products..."/><button type="submit">Search</button></div></motion.form>}</AnimatePresence>
-    </header>
-  </>;
+
+        {/* Mobile Menu Panel */}
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              className="mobile-menu"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+            >
+              <div className="container mobile-menu-inner">
+
+                <Link to="/" onClick={closeMenu}>
+                  Home
+                </Link>
+
+                <Link to="/shop" onClick={closeMenu}>
+                  Shop All
+                </Link>
+
+                <div className="mobile-menu-section">
+                  <strong>Women's</strong>
+
+                  {menuGroups[0].items.map(([label, path]) => (
+                    <Link
+                      key={label}
+                      to={path}
+                      onClick={closeMenu}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+
+                <div className="mobile-menu-section">
+                  <strong>Men's</strong>
+
+                  {menuGroups[1].items.map(([label, path]) => (
+                    <Link
+                      key={label}
+                      to={path}
+                      onClick={closeMenu}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+
+                <div className="mobile-menu-section">
+                  <strong>Fragrances</strong>
+
+                  {menuGroups[2].items.map(([label, path]) => (
+                    <Link
+                      key={label}
+                      to={path}
+                      onClick={closeMenu}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+
+                <div className="mobile-menu-section">
+                  <strong>Other</strong>
+
+                  {menuGroups[3].items.map(([label, path]) => (
+                    <Link
+                      key={label}
+                      to={path}
+                      onClick={closeMenu}
+                    >
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+
+                <Link to="/deals" onClick={closeMenu}>
+                  Deals
+                </Link>
+
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Search */}
+        <AnimatePresence>
+          {searchOpen && (
+            <motion.form
+              className="search-panel"
+              onSubmit={search}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+            >
+              <div className="container search-box">
+                <Search size={18} />
+
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search products..."
+                />
+
+                <button type="submit">
+                  Search
+                </button>
+              </div>
+            </motion.form>
+          )}
+        </AnimatePresence>
+
+      </header>
+    </>
+  );
 }
 
 function SaleBanner() {
@@ -154,11 +415,117 @@ function ProductCard({ product, onToast }) {
 function Home() {
   const { store } = useStore(); const [toast,setToast]=useState("");
   const products = store.products.filter(p=>p.status !== "inactive").slice(0,4);
+  const trendingProducts = store.products.filter(p => p.status !== "inactive").slice(0,8);
+  const newArrivals = [...store.products]
+  .filter(p => p.status !== "inactive")
+  .reverse()
+  .slice(0,8);
   const cats = store.categories.slice(0,6);
   return <><SaleBanner/><main>
     <section className="hero"><div className="hero-glow"/><div className="container hero-grid"><motion.div className="hero-copy" initial={{opacity:0,x:-25}} animate={{opacity:1,x:0}} transition={{duration:.6}}><p className="eyebrow">WELCOME TO HAFIZ MART</p><h1>Your trusted place for <span>better shopping.</span></h1><p className="hero-text">A modern online store built to grow with your business. Products, offers and orders — all managed from one place.</p><div className="hero-buttons"><Link className="gold-btn" to="/shop">Explore Shop <ArrowRight size={18}/></Link><Link className="ghost-btn" to="/categories">Browse Categories</Link></div></motion.div><motion.div className="hero-card" initial={{opacity:0,scale:.95}} animate={{opacity:1,scale:1}} transition={{duration:.7}}><img src={logo} alt="Hafiz Mart logo"/><div><span>NEW STORE</span><strong>{store.products.length ? `${store.products.length} products live` : "Ready for your first product."}</strong></div></motion.div></div></section>
-    <section className="section container"><div className="section-heading"><div><p className="eyebrow">SHOP</p><h2>Featured Products</h2></div>{products.length>0&&<Link className="text-link" to="/shop">View all <ArrowRight size={15}/></Link>}</div>{products.length ? <div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p} onToast={setToast}/>)}</div> : <EmptyState title="No Products Yet" text="Your store is fresh and empty. Add your first product from the admin panel and it will appear here." action="Open Admin" to="/admin"/>}</section>
-    <section className="section section-soft"><div className="container"><div className="section-heading"><div><p className="eyebrow">DISCOVER</p><h2>Categories</h2></div>{cats.length>0&&<Link className="text-link" to="/categories">View all <ArrowRight size={15}/></Link>}</div>{cats.length ? <div className="category-grid">{cats.map(c=><Link className="category-card" key={c.id} to={`/shop?category=${encodeURIComponent(c.name)}`}><div><Tag size={19}/></div><strong>{c.name}</strong><span>{store.products.filter(p=>p.category===c.name).length} products</span></Link>)}</div> : <EmptyState title="No Categories Yet" text="Create your first category from the admin panel to start organizing your store." action="Manage Categories" to="/admin/categories" icon={Tag}/>}</div></section>
+    <section className="section container"><div className="section-heading"><div><p className="eyebrow">SHOP</p><h2>Featured Products</h2></div>{products.length>0&&<Link className="text-link" to="/shop">View all <ArrowRight size={15}/></Link>}</div>{products.length ? <div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p} onToast={setToast}/>)}</div> : <EmptyState title="No Products Yet" text="Your store is fresh and empty. Add your first product from the admin panel and it will appear here." action="Open Admin" to="/admin"/>}</section><section className="section container">
+
+  <div className="section-heading">
+    <div>
+      <p className="eyebrow">TRENDING</p>
+      <h2>Trending Products</h2>
+    </div>
+
+    <Link className="text-link" to="/shop">
+      View all <ArrowRight size={15}/>
+    </Link>
+  </div>
+
+  {trendingProducts.length ? (
+    <div className="product-grid">
+      {trendingProducts.map(p=>(
+        <ProductCard
+          key={p.id}
+          product={p}
+          onToast={setToast}
+        />
+      ))}
+    </div>
+  ) : (
+    <EmptyState
+      title="No Trending Products"
+      text="Products will appear here."
+    />
+  )}
+
+</section><section className="section container">
+
+  <div className="section-heading">
+    <div>
+      <p className="eyebrow">NEW</p>
+      <h2>New Arrivals</h2>
+    </div>
+
+    <Link className="text-link" to="/shop">
+      View all <ArrowRight size={15}/>
+    </Link>
+  </div>
+
+  {newArrivals.length ? (
+    <div className="product-grid">
+      {newArrivals.map(p => (
+        <ProductCard
+          key={p.id}
+          product={p}
+          onToast={setToast}
+        />
+      ))}
+    </div>
+  ) : (
+    <EmptyState
+      title="No New Arrivals"
+      text="Products will appear here."
+    />
+  )}
+
+</section><section className="section section-soft"><div className="container"><div className="section-heading"><div><p className="eyebrow">DISCOVER</p><h2>Categories</h2></div>{cats.length>0&&<Link className="text-link" to="/categories">View all <ArrowRight size={15}/></Link>}</div>{cats.length ? (
+  <div className="category-grid">
+    {cats.map((c,index)=>(
+      <Link
+        className="category-card"
+        key={c.id}
+        to={`/shop?category=${encodeURIComponent(c.name)}`}
+      >
+
+        <div className="category-number">
+          {(index+1).toString().padStart(2,"0")}
+        </div>
+
+        <div className="category-icon">
+          <Tag size={22}/>
+        </div>
+
+        <strong>{c.name}</strong>
+
+        <small>
+          Explore our latest collection
+        </small>
+
+        <div className="category-footer">
+          <span>
+            {store.products.filter(p=>p.category===c.name).length} Products
+          </span>
+
+          <ArrowRight size={18}/>
+        </div>
+
+      </Link>
+    ))}
+  </div>
+) : (
+  <EmptyState
+    title="No Categories Yet"
+    text="Create your first category from the admin panel to start organizing your store."
+    action="Manage Categories"
+    to="/admin/categories"
+    icon={Tag}
+  />
+)}</div></section>
     <section className="trust-section container"><div><strong>Secure & Simple</strong><span>Built for a clean shopping experience.</span></div><div><strong>WhatsApp Ordering</strong><span>Customers can order directly through WhatsApp.</span></div><div><strong>Ready to Grow</strong><span>Payments and advanced features can be added later.</span></div></section>
   </main><Toast message={toast} onClose={()=>setToast("")}/></>;
 }
@@ -218,75 +585,1739 @@ function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const deliv
 function Checkout(){
   const { cartItems, subtotal, update } = useStore();
   const { user } = useAuth();
+
+  const [step,setStep]=useState(1);
+
   const [form,setForm]=useState({
-    name:'',
-    phone:'',
     email:user?.email||'',
-    address:'',
-    city:''
-});
-const [paymentMethod,setPaymentMethod]=useState('');
-  const [couponCode,setCouponCode]=useState(''); const [coupon,setCoupon]=useState(null);
-  const [busy,setBusy]=useState(false); const [couponBusy,setCouponBusy]=useState(false); const [error,setError]=useState(''); const [couponError,setCouponError]=useState(''); const [order,setOrder]=useState(null);
-  const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||'923000000000';
-  useEffect(()=>{ if(user?.email) setForm(f=>({...f,email:f.email||user.email})); },[user]);
+    firstName:'',
+    lastName:'',
+    phone:'',
+    address1:'',
+    address2:'',
+    country:'Pakistan',
+    province:'',
+    city:'',
+    postalCode:''
+  });
+
+  const [billingSame,setBillingSame]=useState(true);
+
+  const [billing,setBilling]=useState({
+    address1:'',
+    address2:'',
+    country:'Pakistan',
+    province:'',
+    city:'',
+    postalCode:''
+  });
+
+  const [deliveryMethod,setDeliveryMethod]=useState('standard');
+  const [paymentMethod,setPaymentMethod]=useState('');
+
+  const [card,setCard]=useState({
+    name:'',
+    number:'',
+    expiry:'',
+    cvv:''
+  });
+
+  const [couponCode,setCouponCode]=useState('');
+  const [coupon,setCoupon]=useState(null);
+
+  const [busy,setBusy]=useState(false);
+  const [couponBusy,setCouponBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [couponError,setCouponError]=useState('');
+  const [order,setOrder]=useState(null);
+
+  const waNumber=
+    import.meta.env.VITE_WHATSAPP_NUMBER||'923000000000';
+
+  const provinces={
+    Punjab:[
+      'Multan',
+      'Lahore',
+      'Faisalabad',
+      'Rawalpindi',
+      'Gujranwala',
+      'Sialkot',
+      'Bahawalpur',
+      'Sargodha',
+      'Gujrat',
+      'Rahim Yar Khan'
+    ],
+
+    Sindh:[
+      'Karachi',
+      'Hyderabad',
+      'Sukkur',
+      'Larkana',
+      'Nawabshah',
+      'Mirpur Khas'
+    ],
+
+    'Khyber Pakhtunkhwa':[
+      'Peshawar',
+      'Mardan',
+      'Abbottabad',
+      'Mingora',
+      'Kohat',
+      'Dera Ismail Khan'
+    ],
+
+    Balochistan:[
+      'Quetta',
+      'Gwadar',
+      'Turbat',
+      'Khuzdar',
+      'Chaman',
+      'Sibi'
+    ],
+
+    'Islamabad Capital Territory':[
+      'Islamabad'
+    ],
+
+    'Gilgit-Baltistan':[
+      'Gilgit',
+      'Skardu',
+      'Hunza'
+    ],
+
+    'Azad Jammu and Kashmir':[
+      'Muzaffarabad',
+      'Mirpur',
+      'Rawalakot'
+    ]
+  };
+
+  useEffect(()=>{
+    if(user?.email){
+      setForm(f=>({
+        ...f,
+        email:f.email||user.email
+      }));
+    }
+  },[user]);
+
+  const updateField=(key,value)=>{
+    setForm(f=>({
+      ...f,
+      [key]:value
+    }));
+  };
+
+  const updateBilling=(key,value)=>{
+    setBilling(b=>({
+      ...b,
+      [key]:value
+    }));
+  };
+
+  const deliveryFee=
+    form.city.trim().toLowerCase()==='multan'
+      ? 270
+      : 300;
+
+  const discount=
+    Number(coupon?.discount||0);
+
+  const total=
+    Math.max(
+      0,
+      subtotal-discount+deliveryFee
+    );
+
+  const validateWhatsApp=(phone)=>{
+    const cleaned=
+      phone.replace(/[\s\-()]/g,'');
+
+    return /^(?:\+92|0092|92|0)3\d{9}$/.test(cleaned);
+  };
+
+  const formatCardNumber=(value)=>{
+    const digits=
+      value.replace(/\D/g,'').slice(0,16);
+
+    return digits.replace(
+      /(.{4})/g,
+      '$1 '
+    ).trim();
+  };
+
+  const formatExpiry=(value)=>{
+    const digits=
+      value.replace(/\D/g,'').slice(0,4);
+
+    if(digits.length>2){
+      return `${digits.slice(0,2)}/${digits.slice(2)}`;
+    }
+
+    return digits;
+  };
+
   const applyCoupon=async()=>{
-    setCouponBusy(true); setCouponError(''); setCoupon(null);
-    if(!couponCode.trim()){setCouponError('Coupon code enter karein.');setCouponBusy(false);return;}
-    const {data,error}=await supabase.rpc('validate_hafiz_coupon',{p_code:couponCode.trim(),p_subtotal:subtotal});
-    const result=Array.isArray(data)?data[0]:data;
-    if(error){setCouponError(error.message);} else if(!result || Number(result.discount||0)<=0){setCouponError(result?.message||'Coupon apply nahi hua.');} else {setCoupon({code:result.coupon_code||result.code||couponCode.trim().toUpperCase(),discount:Number(result.discount||0)});}
+    setCouponBusy(true);
+    setCouponError('');
+    setCoupon(null);
+
+    if(!couponCode.trim()){
+      setCouponError(
+        'Coupon code enter karein.'
+      );
+      setCouponBusy(false);
+      return;
+    }
+
+    const {
+      data,
+      error
+    }=await supabase.rpc(
+      'validate_hafiz_coupon',
+      {
+        p_code:couponCode.trim(),
+        p_subtotal:subtotal
+      }
+    );
+
+    const result=
+      Array.isArray(data)
+        ? data[0]
+        : data;
+
+    if(error){
+      setCouponError(error.message);
+    }else if(
+      !result ||
+      Number(result.discount||0)<=0
+    ){
+      setCouponError(
+        result?.message||
+        'Coupon apply nahi hua.'
+      );
+    }else{
+      setCoupon({
+        code:
+          result.coupon_code||
+          result.code||
+          couponCode
+            .trim()
+            .toUpperCase(),
+
+        discount:
+          Number(result.discount||0)
+      });
+    }
+
     setCouponBusy(false);
   };
-  const discount=Number(coupon?.discount||0); const total=Math.max(0,subtotal-discount);
-  if(order) return <main className="page container"><EmptyState title="Order Placed Successfully" text={`Aapka order ${order.order_number} successfully create ho gaya hai. WhatsApp mein order details bhi open ho rahi hain.`} action="Continue Shopping" to="/shop" icon={Check}/><div className="order-success-card"><span>ORDER NUMBER</span><strong>{order.order_number}</strong><small>Total: Rs. {Number(order.total).toLocaleString()}</small></div></main>;
-  if(!cartItems.length) return <main className="page container"><EmptyState title="Cart Empty" text="Checkout se pehle cart mein product add karein." action="Go to Shop" to="/shop"/> </main>;
-  const submit=async e=>{
-    e.preventDefault();if (!paymentMethod) {
-  setError('Please select a payment method.');
-  return;
-} setBusy(true); setError('');
-    const items=cartItems.map(x=>({product_id:x.product.id,quantity:x.qty}));
-    const {data,error:rpcError}=await supabase.rpc('create_hafiz_order',{
-  p_customer:{
-    ...form,
-    payment_method:paymentMethod
-  },
-  p_items:items,
-  p_coupon_code:coupon?.code||null
-});
-    if(rpcError){setError(rpcError.message);setBusy(false);return;}
-    const created=Array.isArray(data)?data[0]:data;
-    if(!created){setError('Order create nahi hua. Dobara try karein.');setBusy(false);return;}
-    const lines=cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join('\n');
-   const couponLine=coupon?`\nCoupon: ${coupon.code} (-Rs. ${Number(created.discount||0).toLocaleString()})`:'';
 
-  const text=`Assalam o Alaikum, Hafiz Mart se order confirm karna hai.\n\nOrder: ${created.order_number}\nCustomer: ${form.name}\nPhone: ${form.phone}\nEmail: ${form.email||'N/A'}\nAddress: ${form.address}, ${form.city}\nPayment Method: ${paymentMethod==='cod'?'Cash on Delivery':'Cash on Delivery'}\n\n${lines}${couponLine}\n\nTotal: Rs. ${Number(created.total).toLocaleString()}`;
-    update({cart:[]}); setOrder(created); setBusy(false);
-    window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');
+  const validateStep=()=>{
+    setError('');
+
+    if(step===1){
+
+      if(!form.email.trim()){
+        setError(
+          'Email address required hai.'
+        );
+        return false;
+      }
+
+      if(
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/
+          .test(form.email)
+      ){
+        setError(
+          'Valid email address enter karein.'
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    if(step===2){
+
+      if(!form.firstName.trim()){
+        setError(
+          'First name required hai.'
+        );
+        return false;
+      }
+
+      if(!form.lastName.trim()){
+        setError(
+          'Last name required hai.'
+        );
+        return false;
+      }
+
+      if(!form.phone.trim()){
+        setError(
+          'WhatsApp number required hai.'
+        );
+        return false;
+      }
+
+      if(!validateWhatsApp(form.phone)){
+        setError(
+          'Valid Pakistani WhatsApp number enter karein. Example: 03001234567'
+        );
+        return false;
+      }
+
+      if(!form.address1.trim()){
+        setError(
+          'Address Line 1 required hai.'
+        );
+        return false;
+      }
+
+      if(!form.country){
+        setError(
+          'Country select karein.'
+        );
+        return false;
+      }
+
+      if(!form.province){
+        setError(
+          'Province select karein.'
+        );
+        return false;
+      }
+
+      if(!form.city){
+        setError(
+          'City select karein.'
+        );
+        return false;
+      }
+
+      if(!form.postalCode.trim()){
+        setError(
+          'Postal code required hai.'
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    if(step===3){
+
+      if(!deliveryMethod){
+        setError(
+          'Delivery method select karein.'
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    if(step===4){
+
+      if(!paymentMethod){
+        setError(
+          'Payment method select karein.'
+        );
+        return false;
+      }
+
+      if(paymentMethod==='card'){
+
+        if(!card.name.trim()){
+          setError(
+            'Cardholder name required hai.'
+          );
+          return false;
+        }
+
+        const cardDigits=
+          card.number.replace(/\D/g,'');
+
+        if(cardDigits.length!==16){
+          setError(
+            'Valid 16-digit card number enter karein.'
+          );
+          return false;
+        }
+
+        if(!/^\d{2}\/\d{2}$/.test(card.expiry)){
+          setError(
+            'Expiry date MM/YY format mein enter karein.'
+          );
+          return false;
+        }
+
+        if(!/^\d{3,4}$/.test(card.cvv)){
+          setError(
+            'Valid CVV enter karein.'
+          );
+          return false;
+        }
+
+        /*
+          IMPORTANT:
+          Actual card charging requires a payment gateway.
+          Card details are intentionally NOT sent to Supabase.
+        */
+
+        setError(
+          'Card payment gateway abhi connect nahi hai. Filhaal Cash on Delivery select karein.'
+        );
+
+        return false;
+      }
+
+      if(!billingSame){
+
+        if(!billing.address1.trim()){
+          setError(
+            'Billing address required hai.'
+          );
+          return false;
+        }
+
+        if(!billing.country){
+          setError(
+            'Billing country select karein.'
+          );
+          return false;
+        }
+
+        if(!billing.province){
+          setError(
+            'Billing province select karein.'
+          );
+          return false;
+        }
+
+        if(!billing.city){
+          setError(
+            'Billing city select karein.'
+          );
+          return false;
+        }
+
+        if(!billing.postalCode.trim()){
+          setError(
+            'Billing postal code required hai.'
+          );
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    return true;
   };
-  return <main className="page"><div className="container checkout-layout"><div><p className="eyebrow">CHECKOUT</p><h1>Customer Details</h1><p className="muted">Order pehle Hafiz Mart database mein save hoga, phir WhatsApp par confirmation message open hoga.</p><form className="form-card" onSubmit={submit}>{[['name','Full Name',true],['phone','Phone',true],['email','Email',false],['address','Delivery Address',true],['city','City',true]].map(([key,label,required])=><label key={key}>{label}<input required={required} type={key==='email'?'email':'text'} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})} placeholder={label}/></label>)}<div className="payment-method-box">
-  <div className="payment-method-head">
-    <div>
-      <strong>Payment Method</strong>
-      <span>Apna payment method select karein.</span>
-    </div>
+
+  const nextStep=()=>{
+    if(validateStep()){
+      setStep(
+        s=>Math.min(4,s+1)
+      );
+
+      window.scrollTo({
+        top:0,
+        behavior:'smooth'
+      });
+    }
+  };
+
+  const previousStep=()=>{
+    setError('');
+
+    setStep(
+      s=>Math.max(1,s-1)
+    );
+
+    window.scrollTo({
+      top:0,
+      behavior:'smooth'
+    });
+  };
+
+  const submit=async e=>{
+    e.preventDefault();
+
+    if(!validateStep()) return;
+
+    setBusy(true);
+    setError('');
+
+    const customerName=
+      `${form.firstName.trim()} ${form.lastName.trim()}`
+        .trim();
+
+    const fullAddress=[
+      form.address1.trim(),
+      form.address2.trim(),
+      form.city,
+      form.province,
+      form.country,
+      form.postalCode
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    const billingAddress=!billingSame
+      ? [
+          billing.address1.trim(),
+          billing.address2.trim(),
+          billing.city,
+          billing.province,
+          billing.country,
+          billing.postalCode
+        ]
+          .filter(Boolean)
+          .join(', ')
+      : fullAddress;
+
+    const items=cartItems.map(x=>({
+      product_id:x.product.id,
+      quantity:x.qty
+    }));
+
+    const {
+      data,
+      error:rpcError
+    }=await supabase.rpc(
+      'create_hafiz_order',
+      {
+        p_customer:{
+          name:customerName,
+          phone:form.phone.trim(),
+          email:form.email.trim(),
+          address:fullAddress,
+          city:form.city,
+          payment_method:paymentMethod
+        },
+
+        p_items:items,
+
+        p_coupon_code:
+          coupon?.code||null
+      }
+    );
+
+    if(rpcError){
+      setError(
+        rpcError.message
+      );
+      setBusy(false);
+      return;
+    }
+
+    const created=
+      Array.isArray(data)
+        ? data[0]
+        : data;
+
+    if(!created){
+      setError(
+        'Order create nahi hua. Dobara try karein.'
+      );
+      setBusy(false);
+      return;
+    }
+
+    const lines=
+      cartItems
+        .map(x=>
+          `• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`
+        )
+        .join('\n');
+
+    const couponLine=
+      coupon
+        ? `\nCoupon: ${coupon.code} (-Rs. ${Number(created.discount||0).toLocaleString()})`
+        : '';
+
+    const billingLine=
+      billingSame
+        ? 'Billing Address: Same as Shipping'
+        : `Billing Address: ${billingAddress}`;
+
+    const text=
+`Assalam o Alaikum, Hafiz Mart se order confirm karna hai.
+
+Order: ${created.order_number}
+
+Customer: ${customerName}
+WhatsApp: ${form.phone}
+Email: ${form.email}
+
+Shipping Address:
+${fullAddress}
+
+${billingLine}
+
+Delivery: ${form.city.toLowerCase()==='multan'?'Rs. 270':'Rs. 300'}
+Payment Method: Cash on Delivery
+
+${lines}${couponLine}
+
+Subtotal: Rs. ${Number(created.subtotal).toLocaleString()}
+Discount: Rs. ${Number(created.discount||0).toLocaleString()}
+Delivery: Rs. ${Number(created.delivery_fee||deliveryFee).toLocaleString()}
+
+Total: Rs. ${Number(created.total).toLocaleString()}`;
+
+    update({
+      cart:[]
+    });
+
+    setOrder(created);
+    setBusy(false);
+
+    window.open(
+      `https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
+
+  if(order){
+    return (
+      <main className="page container">
+
+        <EmptyState
+          title="Order Placed Successfully"
+          text={`Aapka order ${order.order_number} successfully create ho gaya hai. WhatsApp mein order details bhi open ho rahi hain.`}
+          action="Continue Shopping"
+          to="/shop"
+          icon={Check}
+        />
+
+        <div className="order-success-card">
+          <span>ORDER NUMBER</span>
+
+          <strong>
+            {order.order_number}
+          </strong>
+
+          <small>
+            Total: Rs. {
+              Number(order.total)
+                .toLocaleString()
+            }
+          </small>
+        </div>
+
+      </main>
+    );
+  }
+
+  if(!cartItems.length){
+    return (
+      <main className="page container">
+
+        <EmptyState
+          title="Cart Empty"
+          text="Checkout se pehle cart mein product add karein."
+          action="Go to Shop"
+          to="/shop"
+        />
+
+      </main>
+    );
+  }
+
+  return (
+    <main className="page">
+
+      <div className="container checkout-modern">
+
+        <div className="checkout-header">
+
+          <p className="eyebrow">
+            SECURE CHECKOUT
+          </p>
+
+          <h1>
+            Complete Your Order
+          </h1>
+
+          <p className="muted">
+            Apni information complete karein aur order place karein.
+          </p>
+
+        </div>
+
+
+      <div className="checkout-steps">
+
+  <div
+    className="checkout-progress-line"
+    aria-hidden="true"
+  >
+    <div
+      className="checkout-progress-fill"
+      style={{
+        width: `${((step - 1) / 3) * 100}%`
+      }}
+    />
   </div>
 
-  <label className={`payment-option ${paymentMethod==='cod'?'selected':''}`}>
-    <input
-      type="radio"
-      name="paymentMethod"
-      value="cod"
-      checked={paymentMethod==='cod'}
-      onChange={e=>setPaymentMethod(e.target.value)}
-    />
-    <div>
-      <strong>Cash on Delivery</strong>
-      <span>Order receive karte waqt cash payment karein.</span>
+  {[
+    [1,'Contact'],
+    [2,'Shipping'],
+    [3,'Delivery'],
+    [4,'Payment']
+  ].map(([number,label])=>(
+    <div
+      key={number}
+      className={
+        `checkout-step ${
+          step===number?'active':''
+        } ${
+          step>number?'completed':''
+        }`
+      }
+    >
+
+      <span className="checkout-step-circle">
+
+        {step>number ? (
+          <Check size={15}/>
+        ) : (
+          number
+        )}
+
+      </span>
+
+      <strong>
+        {label}
+      </strong>
+
     </div>
-  </label>
-</div><div className="coupon-box"><div><strong>Have a coupon?</strong><span>Discount code apply karein.</span></div><div className="coupon-row"><input value={couponCode} onChange={e=>{setCouponCode(e.target.value.toUpperCase());setCoupon(null);setCouponError('')}} placeholder="e.g. SAVE10"/><button type="button" className="ghost-btn" disabled={couponBusy} onClick={applyCoupon}>{couponBusy?'Checking...':'Apply'}</button></div>{coupon&&<div className="coupon-success"><Check size={15}/> {coupon.code} applied — Rs. {coupon.discount.toLocaleString()} off</div>}{couponError&&<div className="coupon-error"><Tag size={14}/> {couponError}</div>}</div>{error&&<div className="error-box">{error}</div>}<button className="gold-btn full" type="submit" disabled={busy}>{busy?'Placing Order...':'Place Order & Continue to WhatsApp'} <MessageCircle size={17}/></button></form></div><aside className="summary"><p className="eyebrow">ORDER</p><h2>Summary</h2>{cartItems.map(x=><div key={x.index} className="mini-line"><span>{x.product.name} × {x.qty}</span><strong>Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong></div>)}<div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Discount</span><strong className={discount?'discount-text':''}>{discount?`- Rs. ${discount.toLocaleString()}`:'Rs. 0'}</strong></div><div><span>Delivery</span><strong>Rs. 0</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div></aside></div></main>;
+  ))}
+
+</div>
+
+
+        <div className="checkout-grid">
+
+          <form
+            className="checkout-card"
+            onSubmit={submit}
+          >
+
+            {/* CONTACT */}
+
+            {step===1 && (
+              <section>
+
+                <div className="checkout-section-head">
+
+                  <div>
+                    <p className="eyebrow">
+                      STEP 1
+                    </p>
+
+                    <h2>
+                      Contact Information
+                    </h2>
+                  </div>
+
+                </div>
+
+                <label>
+                  Email Address
+
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={e=>
+                      updateField(
+                        'email',
+                        e.target.value
+                      )
+                    }
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+
+                <p className="checkout-hint">
+                  Order confirmation aur important updates ke liye email use hoga.
+                </p>
+
+              </section>
+            )}
+
+
+            {/* SHIPPING */}
+
+            {step===2 && (
+              <section>
+
+                <div className="checkout-section-head">
+
+                  <div>
+                    <p className="eyebrow">
+                      STEP 2
+                    </p>
+
+                    <h2>
+                      Shipping Information
+                    </h2>
+                  </div>
+
+                </div>
+
+
+                <div className="checkout-form-grid">
+
+                  <label>
+                    First Name
+
+                    <input
+                      value={form.firstName}
+                      onChange={e=>
+                        updateField(
+                          'firstName',
+                          e.target.value
+                        )
+                      }
+                      placeholder="First name"
+                      autoComplete="given-name"
+                      required
+                    />
+                  </label>
+
+
+                  <label>
+                    Last Name
+
+                    <input
+                      value={form.lastName}
+                      onChange={e=>
+                        updateField(
+                          'lastName',
+                          e.target.value
+                        )
+                      }
+                      placeholder="Last name"
+                      autoComplete="family-name"
+                      required
+                    />
+                  </label>
+
+
+                  <label className="span-2">
+                    WhatsApp Number
+
+                    <input
+                      value={form.phone}
+                      onChange={e=>
+                        updateField(
+                          'phone',
+                          e.target.value
+                        )
+                      }
+                      placeholder="03001234567"
+                      autoComplete="tel"
+                      inputMode="tel"
+                      required
+                    />
+
+                    <small>
+                      Pakistani WhatsApp number enter karein.
+                    </small>
+                  </label>
+
+
+                  <label className="span-2">
+                    Address Line 1
+
+                    <input
+                      value={form.address1}
+                      onChange={e=>
+                        updateField(
+                          'address1',
+                          e.target.value
+                        )
+                      }
+                      placeholder="House / Flat / Street"
+                      autoComplete="address-line1"
+                      required
+                    />
+                  </label>
+
+
+                  <label className="span-2">
+                    Address Line 2
+
+                    <input
+                      value={form.address2}
+                      onChange={e=>
+                        updateField(
+                          'address2',
+                          e.target.value
+                        )
+                      }
+                      placeholder="Apartment, landmark etc. (optional)"
+                      autoComplete="address-line2"
+                    />
+                  </label>
+
+
+                  <label>
+                    Country
+
+                    <select
+                      value={form.country}
+                      onChange={e=>
+                        updateField(
+                          'country',
+                          e.target.value
+                        )
+                      }
+                    >
+                      <option value="Pakistan">
+                        Pakistan
+                      </option>
+                    </select>
+                  </label>
+
+
+                  <label>
+                    Province
+
+                    <select
+                      value={form.province}
+                      onChange={e=>{
+                        updateField(
+                          'province',
+                          e.target.value
+                        );
+
+                        updateField(
+                          'city',
+                          ''
+                        );
+                      }}
+                      required
+                    >
+                      <option value="">
+                        Select province
+                      </option>
+
+                      {Object.keys(provinces).map(
+                        province=>(
+                          <option
+                            key={province}
+                            value={province}
+                          >
+                            {province}
+                          </option>
+                        )
+                      )}
+
+                    </select>
+                  </label>
+
+
+                  <label>
+                    City
+
+                    <select
+                      value={form.city}
+                      onChange={e=>
+                        updateField(
+                          'city',
+                          e.target.value
+                        )
+                      }
+                      disabled={!form.province}
+                      required
+                    >
+
+                      <option value="">
+                        {form.province
+                          ? 'Select city'
+                          : 'Select province first'
+                        }
+                      </option>
+
+                      {(provinces[form.province]||[])
+                        .map(city=>(
+                          <option
+                            key={city}
+                            value={city}
+                          >
+                            {city}
+                          </option>
+                        ))
+                      }
+
+                    </select>
+
+                    {form.city && (
+                      <small>
+                        Delivery charges: {
+                          form.city.toLowerCase()==='multan'
+                            ? 'Rs. 270'
+                            : 'Rs. 300'
+                        }
+                      </small>
+                    )}
+
+                  </label>
+
+
+                  <label>
+                    Postal Code
+
+                    <input
+                      value={form.postalCode}
+                      onChange={e=>
+                        updateField(
+                          'postalCode',
+                          e.target.value
+                        )
+                      }
+                      placeholder="60000"
+                      inputMode="numeric"
+                      autoComplete="postal-code"
+                      required
+                    />
+                  </label>
+
+                </div>
+
+              </section>
+            )}
+
+
+            {/* DELIVERY */}
+
+            {step===3 && (
+              <section>
+
+                <div className="checkout-section-head">
+
+                  <div>
+                    <p className="eyebrow">
+                      STEP 3
+                    </p>
+
+                    <h2>
+                      Delivery
+                    </h2>
+                  </div>
+
+                </div>
+
+
+                <label
+                  className={`checkout-choice ${
+                    deliveryMethod==='standard'
+                      ? 'selected'
+                      : ''
+                  }`}
+                >
+
+                  <input
+                    type="radio"
+                    name="delivery"
+                    value="standard"
+                    checked={
+                      deliveryMethod==='standard'
+                    }
+                    onChange={e=>
+                      setDeliveryMethod(
+                        e.target.value
+                      )
+                    }
+                  />
+
+                  <div>
+
+                    <strong>
+                      Standard Shipping
+                    </strong>
+
+                    <span>
+                      {form.city
+                        ? `${form.city} delivery — Rs. ${deliveryFee}`
+                        : 'City ke hisaab se delivery charges calculate honge.'
+                      }
+                    </span>
+
+                  </div>
+
+                  <b>
+                    Rs. {deliveryFee}
+                  </b>
+
+                </label>
+
+              </section>
+            )}
+
+
+            {/* PAYMENT */}
+
+            {step===4 && (
+              <section>
+
+                <div className="checkout-section-head">
+
+                  <div>
+                    <p className="eyebrow">
+                      STEP 4
+                    </p>
+
+                    <h2>
+                      Payment
+                    </h2>
+                  </div>
+
+                </div>
+
+
+                {/* COD */}
+
+                <label
+                  className={`checkout-choice ${
+                    paymentMethod==='cod'
+                      ? 'selected'
+                      : ''
+                  }`}
+                >
+
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="cod"
+                    checked={
+                      paymentMethod==='cod'
+                    }
+                    onChange={e=>
+                      setPaymentMethod(
+                        e.target.value
+                      )
+                    }
+                    required
+                  />
+
+                  <div>
+
+                    <strong>
+                      Cash on Delivery
+                    </strong>
+
+                    <span>
+                      Order receive karte waqt cash payment karein.
+                    </span>
+
+                  </div>
+
+                </label>
+
+
+                {/* CARD */}
+
+                <label
+                  className={`checkout-choice ${
+                    paymentMethod==='card'
+                      ? 'selected'
+                      : ''
+                  }`}
+                >
+
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="card"
+                    checked={
+                      paymentMethod==='card'
+                    }
+                    onChange={e=>
+                      setPaymentMethod(
+                        e.target.value
+                      )
+                    }
+                  />
+
+                  <div>
+
+                    <strong>
+                      Debit / Credit Card
+                    </strong>
+
+                    <span>
+                      Secure card payment.
+                    </span>
+
+                  </div>
+
+                </label>
+
+
+                {paymentMethod==='card' && (
+                  <div className="card-payment-box">
+
+                    <div className="card-payment-note">
+                      Card details payment gateway ko securely process karne ke liye honge. Card details Hafiz Mart database mein save nahi hongi.
+                    </div>
+
+                    <div className="checkout-form-grid">
+
+                      <label className="span-2">
+                        Cardholder Name
+
+                        <input
+                          value={card.name}
+                          onChange={e=>
+                            setCard(c=>({
+                              ...c,
+                              name:e.target.value
+                            }))
+                          }
+                          placeholder="Name on card"
+                          autoComplete="cc-name"
+                        />
+                      </label>
+
+
+                      <label className="span-2">
+                        Card Number
+
+                        <input
+                          value={card.number}
+                          onChange={e=>
+                            setCard(c=>({
+                              ...c,
+                              number:formatCardNumber(
+                                e.target.value
+                              )
+                            }))
+                          }
+                          placeholder="1234 5678 9012 3456"
+                          inputMode="numeric"
+                          autoComplete="cc-number"
+                          maxLength={19}
+                        />
+                      </label>
+
+
+                      <label>
+                        Expiry Date
+
+                        <input
+                          value={card.expiry}
+                          onChange={e=>
+                            setCard(c=>({
+                              ...c,
+                              expiry:formatExpiry(
+                                e.target.value
+                              )
+                            }))
+                          }
+                          placeholder="MM/YY"
+                          inputMode="numeric"
+                          autoComplete="cc-exp"
+                          maxLength={5}
+                        />
+                      </label>
+
+
+                      <label>
+                        CVV
+
+                        <input
+                          type="password"
+                          value={card.cvv}
+                          onChange={e=>
+                            setCard(c=>({
+                              ...c,
+                              cvv:e.target.value
+                                .replace(/\D/g,'')
+                                .slice(0,4)
+                            }))
+                          }
+                          placeholder="CVV"
+                          inputMode="numeric"
+                          autoComplete="cc-csc"
+                          maxLength={4}
+                        />
+                      </label>
+
+                    </div>
+
+                  </div>
+                )}
+
+
+                {/* BILLING */}
+
+                <div className="billing-box">
+
+                  <div className="billing-head">
+
+                    <div>
+                      <strong>
+                        Billing Address
+                      </strong>
+
+                      <span>
+                        Payment billing details.
+                      </span>
+                    </div>
+
+                  </div>
+
+
+                  <label className="billing-option">
+
+                    <input
+                      type="radio"
+                      name="billingAddress"
+                      checked={billingSame}
+                      onChange={()=>
+                        setBillingSame(true)
+                      }
+                    />
+
+                    <span>
+                      Same as shipping address
+                    </span>
+
+                  </label>
+
+
+                  <label className="billing-option">
+
+                    <input
+                      type="radio"
+                      name="billingAddress"
+                      checked={!billingSame}
+                      onChange={()=>
+                        setBillingSame(false)
+                      }
+                    />
+
+                    <span>
+                      Use a different billing address
+                    </span>
+
+                  </label>
+
+
+                  {!billingSame && (
+                    <div className="billing-form">
+
+                      <div className="billing-form-title">
+                        <strong>
+                          Enter your new address
+                        </strong>
+
+                        <span>
+                          Enter the address you want to use for billing.
+                        </span>
+                      </div>
+
+
+                      <label>
+                        Billing Address Line 1
+
+                        <input
+                          value={billing.address1}
+                          onChange={e=>
+                            updateBilling(
+                              'address1',
+                              e.target.value
+                            )
+                          }
+                          placeholder="House / Flat / Street"
+                          autoComplete="billing address-line1"
+                        />
+                      </label>
+
+
+                      <label>
+                        Billing Address Line 2
+
+                        <input
+                          value={billing.address2}
+                          onChange={e=>
+                            updateBilling(
+                              'address2',
+                              e.target.value
+                            )
+                          }
+                          placeholder="Apartment, landmark etc. (optional)"
+                          autoComplete="billing address-line2"
+                        />
+                      </label>
+
+
+                      <div className="checkout-form-grid">
+
+                        <label>
+                          Billing Country
+
+                          <select
+                            value={billing.country}
+                            onChange={e=>
+                              updateBilling(
+                                'country',
+                                e.target.value
+                              )
+                            }
+                          >
+                            <option value="Pakistan">
+                              Pakistan
+                            </option>
+                          </select>
+                        </label>
+
+
+                        <label>
+                          Billing Province
+
+                          <select
+                            value={billing.province}
+                            onChange={e=>{
+                              updateBilling(
+                                'province',
+                                e.target.value
+                              );
+
+                              updateBilling(
+                                'city',
+                                ''
+                              );
+                            }}
+                          >
+
+                            <option value="">
+                              Select province
+                            </option>
+
+                            {Object.keys(provinces)
+                              .map(province=>(
+                                <option
+                                  key={province}
+                                  value={province}
+                                >
+                                  {province}
+                                </option>
+                              ))
+                            }
+
+                          </select>
+                        </label>
+
+
+                        <label>
+                          Billing City
+
+                          <select
+                            value={billing.city}
+                            onChange={e=>
+                              updateBilling(
+                                'city',
+                                e.target.value
+                              )
+                            }
+                            disabled={!billing.province}
+                          >
+
+                            <option value="">
+                              {billing.province
+                                ? 'Select city'
+                                : 'Select province first'
+                              }
+                            </option>
+
+                            {(provinces[billing.province]||[])
+                              .map(city=>(
+                                <option
+                                  key={city}
+                                  value={city}
+                                >
+                                  {city}
+                                </option>
+                              ))
+                            }
+
+                          </select>
+
+                        </label>
+
+
+                        <label>
+                          Billing Postal Code
+
+                          <input
+                            value={billing.postalCode}
+                            onChange={e=>
+                              updateBilling(
+                                'postalCode',
+                                e.target.value
+                              )
+                            }
+                            placeholder="60000"
+                            inputMode="numeric"
+                            autoComplete="billing postal-code"
+                          />
+                        </label>
+
+                      </div>
+
+                    </div>
+                  )}
+
+                </div>
+
+
+                {/* COUPON */}
+
+                <div className="coupon-box">
+
+                  <div>
+                    <strong>
+                      Have a coupon?
+                    </strong>
+
+                    <span>
+                      Discount code apply karein.
+                    </span>
+                  </div>
+
+
+                  <div className="coupon-row">
+
+                    <input
+                      value={couponCode}
+                      onChange={e=>{
+                        setCouponCode(
+                          e.target.value.toUpperCase()
+                        );
+
+                        setCoupon(null);
+                        setCouponError('');
+                      }}
+                      placeholder="e.g. SAVE10"
+                    />
+
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      disabled={couponBusy}
+                      onClick={applyCoupon}
+                    >
+                      {couponBusy
+                        ? 'Checking...'
+                        : 'Apply'
+                      }
+                    </button>
+
+                  </div>
+
+
+                  {coupon && (
+                    <div className="coupon-success">
+
+                      <Check size={15}/>
+
+                      {coupon.code} applied —
+                      Rs. {coupon.discount.toLocaleString()} off
+
+                    </div>
+                  )}
+
+
+                  {couponError && (
+                    <div className="coupon-error">
+
+                      <Tag size={14}/>
+
+                      {couponError}
+
+                    </div>
+                  )}
+
+                </div>
+
+              </section>
+            )}
+
+
+            {error && (
+              <div className="error-box">
+                {error}
+              </div>
+            )}
+
+
+            <div className="checkout-actions">
+
+              {step>1 && (
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={previousStep}
+                  disabled={busy}
+                >
+                  Back
+                </button>
+              )}
+
+
+              {step<4 ? (
+
+                <button
+                  type="button"
+                  className="gold-btn"
+                  onClick={nextStep}
+                >
+                  Continue
+                  <ArrowRight size={17}/>
+                </button>
+
+              ) : (
+
+                <button
+                  className="gold-btn"
+                  type="submit"
+                  disabled={
+                    busy ||
+                    !paymentMethod ||
+                    paymentMethod==='card'
+                  }
+                >
+                  {busy
+                    ? 'Placing Order...'
+                    : 'Place Order'
+                  }
+
+                  <Check size={17}/>
+
+                </button>
+
+              )}
+
+            </div>
+
+          </form>
+
+
+          {/* ORDER SUMMARY */}
+
+          <aside className="summary checkout-summary">
+
+            <p className="eyebrow">
+              YOUR ORDER
+            </p>
+
+            <h2>
+              Summary
+            </h2>
+
+
+            <div className="checkout-products">
+
+              {cartItems.map(x=>(
+                <div
+                  key={x.index}
+                  className="mini-line"
+                >
+
+                  <span>
+                    {x.product.name} × {x.qty}
+                  </span>
+
+                  <strong>
+                    Rs. {
+                      (
+                        Number(
+                          x.product.salePrice||
+                          x.product.price
+                        )*x.qty
+                      ).toLocaleString()
+                    }
+                  </strong>
+
+                </div>
+              ))}
+
+            </div>
+
+
+            <div>
+              <span>
+                Subtotal
+              </span>
+
+              <strong>
+                Rs. {subtotal.toLocaleString()}
+              </strong>
+            </div>
+
+
+            <div>
+              <span>
+                Discount
+              </span>
+
+              <strong
+                className={
+                  discount
+                    ? 'discount-text'
+                    : ''
+                }
+              >
+                {discount
+                  ? `- Rs. ${discount.toLocaleString()}`
+                  : 'Rs. 0'
+                }
+              </strong>
+            </div>
+
+
+            <div>
+              <span>
+                Delivery
+              </span>
+
+              <strong>
+                Rs. {deliveryFee.toLocaleString()}
+              </strong>
+            </div>
+
+
+            <div className="summary-total">
+
+              <span>
+                Total
+              </span>
+
+              <strong>
+                Rs. {total.toLocaleString()}
+              </strong>
+
+            </div>
+
+          </aside>
+
+        </div>
+
+      </div>
+
+    </main>
+  );
 }
 
 function Account(){
@@ -320,7 +2351,16 @@ function Login(){
   const [showPassword,setShowPassword]=useState(false);
   useEffect(()=>{ if(user && profile) navigate(profile.role==='admin'?'/admin':'/account'); },[user,profile,navigate]);
   const submit=async e=>{ e.preventDefault(); setBusy(true); setError(''); setMessage('');
-    const result = mode==='login' ? await supabase.auth.signInWithPassword({email,password}) : await supabase.auth.signUp({email,password,options:{data:{full_name:name}}});
+    const result = mode==='login'
+  ? await supabase.auth.signInWithPassword({email,password})
+  : await supabase.auth.signUp({
+      email,
+      password,
+      options:{
+        data:{full_name:name},
+        emailRedirectTo:`${window.location.origin}/hafiz-mart/#/`
+      }
+    });
     if(result.error) setError(result.error.message); else if(mode==='register' && !result.data.session) setMessage('Account create ho gaya. Agar email confirmation enabled hai to email confirm karein.');
     setBusy(false);
   };
