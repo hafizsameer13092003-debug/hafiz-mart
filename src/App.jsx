@@ -413,434 +413,305 @@ function ProductCard({ product, onToast }) {
 }
 
 function Home() {
-  const { store } = useStore(); const [toast,setToast]=useState("");
-  const products = store.products.filter(p=>p.status !== "inactive").slice(0,4);
-  const trendingProducts = store.products.filter(p => p.status !== "inactive").slice(0,8);
-  const newArrivals = [...store.products]
-  .filter(p => p.status !== "inactive")
-  .reverse()
-  .slice(0,8);
-  const cats = store.categories.slice(0,6);
-  return <><SaleBanner/><main>
-    <section className="hero"><div className="hero-glow"/><div className="container hero-grid"><motion.div className="hero-copy" initial={{opacity:0,x:-25}} animate={{opacity:1,x:0}} transition={{duration:.6}}><p className="eyebrow">WELCOME TO HAFIZ MART</p><h1>Your trusted place for <span>better shopping.</span></h1><p className="hero-text">A modern online store built to grow with your business. Products, offers and orders — all managed from one place.</p><div className="hero-buttons"><Link className="gold-btn" to="/shop">Explore Shop <ArrowRight size={18}/></Link><Link className="ghost-btn" to="/categories">Browse Categories</Link></div></motion.div><motion.div className="hero-card" initial={{opacity:0,scale:.95}} animate={{opacity:1,scale:1}} transition={{duration:.7}}><img src={logo} alt="Hafiz Mart logo"/><div><span>NEW STORE</span><strong>{store.products.length ? `${store.products.length} products live` : "Ready for your first product."}</strong></div></motion.div></div></section>
-    <section className="section container"><div className="section-heading"><div><p className="eyebrow">SHOP</p><h2>Featured Products</h2></div>{products.length>0&&<Link className="text-link" to="/shop">View all <ArrowRight size={15}/></Link>}</div>{products.length ? <div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p} onToast={setToast}/>)}</div> : <EmptyState title="No Products Yet" text="Your store is fresh and empty. Add your first product from the admin panel and it will appear here." action="Open Admin" to="/admin"/>}</section><section className="section container">
-
-  <div className="section-heading">
-    <div>
-      <p className="eyebrow">TRENDING</p>
-      <h2>Trending Products</h2>
-    </div>
-
-    <Link className="text-link" to="/shop">
-      View all <ArrowRight size={15}/>
-    </Link>
-  </div>
-
-  {trendingProducts.length ? (
-    <div className="product-grid">
-      {trendingProducts.map(p=>(
-        <ProductCard
-          key={p.id}
-          product={p}
-          onToast={setToast}
-        />
-      ))}
-    </div>
-  ) : (
-    <EmptyState
-      title="No Trending Products"
-      text="Products will appear here."
-    />
-  )}
-
-</section><section className="section container">
-
-  <div className="section-heading">
-    <div>
-      <p className="eyebrow">NEW</p>
-      <h2>New Arrivals</h2>
-    </div>
-
-    <Link className="text-link" to="/shop">
-      View all <ArrowRight size={15}/>
-    </Link>
-  </div>
-
-  {newArrivals.length ? (
-    <div className="product-grid">
-      {newArrivals.map(p => (
-        <ProductCard
-          key={p.id}
-          product={p}
-          onToast={setToast}
-        />
-      ))}
-    </div>
-  ) : (
-    <EmptyState
-      title="No New Arrivals"
-      text="Products will appear here."
-    />
-  )}
-
-</section><section className="section section-soft"><div className="container"><div className="section-heading"><div><p className="eyebrow">DISCOVER</p><h2>Categories</h2></div>{cats.length>0&&<Link className="text-link" to="/categories">View all <ArrowRight size={15}/></Link>}</div>{cats.length ? (
-  <div className="category-grid">
-    {cats.map((c,index)=>(
-      <Link
-        className="category-card"
-        key={c.id}
-        to={`/shop?category=${encodeURIComponent(c.name)}`}
-      >
-
-        <div className="category-number">
-          {(index+1).toString().padStart(2,"0")}
-        </div>
-
-        <div className="category-icon">
-          <Tag size={22}/>
-        </div>
-
-        <strong>{c.name}</strong>
-
-        <small>
-          Explore our latest collection
-        </small>
-
-        <div className="category-footer">
-          <span>
-            {store.products.filter(p=>p.category===c.name).length} Products
-          </span>
-
-          <ArrowRight size={18}/>
-        </div>
-
-      </Link>
-    ))}
-  </div>
-) : (
-  <EmptyState
-    title="No Categories Yet"
-    text="Create your first category from the admin panel to start organizing your store."
-    action="Manage Categories"
-    to="/admin/categories"
-    icon={Tag}
-  />
-)}</div></section><section className="section flash-sale">
-
-  <div className="container flash-sale-box">
-
-    <div>
-      <p className="eyebrow">LIMITED TIME</p>
-
-      <h2>Flash Sale</h2>
-
-      <p>
-        Up to <strong>50% OFF</strong> on selected products.
-      </p>
-
-      <Link className="gold-btn" to="/shop">
-        Shop Now
-      </Link>
-    </div>
-
-    <div className="countdown">
-
-      <div>
-        <strong>02</strong>
-        <span>Days</span>
-      </div>
-
-      <div>
-        <strong>14</strong>
-        <span>Hours</span>
-      </div>
-
-      <div>
-        <strong>35</strong>
-        <span>Minutes</span>
-      </div>
-
-      <div>
-        <strong>20</strong>
-        <span>Seconds</span>
-      </div>
-
-    </div>
-
-  </div>
-
-</section>
-    <section className="flash-sale">
-  <div className="container">
-
-    <div className="flash-sale-box">
-
-      <div>
-        <p className="eyebrow">LIMITED OFFER</p>
-
-        <h2>Flash Sale</h2>
-
-        <p>
-          Grab your favourite products before the offer ends.
-        </p>
-
-        <Link className="gold-btn" to="/shop">
-          Shop Now
-        </Link>
-      </div>
-
-      <div className="countdown">
-
-        <div>
-          <strong>02</strong>
-          <span>Days</span>
-        </div>
-
-        <div>
-          <strong>12</strong>
-          <span>Hours</span>
-        </div>
-
-        <div>
-          <strong>45</strong>
-          <span>Minutes</span>
-        </div>
-
-        <div>
-          <strong>19</strong>
-          <span>Seconds</span>
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-</section><section className="trust-section container"><section className="section container">
-
-  <div className="section-heading">
-    <div>
-      <p className="eyebrow">REVIEWS</p>
-      <h2>What Our Customers Say</h2>
-    </div>
-  </div>
-
-  <div className="review-grid">
-
-    <div className="review-card">
-      ⭐⭐⭐⭐⭐
-      <p>
-        Excellent quality products. Delivery was fast and customer support was very helpful.
-      </p>
-      <strong>Ali Khan</strong>
-    </div>
-
-    <div className="review-card">
-      ⭐⭐⭐⭐⭐
-      <p>
-        Smooth shopping experience. Everything arrived exactly as described.
-      </p>
-      <strong>Ahmed Raza</strong>
-    </div>
-
-    <div className="review-card">
-      ⭐⭐⭐⭐⭐
-      <p>
-        One of the best online stores I've used. Highly recommended.
-      </p>
-      <strong>Fatima Noor</strong>
-    </div>
-
-  </div>
-
-</section><section className="section reviews">
-
-<div className="container">
-
-<div className="section-heading">
-
-<div>
-
-<p className="eyebrow">
-
-REVIEWS
-
-</p>
-
-<h2>
-
-What Customers Say
-
-</h2>
-
-</div>
-
-</div>
-
-<div className="review-grid">
-
-<div className="review-card">
-
-★★★★★
-
-<p>
-
-Amazing Quality.
-
-</p>
-
-<strong>
-
-Ali Khan
-
-</strong>
-
-</div>
-
-<div className="review-card">
-
-★★★★★
-
-<p>
-
-Very Fast Delivery.
-
-</p>
-
-<strong>
-
-Ahmed
-
-</strong>
-
-</div>
-
-<div className="review-card">
-
-★★★★★
-
-<p>
-
-Highly Recommended.
-
-</p>
-
-<strong>
-
-Sameer
-
-</strong>
-
-</div>
-
-</div>
-
-</div>
-
-</section><section className="newsletter">
-
-  <div className="container">
-
-    <div className="newsletter-box">
-
-      <p className="eyebrow">NEWSLETTER</p>
-
-      <h2>Stay Updated</h2>
-
-      <p>
-        Subscribe to receive new arrivals, exclusive offers and updates.
-      </p>
-
-      <form className="newsletter-form">
-
-        <input
-          type="email"
-          placeholder="Enter your email"
-        />
-
-        <button className="gold-btn" type="button">
-          Subscribe
-        </button>
-
-      </form>
-
-    </div>
-
-  </div>
-
-</section><section className="section container">
-
-<div className="section-heading">
-
-<div>
-
-<p className="eyebrow">
-BEST SELLERS
-</p>
-
-<h2>
-Customers Love These
-</h2>
-
-</div>
-
-<Link
-className="text-link"
-to="/shop"
->
-
-View all
-<ArrowRight size={15}/>
-
-</Link>
-
-</div>
-
-<div className="product-grid">
-
-{products.map(p=>
-
-<ProductCard
-key={p.id}
-product={p}
-onToast={setToast}
-/>
-
-)}
-
-</div>
-
-</section><div><strong>Secure & Simple</strong><span>Built for a clean shopping experience.</span></div><div><strong>WhatsApp Ordering</strong><span>Customers can order directly through WhatsApp.</span></div><div><strong>Ready to Grow</strong><span>Payments and advanced features can be added later.</span></div></section>
-  <section className="newsletter">
-
-<div className="container newsletter-box">
-
-<h2>
-Subscribe to our Newsletter
-</h2>
-
-<p>
-Get updates about new arrivals, offers and discounts.
-</p>
-
-<div className="newsletter-form">
-
-<input
-type="email"
-placeholder="Enter your email"
-/>
-
-<button className="gold-btn">
-
-Subscribe
-
-</button>
-
-</div>
-
-</div>
-
-</section></main><Toast message={toast} onClose={()=>setToast("")}/></>;
+  const { store } = useStore();
+  const [toast, setToast] = useState("");
+
+  const activeProducts = store.products.filter(
+    p => p.status !== "inactive"
+  );
+
+  const trendingProducts = activeProducts.slice(0, 8);
+  const newArrivals = activeProducts.slice(8, 16);
+  const featuredProducts = activeProducts.slice(0, 4);
+
+  const cats = store.categories.slice(0, 6);
+
+  return (
+    <>
+      <SaleBanner />
+
+      <main className="home-page">
+
+        {/* HERO */}
+        <section className="home-hero">
+          <div className="container home-hero-grid">
+
+            <motion.div
+              className="home-hero-copy"
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <p className="eyebrow">WELCOME TO HAFIZ MART</p>
+
+              <h1>
+                Better shopping.
+                <span> Simply better.</span>
+              </h1>
+
+              <p>
+                Discover quality products, fresh arrivals and exclusive
+                offers — all in one place.
+              </p>
+
+              <div className="hero-buttons">
+                <Link className="gold-btn" to="/shop">
+                  Shop Now
+                  <ArrowRight size={17} />
+                </Link>
+
+                <Link className="ghost-btn" to="/categories">
+                  Explore Categories
+                </Link>
+              </div>
+            </motion.div>
+
+            <motion.div
+              className="home-hero-visual"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.7 }}
+            >
+              <img src={logo} alt="Hafiz Mart" />
+
+              <div className="hero-visual-info">
+                <span>HAFIZ MART</span>
+                <strong>
+                  {activeProducts.length
+                    ? `${activeProducts.length} products available`
+                    : "Your shopping destination"}
+                </strong>
+              </div>
+            </motion.div>
+
+          </div>
+        </section>
+
+        {/* CATEGORIES */}
+        <section className="home-section">
+          <div className="container">
+
+            <div className="home-section-heading">
+              <div>
+                <p className="eyebrow">EXPLORE</p>
+                <h2>Shop by Category</h2>
+              </div>
+
+              {cats.length > 0 && (
+                <Link className="text-link" to="/categories">
+                  View All <ArrowRight size={15} />
+                </Link>
+              )}
+            </div>
+
+            {cats.length ? (
+              <div className="home-category-grid">
+                {cats.map((c) => (
+                  <Link
+                    className="home-category-card"
+                    key={c.id}
+                    to={`/shop?category=${encodeURIComponent(c.name)}`}
+                  >
+                    <div className="category-icon">
+                      <Tag size={20} />
+                    </div>
+
+                    <div>
+                      <strong>{c.name}</strong>
+
+                      <span>
+                        {store.products.filter(
+                          p => p.category === c.name
+                        ).length}{" "}
+                        products
+                      </span>
+                    </div>
+
+                    <ArrowRight size={17} />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No Categories Yet"
+                text="Create categories from the admin panel."
+                action="Manage Categories"
+                to="/admin/categories"
+                icon={Tag}
+              />
+            )}
+
+          </div>
+        </section>
+
+        {/* TRENDING */}
+        <section className="home-section home-section-dark">
+          <div className="container">
+
+            <div className="home-section-heading">
+              <div>
+                <p className="eyebrow">TRENDING NOW</p>
+                <h2>Popular Products</h2>
+              </div>
+
+              {trendingProducts.length > 0 && (
+                <Link className="text-link" to="/shop">
+                  Shop All <ArrowRight size={15} />
+                </Link>
+              )}
+            </div>
+
+            {trendingProducts.length ? (
+              <div className="home-product-grid">
+                {trendingProducts.map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onToast={setToast}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No Products Yet"
+                text="Add products from the admin panel."
+                action="Open Admin"
+                to="/admin"
+              />
+            )}
+
+          </div>
+        </section>
+
+        {/* PROMO */}
+        <section className="home-promo-section">
+          <div className="container">
+
+            <div className="home-promo">
+              <div>
+                <p className="eyebrow">SPECIAL OFFER</p>
+
+                <h2>Good products.<br />Better prices.</h2>
+
+                <p>
+                  Explore our latest offers and discover something
+                  worth adding to your cart.
+                </p>
+
+                <Link className="gold-btn" to="/deals">
+                  View Deals
+                  <ArrowRight size={17} />
+                </Link>
+              </div>
+
+              <div className="promo-badge">
+                <strong>DEALS</strong>
+                <span>FOR YOU</span>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        {/* NEW ARRIVALS */}
+        {newArrivals.length > 0 && (
+          <section className="home-section">
+            <div className="container">
+
+              <div className="home-section-heading">
+                <div>
+                  <p className="eyebrow">JUST IN</p>
+                  <h2>New Arrivals</h2>
+                </div>
+
+                <Link className="text-link" to="/shop">
+                  View All <ArrowRight size={15} />
+                </Link>
+              </div>
+
+              <div className="home-product-grid">
+                {newArrivals.map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onToast={setToast}
+                  />
+                ))}
+              </div>
+
+            </div>
+          </section>
+        )}
+
+        {/* FEATURED */}
+        {featuredProducts.length > 0 && (
+          <section className="home-section home-section-dark">
+            <div className="container">
+
+              <div className="home-section-heading">
+                <div>
+                  <p className="eyebrow">OUR PICKS</p>
+                  <h2>Featured Products</h2>
+                </div>
+
+                <Link className="text-link" to="/shop">
+                  View All <ArrowRight size={15} />
+                </Link>
+              </div>
+
+              <div className="home-product-grid featured-grid">
+                {featuredProducts.map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onToast={setToast}
+                  />
+                ))}
+              </div>
+
+            </div>
+          </section>
+        )}
+
+        {/* TRUST */}
+        <section className="home-trust">
+          <div className="container home-trust-grid">
+
+            <div className="home-trust-item">
+              <div>🚚</div>
+              <strong>Fast Delivery</strong>
+              <span>
+                Reliable delivery across Pakistan.
+              </span>
+            </div>
+
+            <div className="home-trust-item">
+              <div>🔒</div>
+              <strong>Secure Shopping</strong>
+              <span>
+                Your shopping experience stays simple and secure.
+              </span>
+            </div>
+
+            <div className="home-trust-item">
+              <div>💬</div>
+              <strong>WhatsApp Support</strong>
+              <span>
+                Get help and order assistance through WhatsApp.
+              </span>
+            </div>
+
+          </div>
+        </section>
+
+      </main>
+
+      <Toast
+        message={toast}
+        onClose={() => setToast("")}
+      />
+    </>
+  );
 }
 
 function Shop() {
