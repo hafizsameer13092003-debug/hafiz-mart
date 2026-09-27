@@ -1733,3 +1733,182 @@
 .category-card:hover .category-footer svg{
     transform:translateX(6px);
 }
+
+/* =========================
+FLASH SALE
+========================= */
+
+.flash-sale{
+padding:70px 0;
+}
+
+.flash-sale-box{
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:40px;
+background:linear-gradient(135deg,#111,#1d1d1d);
+border-radius:28px;
+padding:50px;
+color:#fff;
+overflow:hidden;
+}
+
+.flash-sale h2{
+font-size:42px;
+margin:10px 0;
+color:#fff;
+}
+
+.flash-sale p{
+color:#ddd;
+margin-bottom:20px;
+}
+
+.countdown{
+display:flex;
+gap:18px;
+flex-wrap:wrap;
+}
+
+.countdown div{
+width:90px;
+height:90px;
+border-radius:50%;
+background:#FFD54A;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+color:#111;
+font-weight:700;
+box-shadow:0 15px 35px rgba(0,0,0,.25);
+transition:.35s;
+}
+
+.countdown div:hover{
+transform:translateY(-6px);
+}
+
+.countdown strong{
+font-size:28px;
+line-height:1;
+}
+
+.countdown span{
+font-size:13px;
+margin-top:5px;
+}
+
+
+
+/* =========================
+NEWSLETTER
+========================= */
+
+.newsletter{
+padding:80px 0;
+}
+
+.newsletter-box{
+background:#111;
+border-radius:30px;
+padding:60px;
+text-align:center;
+color:#fff;
+}
+
+.newsletter h2{
+font-size:40px;
+margin-bottom:10px;
+color:#fff;
+}
+
+.newsletter p{
+color:#cfcfcf;
+margin-bottom:30px;
+}
+
+.newsletter-form{
+display:flex;
+justify-content:center;
+gap:15px;
+flex-wrap:wrap;
+}
+
+.newsletter-form input{
+width:420px;
+max-width:100%;
+padding:16px 20px;
+border-radius:15px;
+border:none;
+font-size:16px;
+}
+
+
+
+/* =========================
+REVIEWS
+========================= */
+
+.review-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+gap:25px;
+margin-top:35px;
+}
+
+.review-card{
+background:#fff;
+border-radius:22px;
+padding:28px;
+box-shadow:0 15px 40px rgba(0,0,0,.08);
+transition:.35s;
+font-size:18px;
+}
+
+.review-card:hover{
+transform:translateY(-10px);
+}
+
+.review-card p{
+margin:15px 0;
+color:#666;
+}
+
+.review-card strong{
+display:block;
+color:#111;
+}
+
+
+
+/* =========================
+RESPONSIVE
+========================= */
+
+@media(max-width:900px){
+
+.flash-sale-box{
+flex-direction:column;
+text-align:center;
+padding:35px;
+}
+
+.countdown{
+justify-content:center;
+}
+
+.newsletter-box{
+padding:35px;
+}
+
+.newsletter h2{
+font-size:30px;
+}
+
+.flash-sale h2{
+font-size:30px;
+}
+
+}

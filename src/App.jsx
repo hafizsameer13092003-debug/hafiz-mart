@@ -525,9 +525,322 @@ function Home() {
     to="/admin/categories"
     icon={Tag}
   />
-)}</div></section>
-    <section className="trust-section container"><div><strong>Secure & Simple</strong><span>Built for a clean shopping experience.</span></div><div><strong>WhatsApp Ordering</strong><span>Customers can order directly through WhatsApp.</span></div><div><strong>Ready to Grow</strong><span>Payments and advanced features can be added later.</span></div></section>
-  </main><Toast message={toast} onClose={()=>setToast("")}/></>;
+)}</div></section><section className="section flash-sale">
+
+  <div className="container flash-sale-box">
+
+    <div>
+      <p className="eyebrow">LIMITED TIME</p>
+
+      <h2>Flash Sale</h2>
+
+      <p>
+        Up to <strong>50% OFF</strong> on selected products.
+      </p>
+
+      <Link className="gold-btn" to="/shop">
+        Shop Now
+      </Link>
+    </div>
+
+    <div className="countdown">
+
+      <div>
+        <strong>02</strong>
+        <span>Days</span>
+      </div>
+
+      <div>
+        <strong>14</strong>
+        <span>Hours</span>
+      </div>
+
+      <div>
+        <strong>35</strong>
+        <span>Minutes</span>
+      </div>
+
+      <div>
+        <strong>20</strong>
+        <span>Seconds</span>
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+    <section className="flash-sale">
+  <div className="container">
+
+    <div className="flash-sale-box">
+
+      <div>
+        <p className="eyebrow">LIMITED OFFER</p>
+
+        <h2>Flash Sale</h2>
+
+        <p>
+          Grab your favourite products before the offer ends.
+        </p>
+
+        <Link className="gold-btn" to="/shop">
+          Shop Now
+        </Link>
+      </div>
+
+      <div className="countdown">
+
+        <div>
+          <strong>02</strong>
+          <span>Days</span>
+        </div>
+
+        <div>
+          <strong>12</strong>
+          <span>Hours</span>
+        </div>
+
+        <div>
+          <strong>45</strong>
+          <span>Minutes</span>
+        </div>
+
+        <div>
+          <strong>19</strong>
+          <span>Seconds</span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</section><section className="trust-section container"><section className="section container">
+
+  <div className="section-heading">
+    <div>
+      <p className="eyebrow">REVIEWS</p>
+      <h2>What Our Customers Say</h2>
+    </div>
+  </div>
+
+  <div className="review-grid">
+
+    <div className="review-card">
+      ⭐⭐⭐⭐⭐
+      <p>
+        Excellent quality products. Delivery was fast and customer support was very helpful.
+      </p>
+      <strong>Ali Khan</strong>
+    </div>
+
+    <div className="review-card">
+      ⭐⭐⭐⭐⭐
+      <p>
+        Smooth shopping experience. Everything arrived exactly as described.
+      </p>
+      <strong>Ahmed Raza</strong>
+    </div>
+
+    <div className="review-card">
+      ⭐⭐⭐⭐⭐
+      <p>
+        One of the best online stores I've used. Highly recommended.
+      </p>
+      <strong>Fatima Noor</strong>
+    </div>
+
+  </div>
+
+</section><section className="section reviews">
+
+<div className="container">
+
+<div className="section-heading">
+
+<div>
+
+<p className="eyebrow">
+
+REVIEWS
+
+</p>
+
+<h2>
+
+What Customers Say
+
+</h2>
+
+</div>
+
+</div>
+
+<div className="review-grid">
+
+<div className="review-card">
+
+★★★★★
+
+<p>
+
+Amazing Quality.
+
+</p>
+
+<strong>
+
+Ali Khan
+
+</strong>
+
+</div>
+
+<div className="review-card">
+
+★★★★★
+
+<p>
+
+Very Fast Delivery.
+
+</p>
+
+<strong>
+
+Ahmed
+
+</strong>
+
+</div>
+
+<div className="review-card">
+
+★★★★★
+
+<p>
+
+Highly Recommended.
+
+</p>
+
+<strong>
+
+Sameer
+
+</strong>
+
+</div>
+
+</div>
+
+</div>
+
+</section><section className="newsletter">
+
+  <div className="container">
+
+    <div className="newsletter-box">
+
+      <p className="eyebrow">NEWSLETTER</p>
+
+      <h2>Stay Updated</h2>
+
+      <p>
+        Subscribe to receive new arrivals, exclusive offers and updates.
+      </p>
+
+      <form className="newsletter-form">
+
+        <input
+          type="email"
+          placeholder="Enter your email"
+        />
+
+        <button className="gold-btn" type="button">
+          Subscribe
+        </button>
+
+      </form>
+
+    </div>
+
+  </div>
+
+</section><section className="section container">
+
+<div className="section-heading">
+
+<div>
+
+<p className="eyebrow">
+BEST SELLERS
+</p>
+
+<h2>
+Customers Love These
+</h2>
+
+</div>
+
+<Link
+className="text-link"
+to="/shop"
+>
+
+View all
+<ArrowRight size={15}/>
+
+</Link>
+
+</div>
+
+<div className="product-grid">
+
+{products.map(p=>
+
+<ProductCard
+key={p.id}
+product={p}
+onToast={setToast}
+/>
+
+)}
+
+</div>
+
+</section><div><strong>Secure & Simple</strong><span>Built for a clean shopping experience.</span></div><div><strong>WhatsApp Ordering</strong><span>Customers can order directly through WhatsApp.</span></div><div><strong>Ready to Grow</strong><span>Payments and advanced features can be added later.</span></div></section>
+  <section className="newsletter">
+
+<div className="container newsletter-box">
+
+<h2>
+Subscribe to our Newsletter
+</h2>
+
+<p>
+Get updates about new arrivals, offers and discounts.
+</p>
+
+<div className="newsletter-form">
+
+<input
+type="email"
+placeholder="Enter your email"
+/>
+
+<button className="gold-btn">
+
+Subscribe
+
+</button>
+
+</div>
+
+</div>
+
+</section></main><Toast message={toast} onClose={()=>setToast("")}/></>;
 }
 
 function Shop() {
