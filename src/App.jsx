@@ -3056,7 +3056,7 @@ function Login(){
       password,
       options:{
         data:{full_name:name},
-        emailRedirectTo:`${window.location.origin}/hafiz-mart/#/`
+        emailRedirectTo:`${window.location.origin}${window.location.pathname}?auth=confirmed#/`
       }
     });
     if(result.error) setError(result.error.message); else if(mode==='register' && !result.data.session) setMessage('Account create ho gaya. Agar email confirmation enabled hai to email confirm karein.');
