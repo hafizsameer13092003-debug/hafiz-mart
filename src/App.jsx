@@ -3105,7 +3105,7 @@ function ForgotPassword(){
     setMessage('');
 
     const redirectTo =
-      `${window.location.origin}${window.location.pathname}#/reset-password`;
+  `${window.location.origin}${window.location.pathname}?reset=1#/reset-password`;
 
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo
