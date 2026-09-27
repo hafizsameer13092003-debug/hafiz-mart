@@ -499,6 +499,9 @@ function ProductCard({ product, onToast }) {
 function Home() {
   const { store } = useStore();
   const [toast, setToast] = useState("");
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+const [newsletterBusy, setNewsletterBusy] = useState(false);
+const [newsletterMessage, setNewsletterMessage] = useState("");
 
   const activeProducts = store.products.filter(
     p => p.status !== "inactive"
@@ -679,9 +682,15 @@ const cats = categoryNames.map(name => {
               </div>
 
               {trendingProducts.length > 0 && (
-                <Link className="text-link" to="/shop">
-                  Shop All <ArrowRight size={15} />
-                </Link>
+                <div className="account-order-actions">
+  <Link className="text-link" to="/track-order">
+    Track Order <ArrowRight size={15}/>
+  </Link>
+
+  <Link className="text-link" to="/shop">
+    Shop more <ArrowRight size={15}/>
+  </Link>
+</div>
               )}
             </div>
 
@@ -813,19 +822,61 @@ const cats = categoryNames.map(name => {
               </div>
 
               <form
-                className="home-newsletter-form"
-                onSubmit={(e) => e.preventDefault()}
-              >
-                <input
-                  type="email"
-                  placeholder="Enter your email address"
-                  required
-                />
+  className="home-newsletter-form"
+  onSubmit={async (e) => {
+    e.preventDefault();
 
-                <button type="submit" className="gold-btn">
-                  Subscribe
-                </button>
-              </form>
+    const email = newsletterEmail.trim().toLowerCase();
+
+    if (!email) return;
+
+    setNewsletterBusy(true);
+    setNewsletterMessage("");
+
+    const { error } = await supabase
+      .from("newsletter_subscribers")
+      .upsert(
+        { email },
+        { onConflict: "email", ignoreDuplicates: true }
+      );
+
+    if (error) {
+      setNewsletterMessage(error.message);
+    } else {
+      setNewsletterMessage(
+        "Thank you! You are now subscribed to Hafiz Mart updates."
+      );
+      setNewsletterEmail("");
+    }
+
+    setNewsletterBusy(false);
+  }}
+>
+  <input
+    type="email"
+    value={newsletterEmail}
+    onChange={(e) => {
+      setNewsletterEmail(e.target.value);
+      setNewsletterMessage("");
+    }}
+    placeholder="Enter your email address"
+    required
+  />
+
+  <button
+    type="submit"
+    className="gold-btn"
+    disabled={newsletterBusy}
+  >
+    {newsletterBusy ? "Subscribing..." : "Subscribe"}
+  </button>
+</form>
+
+{newsletterMessage && (
+  <p className="newsletter-message">
+    {newsletterMessage}
+  </p>
+)}
             </div>
 
           </div>
@@ -3042,6 +3093,366 @@ function Account(){
     Logout
   </button>
 </div><div className="account-grid"><section className="form-card"><div className="panel-head-row"><div><p className="eyebrow">PROFILE</p><h2>Your details</h2></div><User size={20}/></div><form onSubmit={saveProfile}><label>Full Name<input value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})} placeholder="Your name"/></label><label>Phone<input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="03xx..."/></label><label>Email<input value={user.email||''} disabled/></label><button className="gold-btn" disabled={saving}>{saving?'Saving...':'Save Profile'}</button>{message&&<p className="review-message">{message}</p>}</form></section><section><div className="section-heading"><div><p className="eyebrow">ORDERS</p><h2>Order History</h2></div><Link className="text-link" to="/shop">Shop more <ArrowRight size={15}/></Link></div>{loading?<div className="mini-empty">Orders load ho rahe hain...</div>:orders.length?<div className="account-orders">{orders.map(o=><div className="account-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{String(o.status||'pending').replaceAll('_',' ')}</em></div></div>)}</div>:<EmptyState title="No Orders Yet" text="Aapki placed orders yahan appear hongi." action="Start Shopping" to="/shop" icon={ShoppingCart}/>}</section></div></div></main>;
+}
+function OrderTracker() {
+  const { user } = useAuth();
+
+  const [orderNumber, setOrderNumber] = useState("");
+  const [order, setOrder] = useState(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const statuses = [
+    "pending",
+    "confirmed",
+    "packed",
+    "shipped",
+    "out_for_delivery",
+    "delivered"
+  ];
+
+  const statusLabels = {
+    pending: "Order Placed",
+    confirmed: "Confirmed",
+    packed: "Packed",
+    shipped: "Shipped",
+    out_for_delivery: "Out for Delivery",
+    delivered: "Delivered"
+  };
+
+  const trackOrder = async (e) => {
+    e.preventDefault();
+
+    if (!user) {
+      setError("Order track karne ke liye pehle login karein.");
+      return;
+    }
+
+    const number = orderNumber.trim();
+
+    if (!number) {
+      setError("Order number enter karein.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setOrder(null);
+    setItems([]);
+
+    const { data: orderData, error: orderError } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("order_number", number)
+      .maybeSingle();
+
+    if (orderError) {
+      setError(orderError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (!orderData) {
+      setError(
+        "Is order number ka order aapke account mein nahi mila."
+      );
+      setLoading(false);
+      return;
+    }
+
+    const { data: itemData, error: itemError } = await supabase
+      .from("order_items")
+      .select("*")
+      .eq("order_id", orderData.id)
+      .order("created_at", { ascending: true });
+
+    if (itemError) {
+      setError(itemError.message);
+    } else {
+      setOrder(orderData);
+      setItems(itemData || []);
+    }
+
+    setLoading(false);
+  };
+
+  const currentStatus = order?.status || "pending";
+
+  const currentIndex =
+    statuses.indexOf(currentStatus);
+
+  return (
+    <main className="page">
+      <div className="container">
+
+        <div className="page-head">
+          <div>
+            <p className="eyebrow">ORDER TRACKING</p>
+            <h1>Track Your Order</h1>
+            <p>
+              Apne order ka latest status aur details yahan dekhein.
+            </p>
+          </div>
+        </div>
+
+        {!user ? (
+          <EmptyState
+            title="Login Required"
+            text="Apne orders securely track karne ke liye customer account mein login karein."
+            action="Login"
+            to="/login"
+            icon={ShoppingCart}
+          />
+        ) : (
+          <>
+            <section className="track-order-card">
+
+              <form
+                className="track-order-form"
+                onSubmit={trackOrder}
+              >
+                <label>
+                  Order Number
+                  <input
+                    value={orderNumber}
+                    onChange={(e) =>
+                      setOrderNumber(e.target.value)
+                    }
+                    placeholder="e.g. HM-123456"
+                  />
+                </label>
+
+                <button
+                  className="gold-btn"
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading ? "Checking..." : "Track Order"}
+                  <ArrowRight size={17} />
+                </button>
+              </form>
+
+              {error && (
+                <div className="track-order-error">
+                  {error}
+                </div>
+              )}
+
+            </section>
+
+            {order && (
+              <section className="track-order-result">
+
+                <div className="track-order-head">
+                  <div>
+                    <p className="eyebrow">ORDER</p>
+                    <h2>
+                      {order.order_number ||
+                        order.id.slice(0, 8)}
+                    </h2>
+                    <span>
+                      {new Date(
+                        order.created_at
+                      ).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <strong className="track-order-total">
+                    Rs.{" "}
+                    {Number(
+                      order.total || 0
+                    ).toLocaleString()}
+                  </strong>
+                </div>
+
+                {currentStatus === "cancelled" ? (
+                  <div className="track-cancelled">
+                    <strong>Order Cancelled</strong>
+                    <span>
+                      Ye order cancel kar diya gaya hai.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="track-timeline">
+
+                    {statuses.map((status, index) => {
+                      const done =
+                        currentIndex >= index;
+
+                      const active =
+                        currentStatus === status;
+
+                      return (
+                        <div
+                          className={`track-step ${
+                            done ? "done" : ""
+                          } ${
+                            active ? "active" : ""
+                          }`}
+                          key={status}
+                        >
+                          <div className="track-step-dot">
+                            {done ? "✓" : index + 1}
+                          </div>
+
+                          <div>
+                            <strong>
+                              {statusLabels[status]}
+                            </strong>
+
+                            {active && (
+                              <span>
+                                Current status
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  </div>
+                )}
+
+                <div className="track-order-info">
+
+                  <div>
+                    <span>Customer</span>
+                    <strong>
+                      {order.customer_name ||
+                        "Customer"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Phone</span>
+                    <strong>
+                      {order.phone || "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>City</span>
+                    <strong>
+                      {order.city || "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Payment</span>
+                    <strong>
+                      {String(
+                        order.payment_method ||
+                        "cod"
+                      ).toUpperCase()}
+                    </strong>
+                  </div>
+
+                </div>
+
+                <div className="track-items">
+
+                  <div className="section-heading">
+                    <div>
+                      <p className="eyebrow">
+                        ORDER ITEMS
+                      </p>
+                      <h2>Items</h2>
+                    </div>
+                  </div>
+
+                  {items.length ? (
+                    <div className="track-item-list">
+                      {items.map((item) => (
+                        <div
+                          className="track-item"
+                          key={item.id}
+                        >
+                          <div>
+                            <strong>
+                              {item.product_name ||
+                                "Product"}
+                            </strong>
+
+                            <span>
+                              Quantity:{" "}
+                              {item.quantity}
+                            </span>
+                          </div>
+
+                          <strong>
+                            Rs.{" "}
+                            {(
+                              Number(
+                                item.unit_price || 0
+                              ) *
+                              Number(
+                                item.quantity || 0
+                              )
+                            ).toLocaleString()}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mini-empty">
+                      Order items available nahi hain.
+                    </div>
+                  )}
+
+                </div>
+
+                <div className="track-breakdown">
+                  <div>
+                    <span>Subtotal</span>
+                    <strong>
+                      Rs.{" "}
+                      {Number(
+                        order.subtotal || 0
+                      ).toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Discount</span>
+                    <strong>
+                      Rs.{" "}
+                      {Number(
+                        order.discount || 0
+                      ).toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Delivery</span>
+                    <strong>
+                      Rs.{" "}
+                      {Number(
+                        order.delivery_fee || 0
+                      ).toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div className="track-total">
+                    <span>Total</span>
+                    <strong>
+                      Rs.{" "}
+                      {Number(
+                        order.total || 0
+                      ).toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
+
+              </section>
+            )}
+          </>
+        )}
+
+      </div>
+    </main>
+  );
 }
 function Login(){
   const { user, profile } = useAuth(); const navigate = useNavigate();
