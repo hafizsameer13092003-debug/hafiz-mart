@@ -3085,9 +3085,244 @@ function Login(){
 </label>
     {error&&<p className="muted" style={{color:'#d66'}}>{error}</p>}{message&&<p className="muted">{message}</p>}
     <button className="gold-btn full" type="button" disabled={busy} onClick={submit}>{busy?'Please wait...':mode==='login'?'Login':'Create Account'} <ArrowRight size={17}/></button>
-    <button className="text-link center" type="button" onClick={()=>{setMode(mode==='login'?'register':'login');setError('');setMessage('')}}>{mode==='login'?'Create a new account':'Already have an account? Login'}</button>
+    {mode==='login' && (
+  <Link className="text-link center" to="/forgot-password">
+    Forgot your password? Click here
+  </Link>
+)}<button className="text-link center" type="button" onClick={()=>{setMode(mode==='login'?'register':'login');setError('');setMessage('')}}>{mode==='login'?'Create a new account':'Already have an account? Login'}</button>
     <Link className="text-link center" to="/">Back to store</Link></div></main>; }
 
+function ForgotPassword(){
+  const [email,setEmail]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [message,setMessage]=useState('');
+
+  const submit=async e=>{
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    setMessage('');
+
+    const redirectTo =
+      `${window.location.origin}${window.location.pathname}#/reset-password`;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo
+    });
+
+    if(error){
+      setError(error.message);
+    }else{
+      setMessage(
+        'Password reset link aapke email par bhej diya gaya hai. Inbox ke saath spam/junk folder bhi check karein.'
+      );
+    }
+
+    setBusy(false);
+  };
+
+  return (
+    <main className="auth-page">
+      <div className="auth-card">
+        <img src={logo} alt="Hafiz Mart"/>
+
+        <p className="eyebrow">ACCOUNT RECOVERY</p>
+
+        <h1>Forgot Password?</h1>
+
+        <p className="muted">
+          Apna account email enter karein. Hum aapko password reset link bhej denge.
+        </p>
+
+        <form onSubmit={submit}>
+          <label>
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={e=>setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+            />
+          </label>
+
+          {error && (
+            <p className="muted" style={{color:'#d66'}}>
+              {error}
+            </p>
+          )}
+
+          {message && (
+            <p className="muted">
+              {message}
+            </p>
+          )}
+
+          <button
+            className="gold-btn full"
+            type="submit"
+            disabled={busy}
+          >
+            {busy ? 'Please wait...' : 'Send Reset Link'}
+            <ArrowRight size={17}/>
+          </button>
+        </form>
+
+        <Link className="text-link center" to="/login">
+          Back to Login
+        </Link>
+
+        <Link className="text-link center" to="/">
+          Back to store
+        </Link>
+      </div>
+    </main>
+  );
+}
+function ResetPassword(){
+  const [password,setPassword]=useState('');
+  const [confirmPassword,setConfirmPassword]=useState('');
+  const [showPassword,setShowPassword]=useState(false);
+  const [showConfirm,setShowConfirm]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [message,setMessage]=useState('');
+
+  const submit=async e=>{
+    e.preventDefault();
+
+    setError('');
+    setMessage('');
+
+    if(password.length < 6){
+      setError('Password kam az kam 6 characters ka hona chahiye.');
+      return;
+    }
+
+    if(password !== confirmPassword){
+      setError('Passwords match nahi kar rahe.');
+      return;
+    }
+
+    setBusy(true);
+
+    const { error } = await supabase.auth.updateUser({
+      password
+    });
+
+    if(error){
+      setError(error.message);
+    }else{
+      setMessage(
+        'Password successfully update ho gaya. Ab aap naye password se login kar sakte hain.'
+      );
+      setPassword('');
+      setConfirmPassword('');
+    }
+
+    setBusy(false);
+  };
+
+  return (
+    <main className="auth-page">
+      <div className="auth-card">
+        <img src={logo} alt="Hafiz Mart"/>
+
+        <p className="eyebrow">ACCOUNT RECOVERY</p>
+
+        <h1>Reset Password</h1>
+
+        <p className="muted">
+          Apna naya password set karein.
+        </p>
+
+        <form onSubmit={submit}>
+          <label>
+            New Password
+
+            <div className="password-wrap">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={e=>setPassword(e.target.value)}
+                minLength={6}
+                required
+              />
+
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={()=>setShowPassword(!showPassword)}
+                aria-label={
+                  showPassword ? "Hide password" : "Show password"
+                }
+              >
+                {showPassword
+                  ? <EyeOff size={16}/>
+                  : <Eye size={16}/>
+                }
+              </button>
+            </div>
+          </label>
+
+          <label>
+            Confirm Password
+
+            <div className="password-wrap">
+              <input
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={e=>setConfirmPassword(e.target.value)}
+                minLength={6}
+                required
+              />
+
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={()=>setShowConfirm(!showConfirm)}
+                aria-label={
+                  showConfirm ? "Hide password" : "Show password"
+                }
+              >
+                {showConfirm
+                  ? <EyeOff size={16}/>
+                  : <Eye size={16}/>
+                }
+              </button>
+            </div>
+          </label>
+
+          {error && (
+            <p className="muted" style={{color:'#d66'}}>
+              {error}
+            </p>
+          )}
+
+          {message && (
+            <p className="muted">
+              {message}
+            </p>
+          )}
+
+          <button
+            className="gold-btn full"
+            type="submit"
+            disabled={busy}
+          >
+            {busy ? 'Updating...' : 'Update Password'}
+            <ArrowRight size={17}/>
+          </button>
+        </form>
+
+        <Link className="text-link center" to="/login">
+          Back to Login
+        </Link>
+      </div>
+    </main>
+  );
+}
 function AdminLayout({children}){
   const { profile, loading, signOut } = useAuth();
   if(loading) return <main className="page container"><EmptyState title="Loading admin..." text="Authentication aur store data verify ho raha hai."/> </main>;
@@ -3349,4 +3584,5 @@ function AdminReviews(){
 
 function AdminPlaceholder({title,icon:Icon=Settings}){return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN</p><h1>{title}</h1><p>Is module ka workflow abhi next phase mein expand hoga.</p></div></div><EmptyState title={`${title} is empty`} text="No dummy records have been added." icon={Icon}/></AdminLayout>}
 
-export default function App(){ return <AuthProvider><StoreProvider><div className="app"><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/login" element={<Login/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminPlaceholder title="Settings"/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }
+export default function App(){ return <AuthProvider><StoreProvider><div className="app"><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
+<Route path="/reset-password" element={<ResetPassword/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminPlaceholder title="Settings"/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }
