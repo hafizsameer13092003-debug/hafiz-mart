@@ -123,42 +123,74 @@ function Navbar() {
 
   const closeMenu = () => setOpen(false);
 
+  const slugify = (value = "") =>
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/['’]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  const getMenuCategory = (label, categorySlug) => {
+    const category = store.categories.find(
+      c => slugify(c.name) === categorySlug
+    );
+
+    const productCount = category
+      ? store.products.filter(
+          product =>
+            product.status !== "inactive" &&
+            product.categoryId === category.id
+        ).length
+      : 0;
+
+    return {
+      label,
+      categorySlug,
+      productCount,
+      available: Boolean(category && productCount > 0),
+      path: category
+        ? `/shop?category=${encodeURIComponent(category.name)}`
+        : "#"
+    };
+  };
+
   const menuGroups = [
     {
       title: "Women's",
       items: [
-        ["New Arrivals", "/shop?category=womens-new-arrivals"],
-        ["Trending", "/shop?category=womens-trending"],
-        ["Modern Wear", "/shop?category=womens-modern-wear"],
-        ["Accessories", "/shop?category=womens-accessories"],
-      ],
+        getMenuCategory("New Arrivals", "womens-new-arrivals"),
+        getMenuCategory("Trending", "womens-trending"),
+        getMenuCategory("Modern Wear", "womens-modern-wear"),
+        getMenuCategory("Accessories", "womens-accessories")
+      ]
     },
     {
       title: "Men's",
       items: [
-        ["New Arrivals", "/shop?category=mens-new-arrivals"],
-        ["Trending", "/shop?category=mens-trending"],
-        ["Modern Wear", "/shop?category=mens-modern-wear"],
-        ["Accessories", "/shop?category=mens-accessories"],
-      ],
+        getMenuCategory("New Arrivals", "mens-new-arrivals"),
+        getMenuCategory("Trending", "mens-trending"),
+        getMenuCategory("Modern Wear", "mens-modern-wear"),
+        getMenuCategory("Accessories", "mens-accessories")
+      ]
     },
     {
       title: "Fragrances",
       items: [
-        ["Men's Fragrances", "/shop?category=mens-fragrances"],
-        ["Women's Fragrances", "/shop?category=womens-fragrances"],
-        ["Unisex Fragrances", "/shop?category=unisex-fragrances"],
-      ],
+        getMenuCategory("Men's Fragrances", "mens-fragrances"),
+        getMenuCategory("Women's Fragrances", "womens-fragrances"),
+        getMenuCategory("Unisex Fragrances", "unisex-fragrances")
+      ]
     },
     {
       title: "Other",
       items: [
-        ["Mobile Accessories", "/shop?category=mobile-accessories"],
-        ["Car Accessories", "/shop?category=car-accessories"],
-        ["Home Accessories", "/shop?category=home-accessories"],
-        ["Other Products", "/shop?category=other"],
-      ],
-    },
+        getMenuCategory("Mobile Accessories", "mobile-accessories"),
+        getMenuCategory("Car Accessories", "car-accessories"),
+        getMenuCategory("Home Accessories", "home-accessories"),
+        getMenuCategory("Other Products", "other-products")
+      ]
+    }
   ];
 
   return (
@@ -196,15 +228,25 @@ function Navbar() {
                   <div className="nav-dropdown-column" key={group.title}>
                     <strong>{group.title}</strong>
 
-                    {group.items.map(([label, path]) => (
-                      <Link
-                        key={label}
-                        to={path}
-                        onClick={closeMenu}
-                      >
-                        {label}
-                      </Link>
-                    ))}
+                  {group.items.map((item) => (
+  item.available ? (
+    <Link
+      key={item.label}
+      to={item.path}
+      onClick={closeMenu}
+    >
+      {item.label}
+    </Link>
+  ) : (
+    <span
+      key={item.label}
+      className="category-menu-coming-soon"
+    >
+      {item.label}
+      <small>Coming Soon</small>
+    </span>
+  )
+))}  
                   </div>
                 ))}
               </div>
@@ -294,57 +336,97 @@ function Navbar() {
                 <div className="mobile-menu-section">
                   <strong>Women's</strong>
 
-                  {menuGroups[0].items.map(([label, path]) => (
-                    <Link
-                      key={label}
-                      to={path}
-                      onClick={closeMenu}
-                    >
-                      {label}
-                    </Link>
-                  ))}
+                  {menuGroups[0].items.map((item) => (
+  item.available ? (
+    <Link
+      key={item.label}
+      to={item.path}
+      onClick={closeMenu}
+    >
+      {item.label}
+    </Link>
+  ) : (
+    <span
+      key={item.label}
+      className="category-menu-coming-soon"
+    >
+      {item.label}
+      <small>Coming Soon</small>
+    </span>
+  )
+))}
                 </div>
 
                 <div className="mobile-menu-section">
                   <strong>Men's</strong>
 
-                  {menuGroups[1].items.map(([label, path]) => (
-                    <Link
-                      key={label}
-                      to={path}
-                      onClick={closeMenu}
-                    >
-                      {label}
-                    </Link>
-                  ))}
+                 {menuGroups[1].items.map((item) => (
+  item.available ? (
+    <Link
+      key={item.label}
+      to={item.path}
+      onClick={closeMenu}
+    >
+      {item.label}
+    </Link>
+  ) : (
+    <span
+      key={item.label}
+      className="category-menu-coming-soon"
+    >
+      {item.label}
+      <small>Coming Soon</small>
+    </span>
+  )
+))}
                 </div>
 
                 <div className="mobile-menu-section">
                   <strong>Fragrances</strong>
 
-                  {menuGroups[2].items.map(([label, path]) => (
-                    <Link
-                      key={label}
-                      to={path}
-                      onClick={closeMenu}
-                    >
-                      {label}
-                    </Link>
-                  ))}
+                {menuGroups[2].items.map((item) => (
+  item.available ? (
+    <Link
+      key={item.label}
+      to={item.path}
+      onClick={closeMenu}
+    >
+      {item.label}
+    </Link>
+  ) : (
+    <span
+      key={item.label}
+      className="category-menu-coming-soon"
+    >
+      {item.label}
+      <small>Coming Soon</small>
+    </span>
+  )
+))}  
                 </div>
 
                 <div className="mobile-menu-section">
                   <strong>Other</strong>
 
-                  {menuGroups[3].items.map(([label, path]) => (
-                    <Link
-                      key={label}
-                      to={path}
-                      onClick={closeMenu}
-                    >
-                      {label}
-                    </Link>
-                  ))}
+                  {menuGroups[3].items.map((item) => (
+  item.available ? (
+    <Link
+      key={item.label}
+      to={item.path}
+      onClick={closeMenu}
+    >
+      {item.label}
+    </Link>
+  ) : (
+    <span
+      key={item.label}
+      className="category-menu-coming-soon"
+    >
+      {item.label}
+      <small>Coming Soon</small>
+    </span>
+  )
+))}
                 </div>
 
                 <Link to="/deals" onClick={closeMenu}>
@@ -424,7 +506,35 @@ function Home() {
   const newArrivals = activeProducts.slice(8, 16);
   const featuredProducts = activeProducts.slice(0, 4);
 
-  const cats = store.categories.slice(0, 6);
+const categoryNames = [
+  "Women's New Arrivals",
+  "Women's Trending",
+  "Women's Modern Wear",
+  "Women's Accessories",
+  "Men's New Arrivals",
+  "Men's Trending"
+];
+
+const cats = categoryNames.map(name => {
+  const category = store.categories.find(
+    c => c.name?.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+
+  const productCount = category
+    ? store.products.filter(
+        product =>
+          product.status !== "inactive" &&
+          product.categoryId === category.id
+      ).length
+    : 0;
+
+  return {
+    id: category?.id || `coming-${name}`,
+    name,
+    productCount,
+    available: Boolean(category && productCount > 0)
+  };
+});
 
   return (
     <>
@@ -503,43 +613,55 @@ function Home() {
                 </Link>
               )}
             </div>
+{cats.length ? (
+  <div className="home-category-grid">
+    {cats.map((c) => (
+      <div
+        className={`home-category-card ${
+          c.available ? "" : "coming-soon-category"
+        }`}
+        key={c.id}
+      >
+        <div className="category-icon">
+          <Tag size={20} />
+        </div>
 
-            {cats.length ? (
-              <div className="home-category-grid">
-                {cats.map((c) => (
-                  <Link
-                    className="home-category-card"
-                    key={c.id}
-                    to={`/shop?category=${encodeURIComponent(c.name)}`}
-                  >
-                    <div className="category-icon">
-                      <Tag size={20} />
-                    </div>
+        <div>
+          <strong>{c.name}</strong>
 
-                    <div>
-                      <strong>{c.name}</strong>
+          <span>
+            {c.available
+              ? `${c.productCount} ${
+                  c.productCount === 1 ? "product" : "products"
+                }`
+              : "Coming Soon"}
+          </span>
+        </div>
 
-                      <span>
-                        {store.products.filter(
-                          p => p.category === c.name
-                        ).length}{" "}
-                        products
-                      </span>
-                    </div>
-
-                    <ArrowRight size={17} />
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No Categories Yet"
-                text="Create categories from the admin panel."
-                action="Manage Categories"
-                to="/admin/categories"
-                icon={Tag}
-              />
-            )}
+        {c.available ? (
+          <Link
+            to={`/shop?category=${encodeURIComponent(c.name)}`}
+            aria-label={`View ${c.name}`}
+          >
+            <ArrowRight size={17} />
+          </Link>
+        ) : (
+          <span className="category-coming-soon">
+            Coming Soon
+          </span>
+        )}
+      </div>
+    ))}
+  </div>
+) : (
+  <div className="home-category-coming-soon">
+    <Tag size={24} />
+    <strong>Categories Coming Soon</strong>
+    <span>
+      New categories will appear here as they are added.
+    </span>
+  </div>
+)}
 
           </div>
         </section>
