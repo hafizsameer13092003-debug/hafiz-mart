@@ -154,46 +154,182 @@ const getMenuCategory = (label, categorySlug) => {
       : "#"
   };
 };
+const getFixedMenuCategory = (label, categorySlug) => {
+  const category = store.categories.find(
+    c => slugify(c.name || "") === categorySlug
+  );
+
+  const productCount = category
+    ? store.products.filter(
+        product =>
+          product.status !== "inactive" &&
+          product.categoryId === category.id
+      ).length
+    : 0;
+
+  return {
+    label,
+    categorySlug,
+    productCount,
+    available: Boolean(category && productCount > 0),
+    fixed: true,
+    path: category
+      ? `/shop?category=${encodeURIComponent(category.name)}`
+      : "#"
+  };
+};
+
+const getDynamicCategories = (section) => {
+  return store.categories
+    .filter(c => (c.nav_section || "other") === section)
+    .map(c => {
+      const productCount = store.products.filter(
+        product =>
+          product.status !== "inactive" &&
+          product.categoryId === c.id
+      ).length;
+
+      return {
+        label: c.name,
+        categorySlug: slugify(c.name),
+        productCount,
+        available: productCount > 0,
+        fixed: false,
+        path: `/shop?category=${encodeURIComponent(c.name)}`
+      };
+    });
+};
+
+const mergeMenuItems = (fixedItems, section) => {
+  const dynamicItems = getDynamicCategories(section);
+
+  const fixedNames = new Set(
+    fixedItems.map(item => item.label.toLowerCase())
+  );
+
+  const extraItems = dynamicItems.filter(
+    item => !fixedNames.has(item.label.toLowerCase())
+  );
+
+  return [
+    ...fixedItems,
+    ...extraItems
+  ];
+};
+
 const menuGroups = [
   {
     title: "Women's",
-    items: [
-      getMenuCategory("Women's New Arrivals", "womens-new-arrivals"),
-      getMenuCategory("Women's Trending", "womens-trending"),
-      getMenuCategory("Women's Modern Wear", "womens-modern-wear"),
-      getMenuCategory("Women's Accessories", "womens-accessories")
-    ]
+
+    items: mergeMenuItems(
+      [
+        getFixedMenuCategory(
+          "Women's New Arrivals",
+          "womens-new-arrivals"
+        ),
+
+        getFixedMenuCategory(
+          "Women's Trending",
+          "womens-trending"
+        ),
+
+        getFixedMenuCategory(
+          "Women's Modern Wear",
+          "womens-modern-wear"
+        ),
+
+        getFixedMenuCategory(
+          "Women's Accessories",
+          "womens-accessories"
+        )
+      ],
+      "women"
+    )
   },
 
   {
     title: "Men's",
-    items: [
-      getMenuCategory("Men's New Arrivals", "mens-new-arrivals"),
-      getMenuCategory("Men's Trending", "mens-trending"),
-      getMenuCategory("Men's Modern Wear", "mens-modern-wear"),
-      getMenuCategory("Men's Accessories", "mens-accessories")
-    ]
+
+    items: mergeMenuItems(
+      [
+        getFixedMenuCategory(
+          "Men's New Arrivals",
+          "mens-new-arrivals"
+        ),
+
+        getFixedMenuCategory(
+          "Men's Trending",
+          "mens-trending"
+        ),
+
+        getFixedMenuCategory(
+          "Men's Modern Wear",
+          "mens-modern-wear"
+        ),
+
+        getFixedMenuCategory(
+          "Men's Accessories",
+          "mens-accessories"
+        )
+      ],
+      "men"
+    )
   },
 
   {
     title: "Fragrances",
-    items: [
-      getMenuCategory("Men's Fragrances", "mens-fragrances"),
-      getMenuCategory("Women's Fragrances", "womens-fragrances"),
-      getMenuCategory("Unisex Fragrances", "unisex-fragrances")
-    ]
+
+    items: mergeMenuItems(
+      [
+        getFixedMenuCategory(
+          "Men's Fragrances",
+          "mens-fragrances"
+        ),
+
+        getFixedMenuCategory(
+          "Women's Fragrances",
+          "womens-fragrances"
+        ),
+
+        getFixedMenuCategory(
+          "Unisex Fragrances",
+          "unisex-fragrances"
+        )
+      ],
+      "fragrances"
+    )
   },
 
   {
     title: "Other",
-    items: [
-      getMenuCategory("Mobile Accessories", "mobile-accessories"),
-      getMenuCategory("Car Accessories", "car-accessories"),
-      getMenuCategory("Home Accessories", "home-accessories"),
-      getMenuCategory("Other Products", "other-products")
-    ]
+
+    items: mergeMenuItems(
+      [
+        getFixedMenuCategory(
+          "Mobile Accessories",
+          "mobile-accessories"
+        ),
+
+        getFixedMenuCategory(
+          "Car Accessories",
+          "car-accessories"
+        ),
+
+        getFixedMenuCategory(
+          "Home Accessories",
+          "home-accessories"
+        ),
+
+        getFixedMenuCategory(
+          "Kitchen Wear Products",
+          "kitchen-wear-products"
+        )
+      ],
+      "other"
+    )
   }
 ];
+
 
   return (
     <>
@@ -835,17 +971,33 @@ const cats = categoryNames.map(name => {
 
     const { error } = await supabase
       .from("newsletter_subscribers")
-      .upsert(
-        { email },
-        { onConflict: "email", ignoreDuplicates: true }
-      );
+      .insert({
+        email
+      });
 
     if (error) {
-      setNewsletterMessage(error.message);
+
+      if (error.code === "23505") {
+        setNewsletterMessage(
+          "You're already subscribed. Thank you!"
+        );
+      } else {
+        console.error(
+          "Newsletter subscription error:",
+          error
+        );
+
+        setNewsletterMessage(
+          "Something went wrong. Please try again."
+        );
+      }
+
     } else {
+
       setNewsletterMessage(
         "Thank you for subscribing!"
       );
+
       setNewsletterEmail("");
     }
 
@@ -868,7 +1020,9 @@ const cats = categoryNames.map(name => {
     className="gold-btn"
     disabled={newsletterBusy}
   >
-    {newsletterBusy ? "Subscribing..." : "Subscribe"}
+    {newsletterBusy
+      ? "Subscribing..."
+      : "Subscribe"}
   </button>
 </form>
 
@@ -972,16 +1126,619 @@ function StarRating({value=0,size=16}){
   return <span className="stars" aria-label={`${value} out of 5 stars`}>{[1,2,3,4,5].map(n=><Star key={n} size={size} fill={n<=Math.round(value)?"currentColor":"none"}/>)}</span>;
 }
 
-function ProductReviews({productId}){
-  const {user,profile}=useAuth();
-  const [reviews,setReviews]=useState([]); const [loading,setLoading]=useState(true); const [rating,setRating]=useState(5); const [title,setTitle]=useState(""); const [comment,setComment]=useState(""); const [busy,setBusy]=useState(false); const [message,setMessage]=useState("");
-  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('reviews').select('id,user_id,reviewer_name,rating,title,comment,status,created_at').eq('product_id',productId).eq('status','approved').order('created_at',{ascending:false});if(!error)setReviews(data||[]);setLoading(false)};
-  useEffect(()=>{load()},[productId]);
-  const mine=reviews.some(r=>r.user_id===user?.id);
-  const submit=async e=>{e.preventDefault();if(!user){setMessage('Review dene ke liye customer account mein login karein.');return;}setBusy(true);setMessage('');const {error}=await supabase.from('reviews').insert({product_id:productId,user_id:user.id,reviewer_name:profile?.full_name||user.email?.split('@')[0]||'Customer',rating,title:title.trim()||null,comment:comment.trim()||null,status:'pending'});if(error)setMessage(error.code==='23505'?'Aap is product ko already review kar chuke hain.':error.message);else{setTitle('');setComment('');setMessage('Review submit ho gaya. Admin approval ke baad storefront par show hoga.');}setBusy(false);load()};
-  const avg=reviews.length?reviews.reduce((n,r)=>n+Number(r.rating||0),0)/reviews.length:0;
-  return <section className="reviews-section"><div className="section-heading"><div><p className="eyebrow">CUSTOMER VOICE</p><h2>Reviews {reviews.length>0&&<small>({reviews.length})</small>}</h2></div>{reviews.length>0&&<div className="review-summary"><StarRating value={avg}/><strong>{avg.toFixed(1)}</strong></div>}</div>{loading?<div className="mini-empty">Reviews load ho rahe hain...</div>:reviews.length?<div className="review-list">{reviews.map(r=><article className="review-card" key={r.id}><div className="review-card-head"><div><strong>{r.reviewer_name||'Customer'}</strong><span>{new Date(r.created_at).toLocaleDateString()}</span></div><StarRating value={r.rating}/></div>{r.title&&<h3>{r.title}</h3>}{r.comment&&<p>{r.comment}</p>}</article>)}</div>:<div className="mini-empty"><MessageSquare size={24}/><strong>No approved reviews yet</strong><span>Is product par pehla review aap de sakte hain.</span></div>}
-    <div className="review-form-wrap"><div><p className="eyebrow">WRITE A REVIEW</p><h3>Apna experience share karein</h3><p className="muted">Reviews admin approval ke baad public hoti hain.</p></div>{user&&!mine?<form className="review-form" onSubmit={submit}><div className="star-picker"><span>Rating</span><div>{[1,2,3,4,5].map(n=><button type="button" key={n} onClick={()=>setRating(n)} className={n<=rating?'active':''} aria-label={`${n} stars`}><Star size={22} fill={n<=rating?'currentColor':'none'}/></button>)}</div></div><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Review title (optional)" maxLength={80}/><textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Aapka review..." rows="4" maxLength={500}/><button className="gold-btn" disabled={busy}>{busy?'Submitting...':'Submit Review'} <Star size={16}/></button></form>:<div className="review-login"><ShieldCheck size={20}/><span>{user?(mine?'Aapka review already submit ho chuka hai.':''): 'Login karke review submit karein.'}</span>{!user&&<Link className="text-link" to="/login">Login <ArrowRight size={14}/></Link>}</div>}{message&&<p className="review-message">{message}</p>}</div></section>;
+function ProductReviews({ productId }) {
+  const { user, profile } = useAuth();
+
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [rating, setRating] = useState(5);
+  const [title, setTitle] = useState("");
+  const [comment, setComment] = useState("");
+
+  const [reviewImages, setReviewImages] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const load = async () => {
+    if (!productId) {
+      setReviews([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("reviews")
+      .select(
+        "id,user_id,product_id,reviewer_name,rating,title,comment,image_urls,status,created_at"
+      )
+      .eq("product_id", productId)
+      .eq("status", "approved")
+      .order("created_at", {
+        ascending: false
+      });
+
+    if (error) {
+      console.error("Reviews load error:", error);
+      setReviews([]);
+    } else {
+      setReviews(data || []);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, [productId]);
+
+  const mine = reviews.some(
+    review => review.user_id === user?.id
+  );
+
+  const uploadReviewImages = async files => {
+    const selected = Array.from(files || []);
+
+    if (!selected.length) return;
+
+    const allowed = [
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+    ];
+
+    const invalid = selected.find(
+      file => !allowed.includes(file.type)
+    );
+
+    if (invalid) {
+      setMessage(
+        "Sirf JPG, PNG ya WEBP images upload karein."
+      );
+      return;
+    }
+
+    const tooLarge = selected.find(
+      file => file.size > 5 * 1024 * 1024
+    );
+
+    if (tooLarge) {
+      setMessage(
+        "Har review image maximum 5MB ho sakti hai."
+      );
+      return;
+    }
+
+    if (reviewImages.length + selected.length > 5) {
+      setMessage(
+        "Maximum 5 images per review upload kar sakte hain."
+      );
+      return;
+    }
+
+    setUploadingImages(true);
+    setMessage("");
+
+    const uploaded = [];
+
+    for (const file of selected) {
+      const safeName = file.name
+        .toLowerCase()
+        .replace(/[^a-z0-9.]+/g, "-");
+
+      const path =
+        `reviews/${productId}/${user.id}/${crypto.randomUUID()}-${safeName}`;
+
+      const {
+        error: uploadError
+      } = await supabase.storage
+        .from("review-images")
+        .upload(
+          path,
+          file,
+          {
+            upsert: false,
+            contentType: file.type,
+            cacheControl: "3600"
+          }
+        );
+
+      if (uploadError) {
+        console.error(
+          "Review image upload error:",
+          uploadError
+        );
+
+        setMessage(
+          "Review image upload nahi ho saki. Dobara try karein."
+        );
+
+        break;
+      }
+
+      const {
+        data
+      } = supabase.storage
+        .from("review-images")
+        .getPublicUrl(path);
+
+      if (data?.publicUrl) {
+        uploaded.push(data.publicUrl);
+      }
+    }
+
+    if (uploaded.length) {
+      setReviewImages(prev => [
+        ...prev,
+        ...uploaded
+      ]);
+    }
+
+    setUploadingImages(false);
+  };
+
+  const removeReviewImage = url => {
+    setReviewImages(prev =>
+      prev.filter(image => image !== url)
+    );
+  };
+
+  const submit = async e => {
+    e.preventDefault();
+
+    if (!user) {
+      setMessage(
+        "Review dene ke liye customer account mein login karein."
+      );
+      return;
+    }
+
+    if (!rating) {
+      setMessage(
+        "Please product rating select karein."
+      );
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+
+    const {
+      error
+    } = await supabase
+      .from("reviews")
+      .insert({
+        product_id: productId,
+        user_id: user.id,
+        reviewer_name:
+          profile?.full_name ||
+          user.email?.split("@")[0] ||
+          "Customer",
+
+        rating,
+
+        title:
+          title.trim() || null,
+
+        comment:
+          comment.trim() || null,
+
+        image_urls:
+          reviewImages,
+
+        status: "approved"
+      });
+
+    if (error) {
+
+      console.error(
+        "Review submit error:",
+        error
+      );
+
+      if (error.code === "23505") {
+        setMessage(
+          "Aap is product ko already review de chuke hain."
+        );
+      } else {
+        setMessage(
+          "Review submit nahi ho saka. Dobara try karein."
+        );
+      }
+
+    } else {
+
+      setTitle("");
+      setComment("");
+      setRating(5);
+      setReviewImages([]);
+
+      setMessage(
+        "Thank you! Aapka review ab product par show ho raha hai."
+      );
+
+      await load();
+    }
+
+    setBusy(false);
+  };
+
+  const avg =
+    reviews.length
+      ? reviews.reduce(
+          (sum, review) =>
+            sum + Number(review.rating || 0),
+          0
+        ) / reviews.length
+      : 0;
+
+  return (
+    <section className="reviews-section">
+
+      <div className="section-heading">
+
+        <div>
+
+          <p className="eyebrow">
+            CUSTOMER VOICE
+          </p>
+
+          <h2>
+            Reviews{" "}
+
+            {reviews.length > 0 && (
+              <small>
+                ({reviews.length})
+              </small>
+            )}
+          </h2>
+
+        </div>
+
+        {reviews.length > 0 && (
+          <div className="review-summary">
+            <StarRating value={avg} />
+            <strong>
+              {avg.toFixed(1)}
+            </strong>
+          </div>
+        )}
+
+      </div>
+
+      {loading ? (
+
+        <div className="mini-empty">
+          Reviews load ho rahe hain...
+        </div>
+
+      ) : reviews.length ? (
+
+        <div className="review-list">
+
+          {reviews.map(review => (
+
+            <article
+              className="review-card"
+              key={review.id}
+            >
+
+              <div className="review-card-head">
+
+                <div>
+
+                  <strong>
+                    {review.reviewer_name ||
+                      "Customer"}
+                  </strong>
+
+                  <span>
+                    {new Date(
+                      review.created_at
+                    ).toLocaleDateString()}
+                  </span>
+
+                </div>
+
+                <StarRating
+                  value={review.rating}
+                />
+
+              </div>
+
+              {review.title && (
+                <h3>
+                  {review.title}
+                </h3>
+              )}
+
+              {review.comment && (
+                <p>
+                  {review.comment}
+                </p>
+              )}
+
+              {Array.isArray(
+                review.image_urls
+              ) &&
+                review.image_urls.length > 0 && (
+
+                <div className="review-images">
+
+                  {review.image_urls.map(
+                    (image, index) => (
+
+                      <a
+                        key={`${review.id}-${index}`}
+                        href={image}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <img
+                          src={image}
+                          alt={`Review ${index + 1}`}
+                        />
+                      </a>
+
+                    )
+                  )}
+
+                </div>
+
+              )}
+
+            </article>
+
+          ))}
+
+        </div>
+
+      ) : (
+
+        <div className="mini-empty">
+
+          <MessageSquare size={24} />
+
+          <strong>
+            No reviews yet
+          </strong>
+
+          <span>
+            Is product par pehla review aap de sakte hain.
+          </span>
+
+        </div>
+
+      )}
+
+      <div className="review-form-wrap">
+
+        <div>
+
+          <p className="eyebrow">
+            WRITE A REVIEW
+          </p>
+
+          <h3>
+            Apna experience share karein
+          </h3>
+
+          <p className="muted">
+            Aapka review submit hote hi product par show ho jayega.
+          </p>
+
+        </div>
+
+        {user && !mine ? (
+
+          <form
+            className="review-form"
+            onSubmit={submit}
+          >
+
+            <div className="star-picker">
+
+              <span>
+                Rating
+              </span>
+
+              <div>
+
+                {[1, 2, 3, 4, 5].map(
+                  number => (
+
+                    <button
+                      type="button"
+                      key={number}
+                      onClick={() =>
+                        setRating(number)
+                      }
+                      className={
+                        number <= rating
+                          ? "active"
+                          : ""
+                      }
+                      aria-label={`${number} stars`}
+                    >
+
+                      <Star
+                        size={22}
+                        fill={
+                          number <= rating
+                            ? "currentColor"
+                            : "none"
+                        }
+                      />
+
+                    </button>
+
+                  )
+                )}
+
+              </div>
+
+            </div>
+
+            <input
+              value={title}
+              onChange={e =>
+                setTitle(e.target.value)
+              }
+              placeholder="Review title (optional)"
+              maxLength={80}
+            />
+
+            <textarea
+              value={comment}
+              onChange={e =>
+                setComment(e.target.value)
+              }
+              placeholder="Aapka review..."
+              rows="4"
+              maxLength={500}
+            />
+
+            <div className="review-image-uploader">
+
+              <div className="review-upload-head">
+
+                <div>
+
+                  <strong>
+                    Add Product Photos
+                  </strong>
+
+                  <span>
+                    Optional — maximum 5 photos
+                  </span>
+
+                </div>
+
+                <label className="ghost-btn review-upload-btn">
+
+                  <ImageIcon size={16} />
+
+                  {uploadingImages
+                    ? "Uploading..."
+                    : "Add Photos"}
+
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    hidden
+                    disabled={uploadingImages}
+                    onChange={e => {
+                      uploadReviewImages(
+                        e.target.files
+                      );
+
+                      e.target.value = "";
+                    }}
+                  />
+
+                </label>
+
+              </div>
+
+              {reviewImages.length > 0 && (
+
+                <div className="review-upload-preview">
+
+                  {reviewImages.map(
+                    (image, index) => (
+
+                      <div
+                        className="review-upload-thumb"
+                        key={`${image}-${index}`}
+                      >
+
+                        <img
+                          src={image}
+                          alt={`Selected review ${index + 1}`}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeReviewImage(image)
+                          }
+                          aria-label="Remove image"
+                        >
+                          <X size={14} />
+                        </button>
+
+                      </div>
+
+                    )
+                  )}
+
+                </div>
+
+              )}
+
+            </div>
+
+            <button
+              className="gold-btn"
+              disabled={
+                busy ||
+                uploadingImages
+              }
+            >
+
+              {busy
+                ? "Submitting..."
+                : "Submit Review"}
+
+              <Star size={16} />
+
+            </button>
+
+          </form>
+
+        ) : (
+
+          <div className="review-login">
+
+            <ShieldCheck size={20} />
+
+            <span>
+
+              {user
+                ? "Aap is product ko already review de chuke hain."
+                : "Login karke review submit karein."}
+
+            </span>
+
+            {!user && (
+              <Link
+                className="text-link"
+                to="/login"
+              >
+                Login
+                <ArrowRight size={14} />
+              </Link>
+            )}
+
+          </div>
+
+        )}
+
+        {message && (
+          <p className="review-message">
+            {message}
+          </p>
+        )}
+
+      </div>
+
+    </section>
+  );
 }
 
 function ProductDetails() {
@@ -1000,10 +1757,10 @@ function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const deliv
 function Shop() {
   const { store } = useStore();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [toast, setToast] = useState("");
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("");
   const [sort, setSort] = useState("newest");
 
   const [minPrice, setMinPrice] = useState("");
@@ -1013,28 +1770,76 @@ function Shop() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   /*
-    IMPORTANT:
-    HashRouter mein query URL ke hash ke andar hoti hai:
+    HashRouter URL:
 
-    #/shop?category=Men's%20Fragrances
+    #/shop?category=Men's%20Modern%20Wear
 
-    React Router ka location.search isi query ko correctly provide karta hai.
+    React Router:
+    location.pathname = /shop
+    location.search  = ?category=Men's%20Modern%20Wear
+  */
+
+  const params = new URLSearchParams(location.search);
+
+  const category = params.get("category") || "";
+  const urlSearch = params.get("search") || "";
+
+  /*
+    URL change hone par search box bhi sync rahe.
   */
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
+    setQuery(urlSearch);
+  }, [urlSearch]);
 
-    setQuery(params.get("search") || "");
-    setCategory(params.get("category") || "");
-  }, [location.search]);
+  /*
+    Shop ke andar category dropdown se category change karne par
+    sirf state nahi, actual Router URL bhi change hoga.
+  */
+  const handleCategoryChange = (value) => {
+    const nextParams = new URLSearchParams();
+
+    if (value) {
+      nextParams.set("category", value);
+    }
+
+    if (query.trim()) {
+      nextParams.set("search", query.trim());
+    }
+
+    const nextUrl = nextParams.toString()
+      ? `/shop?${nextParams.toString()}`
+      : "/shop";
+
+    navigate(nextUrl);
+  };
+
+  const handleSearchChange = (value) => {
+    setQuery(value);
+
+    const nextParams = new URLSearchParams(location.search);
+
+    if (value.trim()) {
+      nextParams.set("search", value);
+    } else {
+      nextParams.delete("search");
+    }
+
+    const nextUrl = nextParams.toString()
+      ? `/shop?${nextParams.toString()}`
+      : "/shop";
+
+    navigate(nextUrl, { replace: true });
+  };
 
   const reset = () => {
     setQuery("");
-    setCategory("");
     setSort("newest");
     setMinPrice("");
     setMaxPrice("");
     setSaleOnly(false);
     setInStock(false);
+
+    navigate("/shop");
   };
 
   let products = store.products
@@ -1081,8 +1886,14 @@ function Shop() {
         <div className="page-head">
           <div>
             <p className="eyebrow">CATALOG</p>
-            <h1>Shop</h1>
-            <p>Browse the live products in Hafiz Mart.</p>
+
+            <h1>
+              {category || "Shop"}
+            </h1>
+
+            <p>
+              Browse the live products in Hafiz Mart.
+            </p>
           </div>
 
           <span className="result-count">
@@ -1097,14 +1908,18 @@ function Shop() {
 
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) =>
+                handleSearchChange(e.target.value)
+              }
               placeholder="Search products, brand or SKU..."
             />
           </div>
 
           <select
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={(e) =>
+              handleCategoryChange(e.target.value)
+            }
           >
             <option value="">All categories</option>
 
@@ -1117,7 +1932,9 @@ function Shop() {
 
           <select
             value={sort}
-            onChange={(e) => setSort(e.target.value)}
+            onChange={(e) =>
+              setSort(e.target.value)
+            }
           >
             <option value="newest">Newest</option>
             <option value="name">Name A–Z</option>
@@ -1131,7 +1948,9 @@ function Shop() {
 
           <button
             className="ghost-btn filter-toggle"
-            onClick={() => setFiltersOpen((v) => !v)}
+            onClick={() =>
+              setFiltersOpen((v) => !v)
+            }
           >
             <SlidersHorizontal size={16} />
             Filters
@@ -1143,9 +1962,18 @@ function Shop() {
           {filtersOpen && (
             <motion.div
               className="advanced-filters"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
+              initial={{
+                opacity: 0,
+                height: 0
+              }}
+              animate={{
+                opacity: 1,
+                height: "auto"
+              }}
+              exit={{
+                opacity: 0,
+                height: 0
+              }}
             >
 
               <label>
@@ -1155,7 +1983,9 @@ function Shop() {
                   type="number"
                   min="0"
                   value={minPrice}
-                  onChange={(e) => setMinPrice(e.target.value)}
+                  onChange={(e) =>
+                    setMinPrice(e.target.value)
+                  }
                   placeholder="Rs. 0"
                 />
               </label>
@@ -1167,7 +1997,9 @@ function Shop() {
                   type="number"
                   min="0"
                   value={maxPrice}
-                  onChange={(e) => setMaxPrice(e.target.value)}
+                  onChange={(e) =>
+                    setMaxPrice(e.target.value)
+                  }
                   placeholder="No limit"
                 />
               </label>
@@ -1176,7 +2008,9 @@ function Shop() {
                 <input
                   type="checkbox"
                   checked={saleOnly}
-                  onChange={(e) => setSaleOnly(e.target.checked)}
+                  onChange={(e) =>
+                    setSaleOnly(e.target.checked)
+                  }
                 />
                 Sale only
               </label>
@@ -1185,7 +2019,9 @@ function Shop() {
                 <input
                   type="checkbox"
                   checked={inStock}
-                  onChange={(e) => setInStock(e.target.checked)}
+                  onChange={(e) =>
+                    setInStock(e.target.checked)
+                  }
                 />
                 In stock only
               </label>
@@ -1204,6 +2040,7 @@ function Shop() {
 
         {products.length ? (
           <div className="product-grid">
+
             {products.map((p) => (
               <ProductCard
                 key={p.id}
@@ -1211,6 +2048,7 @@ function Shop() {
                 onToast={setToast}
               />
             ))}
+
           </div>
         ) : (
           <EmptyState
@@ -1235,6 +2073,7 @@ function Shop() {
     </main>
   );
 }
+
 function Checkout(){
   const { cartItems, subtotal, update } = useStore();
   const { user } = useAuth();
@@ -3583,54 +4422,267 @@ function OrderTracker() {
     </main>
   );
 }
-function Login(){
-  const { user, profile } = useAuth(); const navigate = useNavigate();
-  const [mode,setMode]=useState('login'); const [email,setEmail]=useState(''); const [password,setPassword]=useState(''); const [name,setName]=useState(''); const [busy,setBusy]=useState(false); const [error,setError]=useState(''); const [message,setMessage]=useState('');
-  const [showPassword,setShowPassword]=useState(false);
-  useEffect(()=>{ if(user && profile) navigate(profile.role==='admin'?'/admin':'/account'); },[user,profile,navigate]);
-  const submit=async e=>{ e.preventDefault(); setBusy(true); setError(''); setMessage('');
-    const result = mode==='login'
-  ? await supabase.auth.signInWithPassword({email,password})
-  : await supabase.auth.signUp({
-      email,
-      password,
-      options:{
-        data:{full_name:name},
-        emailRedirectTo:`${window.location.origin}${window.location.pathname}?auth=confirmed#/`
+function Login() {
+  const { user, profile } = useAuth();
+  const navigate = useNavigate();
+
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (user && profile) {
+      navigate(
+        profile.role === "admin"
+          ? "/admin"
+          : "/account"
+      );
+    }
+  }, [user, profile, navigate]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    const result =
+      mode === "login"
+        ? await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password
+          })
+        : await supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+            options: {
+              data: {
+                full_name: name.trim()
+              },
+              emailRedirectTo:
+                `${window.location.origin}${window.location.pathname}?auth=confirmed#/`
+            }
+          });
+
+    if (result.error) {
+
+      if (mode === "login") {
+
+        setError(
+          "Email ya password ghalat hai. Apni details check karein ya naya account create karein."
+        );
+
+      } else {
+
+        const errorMessage =
+          String(result.error.message || "")
+            .toLowerCase();
+
+        if (
+          errorMessage.includes("already registered") ||
+          errorMessage.includes("already been registered") ||
+          errorMessage.includes("user already registered")
+        ) {
+          setError(
+            "Ye email pehle se registered hai. Login karein ya doosra email use karein."
+          );
+        } else if (
+          errorMessage.includes("password")
+        ) {
+          setError(
+            "Password kam az kam 6 characters ka hona chahiye."
+          );
+        } else {
+          setError(
+            "Account create nahi ho saka. Details check karke dobara try karein."
+          );
+        }
       }
-    });
-    if(result.error) setError(result.error.message); else if(mode==='register' && !result.data.session) setMessage('Account create ho gaya. Agar email confirmation enabled hai to email confirm karein.');
+
+    } else if (
+      mode === "register" &&
+      !result.data.session
+    ) {
+
+      setMessage(
+        "Account create ho gaya. Agar email confirmation enabled hai to apni email confirm karein."
+      );
+
+    } else if (mode === "login") {
+
+      setMessage(
+        "Login successful. Aapka account open ho raha hai..."
+      );
+    }
+
     setBusy(false);
   };
-  return <main className="auth-page"><div className="auth-card"><img src={logo} alt="Hafiz Mart"/><p className="eyebrow">ACCOUNT</p><h1>{mode==='login'?'Welcome back':'Create account'}</h1><p className="muted">{mode==='login'?'Hafiz Mart admin/customer account mein sign in karein.':'Hafiz Mart par apna account create karein.'}</p>
-    {mode==='register'&&<label>Full Name<input value={name} onChange={e=>setName(e.target.value)} required/></label>}
-    <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password
-  <div className="password-wrap">
-    <input
-      type={showPassword ? "text" : "password"}
-      value={password}
-      onChange={e=>setPassword(e.target.value)}
-      required
-      minLength={6}
-    />
-    <button
-      type="button"
-      className="password-toggle"
-      onClick={()=>setShowPassword(!showPassword)}
-      aria-label={showPassword ? "Hide password" : "Show password"}
-    >
-      {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
-    </button>
-  </div>
-</label>
-    {error&&<p className="muted" style={{color:'#d66'}}>{error}</p>}{message&&<p className="muted">{message}</p>}
-    <button className="gold-btn full" type="button" disabled={busy} onClick={submit}>{busy?'Please wait...':mode==='login'?'Login':'Create Account'} <ArrowRight size={17}/></button>
-    {mode==='login' && (
-  <Link className="text-link center" to="/forgot-password">
-    Forgot your password? Click here
-  </Link>
-)}<button className="text-link center" type="button" onClick={()=>{setMode(mode==='login'?'register':'login');setError('');setMessage('')}}>{mode==='login'?'Create a new account':'Already have an account? Login'}</button>
-    <Link className="text-link center" to="/">Back to store</Link></div></main>; }
+
+  return (
+    <main className="auth-page">
+
+      <div className="auth-card">
+
+        <img
+          src={logo}
+          alt="Hafiz Mart"
+        />
+
+        <p className="eyebrow">
+          ACCOUNT
+        </p>
+
+        <h1>
+          {mode === "login"
+            ? "Welcome back"
+            : "Create account"}
+        </h1>
+
+        <p className="muted">
+          {mode === "login"
+            ? "Hafiz Mart admin/customer account mein sign in karein."
+            : "Hafiz Mart par apna account create karein."}
+        </p>
+
+        {mode === "register" && (
+          <label>
+            Full Name
+
+            <input
+              value={name}
+              onChange={(e) =>
+                setName(e.target.value)
+              }
+              required
+            />
+          </label>
+        )}
+
+        <label>
+          Email
+
+          <input
+            type="email"
+            value={email}
+            onChange={(e) =>
+              setEmail(e.target.value)
+            }
+            required
+          />
+        </label>
+
+        <label>
+          Password
+
+          <div className="password-wrap">
+
+            <input
+              type={
+                showPassword
+                  ? "text"
+                  : "password"
+              }
+              value={password}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
+              required
+              minLength={6}
+            />
+
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() =>
+                setShowPassword(!showPassword)
+              }
+              aria-label={
+                showPassword
+                  ? "Hide password"
+                  : "Show password"
+              }
+            >
+              {showPassword ? (
+                <EyeOff size={16} />
+              ) : (
+                <Eye size={16} />
+              )}
+            </button>
+
+          </div>
+        </label>
+
+        {error && (
+          <p
+            className="muted"
+            style={{
+              color: "#d66"
+            }}
+          >
+            {error}
+          </p>
+        )}
+
+        {message && (
+          <p className="muted">
+            {message}
+          </p>
+        )}
+
+        <button
+          className="gold-btn full"
+          type="button"
+          disabled={busy}
+          onClick={submit}
+        >
+          {busy
+            ? "Please wait..."
+            : mode === "login"
+            ? "Login"
+            : "Create Account"}
+
+          <ArrowRight size={17} />
+        </button>
+
+        <button
+          className="text-link center"
+          type="button"
+          onClick={() => {
+            setMode(
+              mode === "login"
+                ? "register"
+                : "login"
+            );
+
+            setError("");
+            setMessage("");
+          }}
+        >
+          {mode === "login"
+            ? "Create a new account"
+            : "Already have an account? Login"}
+        </button>
+
+        <Link
+          className="text-link center"
+          to="/"
+        >
+          Back to store
+        </Link>
+
+      </div>
+
+    </main>
+  );
+}
 
 function ForgotPassword(){
   const [email,setEmail]=useState('');
@@ -3920,6 +4972,7 @@ function AdminCategories() {
   const { store, refresh } = useStore();
 
   const [name, setName] = useState("");
+  const [section, setSection] = useState("other");
   const [busy, setBusy] = useState(false);
 
   const slugify = (value = "") =>
@@ -3929,6 +4982,13 @@ function AdminCategories() {
       .replace(/['’]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
+
+  const sectionLabel = {
+    women: "Women's",
+    men: "Men's",
+    fragrances: "Fragrances",
+    other: "Other"
+  };
 
   const add = async (e) => {
     e.preventDefault();
@@ -3966,7 +5026,8 @@ function AdminCategories() {
       .from("categories")
       .insert({
         name: cleanName,
-        slug
+        slug,
+        nav_section: section
       });
 
     if (error) {
@@ -3981,6 +5042,7 @@ function AdminCategories() {
     }
 
     setName("");
+    setSection("other");
 
     await refresh();
 
@@ -4005,12 +5067,13 @@ function AdminCategories() {
 
   return (
     <AdminLayout>
+
       <div className="admin-head">
         <div>
           <p className="eyebrow">CATALOG</p>
           <h1>Categories</h1>
           <p>
-            Create and manage database categories.
+            Create categories and choose where they appear in the store navigation.
           </p>
         </div>
       </div>
@@ -4019,6 +5082,7 @@ function AdminCategories() {
         className="inline-form"
         onSubmit={add}
       >
+
         <input
           value={name}
           onChange={e => setName(e.target.value)}
@@ -4026,24 +5090,60 @@ function AdminCategories() {
           disabled={busy}
         />
 
+        <select
+          value={section}
+          onChange={e => setSection(e.target.value)}
+          disabled={busy}
+        >
+          <option value="women">
+            Women's
+          </option>
+
+          <option value="men">
+            Men's
+          </option>
+
+          <option value="fragrances">
+            Fragrances
+          </option>
+
+          <option value="other">
+            Other
+          </option>
+        </select>
+
         <button
           className="gold-btn"
           type="submit"
           disabled={busy}
         >
           <Plus size={17} />
-          {busy ? "Creating..." : "Add Category"}
+
+          {busy
+            ? "Creating..."
+            : "Add Category"}
         </button>
+
       </form>
 
       {store.categories.length ? (
+
         <div className="simple-list">
+
           {store.categories.map(c => (
+
             <div key={c.id}>
+
               <div>
                 <Tag size={17} />
 
-                <strong>{c.name}</strong>
+                <strong>
+                  {c.name}
+                </strong>
+
+                <span>
+                  {sectionLabel[c.nav_section] || "Other"}
+                </span>
 
                 <span>
                   {
@@ -4052,6 +5152,7 @@ function AdminCategories() {
                     ).length
                   } products
                 </span>
+
               </div>
 
               <button
@@ -4060,16 +5161,23 @@ function AdminCategories() {
               >
                 <Trash2 size={16} />
               </button>
+
             </div>
+
           ))}
+
         </div>
+
       ) : (
+
         <EmptyState
           title="No Categories Yet"
           text="First category create karne ke liye upar form use karein."
           icon={Tag}
         />
+
       )}
+
     </AdminLayout>
   );
 }
