@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut, Eye, EyeOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib_supabase";
@@ -999,28 +999,13 @@ function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const deliv
 
 function Shop() {
   const { store } = useStore();
+  const location = useLocation();
+
   const [toast, setToast] = useState("");
-
-  const getHashParams = () => {
-    const hash = window.location.hash || "";
-    const queryString = hash.includes("?")
-      ? hash.split("?")[1]
-      : "";
-
-    return new URLSearchParams(queryString);
-  };
-
-  const initialParams = getHashParams();
-
-  const [query, setQuery] = useState(
-    initialParams.get("search") || ""
-  );
-
-  const [category, setCategory] = useState(
-    initialParams.get("category") || ""
-  );
-
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
   const [sort, setSort] = useState("newest");
+
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [saleOnly, setSaleOnly] = useState(false);
@@ -1028,35 +1013,19 @@ function Shop() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   /*
-   * IMPORTANT:
-   * HashRouter ke andar category/search URL change hone par
-   * React component automatically re-render nahi karta.
-   *
-   * Is listener se browser ke hash change ko detect karke
-   * category aur search state instantly update hogi.
-   */
+    IMPORTANT:
+    HashRouter mein query URL ke hash ke andar hoti hai:
+
+    #/shop?category=Men's%20Fragrances
+
+    React Router ka location.search isi query ko correctly provide karta hai.
+  */
   useEffect(() => {
-    const handleHashChange = () => {
-      const params = getHashParams();
+    const params = new URLSearchParams(location.search);
 
-      setQuery(params.get("search") || "");
-      setCategory(params.get("category") || "");
-    };
-
-    window.addEventListener("hashchange", handleHashChange);
-
-    return () => {
-      window.removeEventListener(
-        "hashchange",
-        handleHashChange
-      );
-    };
-  }, []);
-
-  const normalize = value =>
-    String(value || "")
-      .trim()
-      .toLowerCase();
+    setQuery(params.get("search") || "");
+    setCategory(params.get("category") || "");
+  }, [location.search]);
 
   const reset = () => {
     setQuery("");
@@ -1066,108 +1035,43 @@ function Shop() {
     setMaxPrice("");
     setSaleOnly(false);
     setInStock(false);
-
-    /*
-     * URL ko bhi reset karo.
-     * Isse /shop par jaane ke baad purani category
-     * browser hash mein nahi rahegi.
-     */
-    window.location.hash = "/shop";
   };
 
-  const selectedCategory = store.categories.find(
-    c =>
-      normalize(c.name) ===
-      normalize(category)
-  );
-
   let products = store.products
+    .filter((p) => p.status !== "inactive")
+    .filter((p) => !category || p.category === category)
     .filter(
-      p => p.status !== "inactive"
-    )
-
-    .filter(p => {
-      if (!category) return true;
-
-      if (!selectedCategory) return false;
-
-      const productCategoryId = String(
-        p.categoryId || ""
-      );
-
-      const selectedCategoryId = String(
-        selectedCategory.id || ""
-      );
-
-      const productCategoryName = normalize(
-        p.category
-      );
-
-      const selectedCategoryName = normalize(
-        selectedCategory.name
-      );
-
-      return (
-        productCategoryId === selectedCategoryId ||
-        productCategoryName === selectedCategoryName
-      );
-    })
-
-    .filter(
-      p =>
+      (p) =>
         !query ||
         `${p.name} ${p.brand || ""} ${p.sku || ""} ${
           p.shortDescription || ""
         }`
           .toLowerCase()
-          .includes(
-            query.toLowerCase()
-          )
+          .includes(query.toLowerCase())
     )
-
     .filter(
-      p =>
+      (p) =>
         !minPrice ||
-        Number(
-          p.salePrice || p.price
-        ) >= Number(minPrice)
+        Number(p.salePrice || p.price) >= Number(minPrice)
     )
-
     .filter(
-      p =>
+      (p) =>
         !maxPrice ||
-        Number(
-          p.salePrice || p.price
-        ) <= Number(maxPrice)
+        Number(p.salePrice || p.price) <= Number(maxPrice)
     )
+    .filter((p) => !saleOnly || Boolean(p.salePrice))
+    .filter((p) => !inStock || Number(p.stock || 0) > 0);
 
-    .filter(
-      p =>
-        !saleOnly ||
-        Boolean(p.salePrice)
-    )
-
-    .filter(
-      p =>
-        !inStock ||
-        Number(p.stock || 0) > 0
-    );
-
-  products = [...products].sort(
-    (a, b) =>
-      sort === "price-low"
-        ? Number(a.salePrice || a.price) -
-          Number(b.salePrice || b.price)
-
-        : sort === "price-high"
-        ? Number(b.salePrice || b.price) -
-          Number(a.salePrice || a.price)
-
-        : sort === "name"
-        ? a.name.localeCompare(b.name)
-
-        : new Date(b.createdAt) -
-          new Date(a.createdAt)
+  products = [...products].sort((a, b) =>
+    sort === "price-low"
+      ? Number(a.salePrice || a.price) -
+        Number(b.salePrice || b.price)
+      : sort === "price-high"
+      ? Number(b.salePrice || b.price) -
+        Number(a.salePrice || a.price)
+      : sort === "name"
+      ? a.name.localeCompare(b.name)
+      : new Date(b.createdAt) - new Date(a.createdAt)
   );
 
   return (
@@ -1176,19 +1080,9 @@ function Shop() {
 
         <div className="page-head">
           <div>
-            <p className="eyebrow">
-              CATALOG
-            </p>
-
-            <h1>
-              {selectedCategory
-                ? selectedCategory.name
-                : "Shop"}
-            </h1>
-
-            <p>
-              Browse the live products in Hafiz Mart.
-            </p>
+            <p className="eyebrow">CATALOG</p>
+            <h1>Shop</h1>
+            <p>Browse the live products in Hafiz Mart.</p>
           </div>
 
           <span className="result-count">
@@ -1199,49 +1093,23 @@ function Shop() {
         <div className="filters">
 
           <div className="filter-search">
-            <Search size={17}/>
+            <Search size={17} />
 
             <input
               value={query}
-              onChange={e =>
-                setQuery(e.target.value)
-              }
+              onChange={(e) => setQuery(e.target.value)}
               placeholder="Search products, brand or SKU..."
             />
           </div>
 
           <select
             value={category}
-            onChange={e => {
-              const newCategory =
-                e.target.value;
-
-              setCategory(newCategory);
-
-              /*
-               * Category dropdown se change karne par
-               * URL/hash bhi update karo.
-               */
-              const newHash =
-                newCategory
-                  ? `/shop?category=${encodeURIComponent(
-                      newCategory
-                    )}`
-                  : "/shop";
-
-              window.location.hash =
-                newHash;
-            }}
+            onChange={(e) => setCategory(e.target.value)}
           >
-            <option value="">
-              All categories
-            </option>
+            <option value="">All categories</option>
 
-            {store.categories.map(c => (
-              <option
-                key={c.id}
-                value={c.name}
-              >
+            {store.categories.map((c) => (
+              <option key={c.id} value={c.name}>
                 {c.name}
               </option>
             ))}
@@ -1249,22 +1117,13 @@ function Shop() {
 
           <select
             value={sort}
-            onChange={e =>
-              setSort(e.target.value)
-            }
+            onChange={(e) => setSort(e.target.value)}
           >
-            <option value="newest">
-              Newest
-            </option>
-
-            <option value="name">
-              Name A–Z
-            </option>
-
+            <option value="newest">Newest</option>
+            <option value="name">Name A–Z</option>
             <option value="price-low">
               Price: Low to High
             </option>
-
             <option value="price-high">
               Price: High to Low
             </option>
@@ -1272,13 +1131,9 @@ function Shop() {
 
           <button
             className="ghost-btn filter-toggle"
-            onClick={() =>
-              setFiltersOpen(
-                v => !v
-              )
-            }
+            onClick={() => setFiltersOpen((v) => !v)}
           >
-            <SlidersHorizontal size={16}/>
+            <SlidersHorizontal size={16} />
             Filters
           </button>
 
@@ -1288,18 +1143,9 @@ function Shop() {
           {filtersOpen && (
             <motion.div
               className="advanced-filters"
-              initial={{
-                opacity: 0,
-                height: 0
-              }}
-              animate={{
-                opacity: 1,
-                height: "auto"
-              }}
-              exit={{
-                opacity: 0,
-                height: 0
-              }}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
             >
 
               <label>
@@ -1309,11 +1155,7 @@ function Shop() {
                   type="number"
                   min="0"
                   value={minPrice}
-                  onChange={e =>
-                    setMinPrice(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => setMinPrice(e.target.value)}
                   placeholder="Rs. 0"
                 />
               </label>
@@ -1325,11 +1167,7 @@ function Shop() {
                   type="number"
                   min="0"
                   value={maxPrice}
-                  onChange={e =>
-                    setMaxPrice(
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => setMaxPrice(e.target.value)}
                   placeholder="No limit"
                 />
               </label>
@@ -1338,13 +1176,8 @@ function Shop() {
                 <input
                   type="checkbox"
                   checked={saleOnly}
-                  onChange={e =>
-                    setSaleOnly(
-                      e.target.checked
-                    )
-                  }
+                  onChange={(e) => setSaleOnly(e.target.checked)}
                 />
-
                 Sale only
               </label>
 
@@ -1352,13 +1185,8 @@ function Shop() {
                 <input
                   type="checkbox"
                   checked={inStock}
-                  onChange={e =>
-                    setInStock(
-                      e.target.checked
-                    )
-                  }
+                  onChange={(e) => setInStock(e.target.checked)}
                 />
-
                 In stock only
               </label>
 
@@ -1366,7 +1194,7 @@ function Shop() {
                 className="text-link"
                 onClick={reset}
               >
-                <RotateCcw size={14}/>
+                <RotateCcw size={14} />
                 Reset filters
               </button>
 
@@ -1375,9 +1203,8 @@ function Shop() {
         </AnimatePresence>
 
         {products.length ? (
-
           <div className="product-grid">
-            {products.map(p => (
+            {products.map((p) => (
               <ProductCard
                 key={p.id}
                 product={p}
@@ -1385,18 +1212,11 @@ function Shop() {
               />
             ))}
           </div>
-
         ) : (
-
           <EmptyState
             title="No Products Found"
             text={
-              category
-                ? `${
-                    selectedCategory?.name ||
-                    category
-                  } mein abhi koi product nahi hai.`
-                : store.products.length
+              store.products.length
                 ? "Search/filter change karke dobara try karein."
                 : "Abhi store mein koi product nahi hai."
             }
@@ -1404,22 +1224,17 @@ function Shop() {
             to="/shop"
             icon={Search}
           />
-
         )}
 
       </div>
 
       <Toast
         message={toast}
-        onClose={() =>
-          setToast("")
-        }
+        onClose={() => setToast("")}
       />
-
     </main>
   );
 }
-
 function Checkout(){
   const { cartItems, subtotal, update } = useStore();
   const { user } = useAuth();
