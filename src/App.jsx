@@ -111,6 +111,70 @@ function ScrollToTop() {
   return null;
 }
 
+// Lightweight scroll-reveal effects: no extra animation library required.
+function ScrollReveal() {
+  const { pathname, search } = useLocation();
+
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (!("IntersectionObserver" in window)) return;
+
+    const selector = [
+      ".home-section",
+      ".home-promo-section",
+      ".trust-section",
+      ".page-head",
+      ".product-card",
+      ".category-card",
+      ".home-category-card",
+      ".cart-layout",
+      ".checkout-layout",
+      ".product-detail",
+      ".auth-card",
+      ".form-card",
+      ".admin-head",
+      ".panel",
+      ".stat-card",
+      ".admin-review-card",
+      ".track-items"
+    ].join(",");
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -32px 0px" });
+
+    const attachRevealTargets = () => {
+      document.querySelectorAll(selector).forEach((element) => {
+        if (element.dataset.scrollRevealReady === "true") return;
+        element.dataset.scrollRevealReady = "true";
+        element.classList.add("scroll-reveal");
+        observer.observe(element);
+      });
+    };
+
+    attachRevealTargets();
+    const mutationObserver = new MutationObserver(attachRevealTargets);
+    const appRoot = document.querySelector(".app");
+    if (appRoot) mutationObserver.observe(appRoot, { childList: true, subtree: true });
+
+    return () => {
+      mutationObserver.disconnect();
+      observer.disconnect();
+      document.querySelectorAll(".scroll-reveal").forEach((element) => {
+        delete element.dataset.scrollRevealReady;
+        element.classList.remove("scroll-reveal", "is-visible");
+      });
+    };
+  }, [pathname, search]);
+
+  return null;
+}
+
 function Navbar() {
   const { store, cartItems } = useStore();
   const { user } = useAuth();
@@ -645,7 +709,7 @@ function ProductCard({ product, onToast }) {
   const wished = store.wishlist.includes(product.id);
   const price = Number(product.salePrice || product.price || 0);
   const toggleWish = () => update({ wishlist: wished ? store.wishlist.filter(id=>id!==product.id) : [...store.wishlist, product.id] });
-  return <motion.article className="product-card" layout whileHover={{ y:-5 }}>
+  return <motion.article className="product-card" layout whileHover={{ y:-5, scale:1.015 }}>
     <div className="product-image-wrap"><Link to={`/product/${product.id}`}><img src={product.image || logo} alt={product.name}/></Link><button className={`wish-btn ${wished ? "active" : ""}`} onClick={toggleWish}><Heart size={18} fill={wished ? "currentColor" : "none"}/></button>{product.salePrice && <span className="product-badge">SALE</span>}</div>
     <div className="product-info"><p className="product-category">{product.category || "Uncategorized"}</p><Link to={`/product/${product.id}`}><h3>{product.name}</h3></Link><div className="product-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice && <del>Rs. {Number(product.price).toLocaleString()}</del>}</div><button className="add-cart" onClick={()=>{addToCart(product); onToast?.("Product cart mein add ho gaya")}}><ShoppingBag size={15}/> Add to Cart</button></div>
   </motion.article>;
@@ -5255,5 +5319,5 @@ function AdminReviews(){
 
 function AdminPlaceholder({title,icon:Icon=Settings}){return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN</p><h1>{title}</h1><p>Is module ka workflow abhi next phase mein expand hoga.</p></div></div><EmptyState title={`${title} is empty`} text="No dummy records have been added." icon={Icon}/></AdminLayout>}
 
-export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
+export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><ScrollReveal/><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
 <Route path="/reset-password" element={<ResetPassword/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminPlaceholder title="Settings"/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }

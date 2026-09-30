@@ -4056,3 +4056,60 @@ footer {
     position: static;
   }
 }
+
+
+/* =========================================
+   LIGHTWEIGHT SMOOTH 3D-STYLE SCROLL REVEAL
+   ========================================= */
+.scroll-reveal {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0) scale(.988);
+  transition:
+    opacity .55s ease,
+    transform .65s cubic-bezier(.2, .75, .25, 1),
+    box-shadow .25s ease,
+    border-color .25s ease;
+  will-change: opacity, transform;
+}
+
+.scroll-reveal.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.product-card,
+.category-card,
+.home-category-card {
+  transition:
+    transform .28s cubic-bezier(.2, .75, .25, 1),
+    box-shadow .28s ease,
+    border-color .28s ease;
+}
+
+.product-card:hover,
+.category-card:hover,
+.home-category-card:hover {
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .28), 0 3px 14px rgba(215, 174, 73, .07);
+}
+
+@media (hover: none) {
+  .product-card:hover,
+  .category-card:hover,
+  .home-category-card:hover {
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .scroll-reveal,
+  .scroll-reveal.is-visible,
+  .product-card,
+  .category-card,
+  .home-category-card {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+    will-change: auto;
+  }
+}
