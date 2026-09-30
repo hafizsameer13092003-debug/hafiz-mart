@@ -101,6 +101,16 @@ function WhatsAppButton() {
   return <a className="whatsapp" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer" aria-label="Contact Hafiz Mart on WhatsApp"><MessageCircle size={22}/><span>WhatsApp</span></a>;
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [pathname]);
+
+  return null;
+}
+
 function Navbar() {
   const { store, cartItems } = useStore();
   const { user } = useAuth();
@@ -469,6 +479,15 @@ const menuGroups = [
 
                 <Link to="/shop" onClick={closeMenu}>
                   Shop All
+                </Link>
+
+                <Link
+                  className="mobile-account-link"
+                  to={user ? "/account" : "/login"}
+                  onClick={closeMenu}
+                >
+                  <User size={17} />
+                  {user ? "My Account" : "Login / Sign Up"}
                 </Link>
 
                 <div className="mobile-menu-section">
@@ -1783,6 +1802,10 @@ function Shop() {
 
   const category = params.get("category") || "";
   const urlSearch = params.get("search") || "";
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [category]);
 
   /*
     URL change hone par search box bhi sync rahe.
@@ -5232,5 +5255,5 @@ function AdminReviews(){
 
 function AdminPlaceholder({title,icon:Icon=Settings}){return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN</p><h1>{title}</h1><p>Is module ka workflow abhi next phase mein expand hoga.</p></div></div><EmptyState title={`${title} is empty`} text="No dummy records have been added." icon={Icon}/></AdminLayout>}
 
-export default function App(){ return <AuthProvider><StoreProvider><div className="app"><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
+export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
 <Route path="/reset-password" element={<ResetPassword/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminPlaceholder title="Settings"/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }
