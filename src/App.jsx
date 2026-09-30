@@ -3961,15 +3961,39 @@ function Account(){
     setSaving(false)
   };
 
-  if(!user) return (
-    <main className="page container">
-      <EmptyState
-        title="Login Required"
-        text="Apni profile aur order history dekhne ke liye customer account mein login karein."
-        action="Login"
-        to="/login"
-        icon={User}
-      />
+  if (!user) return (
+    <main className="page container account-login-page">
+      <section className="account-login-panel" aria-labelledby="account-login-title">
+        <div className="account-login-glow" aria-hidden="true" />
+
+        <div className="account-login-icon">
+          <User size={29} strokeWidth={1.7} />
+        </div>
+
+        <p className="eyebrow">YOUR HAFIZ MART ACCOUNT</p>
+        <h1 id="account-login-title">
+          Your Shopping Journey <span>Starts Here</span>
+        </h1>
+        <p className="account-login-copy">
+          Sign in to manage your orders, track deliveries and enjoy a personalized shopping experience.
+        </p>
+
+        <div className="account-login-actions">
+          <Link className="gold-btn account-login-primary" to="/login">
+            <User size={17} />
+            Sign In to Your Account
+            <ArrowRight size={17} />
+          </Link>
+          <Link className="account-register-link" to="/login?mode=register">
+            New to Hafiz Mart? <strong>Create an Account</strong>
+          </Link>
+        </div>
+
+        <div className="account-login-benefits">
+          <span><ShieldCheck size={16} /> Secure Login</span>
+          <span><Package size={16} /> Order Tracking</span>
+        </div>
+      </section>
     </main>
   );
 
@@ -4512,8 +4536,13 @@ function OrderTracker() {
 function Login() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState(() =>
+    new URLSearchParams(location.search).get("mode") === "register"
+      ? "register"
+      : "login"
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");

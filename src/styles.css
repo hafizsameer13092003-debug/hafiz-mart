@@ -4113,3 +4113,190 @@ footer {
     will-change: auto;
   }
 }
+
+
+/* =========================================
+   PREMIUM ACCOUNT LOGIN PROMPT
+   ========================================= */
+.account-login-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: clamp(42px, 7vw, 88px);
+  padding-bottom: clamp(54px, 8vw, 100px);
+}
+
+.account-login-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-height: 390px;
+  padding: clamp(30px, 5.5vw, 62px) clamp(20px, 5vw, 56px);
+  text-align: center;
+  border: 1px solid rgba(215, 174, 73, .24);
+  border-radius: 26px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(215, 174, 73, .12), transparent 48%),
+    linear-gradient(145deg, #151515 0%, #0b0b0b 78%);
+  box-shadow: 0 22px 65px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .035);
+}
+
+.account-login-glow {
+  position: absolute;
+  z-index: -1;
+  top: -145px;
+  left: 50%;
+  width: 320px;
+  height: 250px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(215, 174, 73, .10);
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+.account-login-icon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 22px;
+  color: #e4bf56;
+  border: 1px solid rgba(215, 174, 73, .52);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #242017, #111);
+  box-shadow: 0 8px 28px rgba(215, 174, 73, .10), inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+
+.account-login-panel > .eyebrow {
+  margin-bottom: 13px;
+}
+
+.account-login-panel h1 {
+  max-width: 760px;
+  margin: 0;
+  color: #f7f5ef;
+  font-size: clamp(29px, 4.2vw, 43px);
+  line-height: 1.16;
+  letter-spacing: -1.5px;
+}
+
+.account-login-panel h1 span {
+  color: #dfbb55;
+}
+
+.account-login-copy {
+  max-width: 610px;
+  margin: 17px 0 25px;
+  color: #aaa;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.account-login-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: min(100%, 350px);
+}
+
+.account-login-primary {
+  width: 100%;
+  min-height: 50px;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 11px;
+  box-shadow: 0 8px 24px rgba(215, 174, 73, .12);
+}
+
+.account-login-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 13px 30px rgba(215, 174, 73, .20);
+}
+
+.account-register-link {
+  color: #aaa;
+  font-size: 12px;
+  transition: color .2s ease;
+}
+
+.account-register-link strong {
+  margin-left: 4px;
+  color: #e0bc5d;
+}
+
+.account-register-link:hover,
+.account-register-link:hover strong {
+  color: #f2d681;
+}
+
+.account-login-benefits {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  width: 100%;
+  margin-top: 29px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, .075);
+}
+
+.account-login-benefits span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #aaa;
+  font-size: 11px;
+}
+
+.account-login-benefits svg {
+  color: #d7ae49;
+}
+
+@media (max-width: 600px) {
+  .account-login-page {
+    padding-top: 38px;
+    padding-bottom: 54px;
+  }
+
+  .account-login-panel {
+    min-height: 0;
+    padding: 34px 20px 26px;
+    border-radius: 20px;
+  }
+
+  .account-login-icon {
+    width: 62px;
+    height: 62px;
+    margin-bottom: 19px;
+  }
+
+  .account-login-panel h1 {
+    font-size: clamp(27px, 7.4vw, 35px);
+    letter-spacing: -.9px;
+  }
+
+  .account-login-copy {
+    margin: 14px 0 22px;
+    font-size: 13px;
+  }
+
+  .account-login-benefits {
+    gap: 12px 18px;
+    margin-top: 24px;
+    padding-top: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-login-primary,
+  .account-register-link {
+    transition: none;
+  }
+}
