@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut, Eye, EyeOff } from "lucide-react";
+import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut, Eye, EyeOff, Store, Truck, Megaphone, CreditCard, FileText, Bell, Boxes, Save, AlertTriangle, Globe } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib_supabase";
 
@@ -53,19 +53,23 @@ function mapBanner(b) { return { ...b, buttonText: b.button_text || '', buttonLi
 
 const StoreContext = createContext(null);
 function StoreProvider({ children }) {
-  const [store, setStore] = useState({ ...emptyStore, ...readCart() });
+  const [store, setStore] = useState({ ...emptyStore, ...readCart(), settings: DEFAULT_ADMIN_SETTINGS });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
   const refresh = async () => {
     setLoading(true);
-    const [productsRes, categoriesRes, bannersRes] = await Promise.all([
+    const [productsRes, categoriesRes, bannersRes, settingsRes] = await Promise.all([
       supabase.from('products').select('*').order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('created_at', { ascending: false }),
-      supabase.from('banners').select('*').eq('status', 'active').order('created_at', { ascending: false })
+      supabase.from('banners').select('*').eq('status', 'active').order('created_at', { ascending: false }),
+      supabase.from('admin_store_settings').select('settings').eq('id', 'default').maybeSingle()
     ]);
+    if (settingsRes.error) {
+      console.error('Store settings load error', settingsRes.error);
+    }
     if (!productsRes.error && !categoriesRes.error && !bannersRes.error) {
-      const mappedCategories = (categoriesRes.data || []).map(mapCategory); const catMap = new Map(mappedCategories.map(c => [c.id, c.name])); const mappedProducts = (productsRes.data || []).map(p => ({ ...mapProduct(p), category: catMap.get(p.category_id) || '' })); setStore(s => ({ ...s, products: mappedProducts, categories: mappedCategories, banners: (bannersRes.data || []).map(mapBanner) }));
+      const mappedCategories = (categoriesRes.data || []).map(mapCategory); const catMap = new Map(mappedCategories.map(c => [c.id, c.name])); const mappedProducts = (productsRes.data || []).map(p => ({ ...mapProduct(p), category: catMap.get(p.category_id) || '' })); setStore(s => ({ ...s, products: mappedProducts, categories: mappedCategories, banners: (bannersRes.data || []).map(mapBanner), settings: settingsRes.error ? (s.settings || DEFAULT_ADMIN_SETTINGS) : mergeAdminSettings(DEFAULT_ADMIN_SETTINGS, settingsRes.data?.settings || {}) }));
     } else {
       console.error('Supabase load error', productsRes.error || categoriesRes.error || bannersRes.error);
     }
@@ -85,7 +89,7 @@ function StoreProvider({ children }) {
   };
   const cartItems = useMemo(() => store.cart.map((line, index) => ({ ...line, index, product: store.products.find(p => p.id === line.productId) })).filter(x => x.product), [store.cart, store.products]);
   const subtotal = cartItems.reduce((sum, x) => sum + (Number(x.product.salePrice || x.product.price) * x.qty), 0);
-  const value = { store, update, addToCart, cartItems, subtotal, refresh, loading };
+  const value = { store, settings: store.settings || DEFAULT_ADMIN_SETTINGS, update, addToCart, cartItems, subtotal, refresh, loading };
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 const useStore = () => useContext(StoreContext);
@@ -99,6 +103,30 @@ function Toast({ message, onClose }) {
 function WhatsAppButton() {
   const number = import.meta.env.VITE_WHATSAPP_NUMBER || "923000000000";
   return <a className="whatsapp" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer" aria-label="Contact Hafiz Mart on WhatsApp"><MessageCircle size={22}/><span>WhatsApp</span></a>;
+}
+
+function AnnouncementBar() {
+  const { store } = useStore();
+  const location = useLocation();
+  const settings = store.settings || DEFAULT_ADMIN_SETTINGS;
+  const announcement = settings.storefront || {};
+  if (location.pathname.startsWith('/admin') || !announcement.announcementEnabled || !String(announcement.announcementText || '').trim()) return null;
+  const href = String(announcement.announcementLink || '/deals').trim() || '/deals';
+  const external = /^https?:\/\//i.test(href);
+  return <div className={`store-announcement theme-${announcement.announcementTheme || 'gold'}`}>
+    <div className="store-announcement-inner"><span>{announcement.announcementText}</span>{announcement.announcementButton && (external
+      ? <a href={href} target="_blank" rel="noreferrer">{announcement.announcementButton}<ArrowRight size={14}/></a>
+      : <Link to={href}>{announcement.announcementButton}<ArrowRight size={14}/></Link>)}</div>
+  </div>;
+}
+
+function MaintenanceScreen() {
+  const { store } = useStore();
+  const { profile, loading } = useAuth();
+  const location = useLocation();
+  const settings = store.settings || DEFAULT_ADMIN_SETTINGS;
+  if (loading || location.pathname.startsWith('/admin') || profile?.role === 'admin' || !settings.storefront?.maintenanceMode) return null;
+  return <div className="maintenance-overlay" role="alert"><div className="maintenance-card"><div className="maintenance-mark"><Store size={30}/></div><p className="eyebrow">TEMPORARILY UNAVAILABLE</p><h1>{settings.general?.storeName || 'Hafiz Mart'} is getting an update</h1><p>{settings.storefront?.maintenanceMessage || 'We are improving our shopping experience. Please check back soon.'}</p><a className="gold-btn" href={`https://wa.me/${String(settings.general?.whatsapp || import.meta.env.VITE_WHATSAPP_NUMBER || '').replace(/\D/g, '')}`} target="_blank" rel="noreferrer"><MessageCircle size={16}/> Contact support</a></div></div>;
 }
 
 function ScrollToTop() {
@@ -723,7 +751,7 @@ const [newsletterBusy, setNewsletterBusy] = useState(false);
 const [newsletterMessage, setNewsletterMessage] = useState("");
 
   const activeProducts = store.products.filter(
-    p => p.status !== "inactive"
+    p => p.status !== "inactive" && (!store.settings?.inventory?.hideOutOfStock || Number(p.stock || 0) > 0)
   );
 
   const trendingProducts = activeProducts.slice(0, 8);
@@ -1832,10 +1860,10 @@ function ProductDetails() {
   return <main className="page"><div className="container product-detail"><div className="detail-gallery"><div className="detail-image"><img src={currentImage} alt={product.name}/></div>{images.length>1&&<div className="thumbnail-row">{images.map((src,i)=><button key={src+i} className={i===selectedImage?'active':''} onClick={()=>setSelectedImage(i)}><img src={src} alt={`${product.name} ${i+1}`}/></button>)}</div>}</div><div className="detail-copy"><p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1><div className="detail-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice&&<del>Rs. {Number(product.price).toLocaleString()}</del>}</div><p className="detail-description">{product.description||product.shortDescription||"Is product ki detailed description abhi add nahi ki gayi."}</p><div className="stock-line">{Number(product.stock||0)>0?<><Check size={16}/> In stock — {product.stock} available</>:"Out of stock"}</div><div className="detail-actions"><div className="qty"><button onClick={()=>setQty(Math.max(1,qty-1))}><Minus size={15}/></button><strong>{qty}</strong><button onClick={()=>setQty(Math.min(Number(product.stock||1),qty+1))}><Plus size={15}/></button></div><button className="gold-btn" disabled={!Number(product.stock||0)} onClick={()=>{addToCart(product,qty);setToast("Product cart mein add ho gaya")}}><ShoppingBag size={17}/> Add to Cart</button><button className={`icon-btn ${wished?"active":""}`} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart size={19} fill={wished?"currentColor":"none"}/></button></div><a className="whatsapp-order" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a><Toast message={toast} onClose={()=>setToast("")}/></div></div><div className="container"><ProductReviews productId={product.id}/></div></main>;
 }
 function Categories() { const {store}=useStore(); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">DISCOVER</p><h1>Categories</h1><p>Explore products by category.</p></div></div>{store.categories.length?<div className="category-grid large">{store.categories.map(c=><Link className="category-card" key={c.id} to={`/shop?category=${encodeURIComponent(c.name)}`}><div><Tag size={22}/></div><strong>{c.name}</strong><span>{store.products.filter(p=>p.categoryId===c.id).length} products</span></Link>)}</div>:<EmptyState title="No Categories Yet" text="Admin panel se apni first category create karein." action="Open Admin" to="/admin/categories" icon={Tag}/>}</div></main>; }
-function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Jab aap kisi product par sale price set karenge to woh yahan show hoga." action="Manage Products" to="/admin/products" icon={Tag}/>}</div></main>; }
+function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice && (!store.settings?.inventory?.hideOutOfStock || Number(p.stock || 0) > 0)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Jab aap kisi product par sale price set karenge to woh yahan show hoga." action="Manage Products" to="/admin/products" icon={Tag}/>}</div></main>; }
 function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Product cards par heart icon press karke items save karein." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
 
-function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt=""/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty"><button onClick={()=>changeQty(x.index,-1)}><Minus size={14}/></button><strong>{x.qty}</strong><button onClick={()=>changeQty(x.index,1)}><Plus size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button className="remove-btn" onClick={()=>remove(x.index)}><Trash2 size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
+function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const deliveryLabel='Calculated at checkout'; const total=subtotal; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: ${deliveryLabel}\nTotal before delivery: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt=""/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty"><button onClick={()=>changeQty(x.index,-1)}><Minus size={14}/></button><strong>{x.qty}</strong><button onClick={()=>changeQty(x.index,1)}><Plus size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button className="remove-btn" onClick={()=>remove(x.index)}><Trash2 size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>{deliveryLabel}</strong></div><div className="summary-total"><span>Subtotal</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
 
 function Shop() {
   const { store } = useStore();
@@ -1930,7 +1958,7 @@ function Shop() {
   };
 
   let products = store.products
-    .filter((p) => p.status !== "inactive")
+    .filter((p) => p.status !== "inactive" && (!store.settings?.inventory?.hideOutOfStock || Number(p.stock || 0) > 0))
     .filter((p) => !category || p.category === category)
     .filter(
       (p) =>
@@ -2162,7 +2190,10 @@ function Shop() {
 }
 
 function Checkout(){
-  const { cartItems, subtotal, update } = useStore();
+  const { store, cartItems, subtotal, update } = useStore();
+  const settings = store.settings || DEFAULT_ADMIN_SETTINGS;
+  const shippingSettings = settings.shipping || DEFAULT_ADMIN_SETTINGS.shipping;
+  const paymentSettings = settings.payments || DEFAULT_ADMIN_SETTINGS.payments;
   const { user } = useAuth();
 
   const [step,setStep]=useState(1);
@@ -2280,6 +2311,10 @@ function Checkout(){
     }
   },[user]);
 
+  useEffect(() => {
+    if (!paymentSettings.codEnabled && paymentMethod === 'cod') setPaymentMethod('');
+  }, [paymentSettings.codEnabled, paymentMethod]);
+
   const updateField=(key,value)=>{
     setForm(f=>({
       ...f,
@@ -2294,10 +2329,13 @@ function Checkout(){
     }));
   };
 
-  const deliveryFee=
-    form.city.trim().toLowerCase()==='multan'
-      ? 270
-      : 300;
+  const normalizedCity = String(form.city || '').trim().toLocaleLowerCase();
+  const cityRates = Array.isArray(shippingSettings.cityRates) ? shippingSettings.cityRates : [];
+  const cityRate = cityRates.find(row => String(row.city || '').trim().toLocaleLowerCase() === normalizedCity);
+  const freeThreshold = Number(shippingSettings.freeDeliveryThreshold ?? 5000);
+  const deliveryFee = shippingSettings.enabled === false || (Number.isFinite(freeThreshold) && subtotal >= freeThreshold)
+    ? 0
+    : Math.max(0, Number(cityRate?.rate ?? shippingSettings.defaultRate ?? 300));
 
   const discount=
     Number(coupon?.discount||0);
@@ -3264,9 +3302,8 @@ Total: Rs. ${Number(created.total).toLocaleString()}`;
                 </div>
 
 
-                {/* COD */}
-
-                <label
+                {/* COD is controlled by persisted Admin Settings. */}
+                {paymentSettings.codEnabled && <label
                   className={`checkout-choice ${
                     paymentMethod==='cod'
                       ? 'selected'
@@ -3301,46 +3338,15 @@ Total: Rs. ${Number(created.total).toLocaleString()}`;
 
                   </div>
 
-                </label>
+                </label>}
 
+                {/* Card payments stay unavailable until a real gateway is integrated. */}
+                <div className="checkout-choice checkout-choice-disabled" aria-disabled="true">
+                  <input type="radio" name="paymentMethod" value="card" disabled checked={false} readOnly />
+                  <div><strong>Debit / Credit Card</strong><span>Online payment gateway abhi configure nahi hai.</span></div>
+                </div>
 
-                {/* CARD */}
-
-                <label
-                  className={`checkout-choice ${
-                    paymentMethod==='card'
-                      ? 'selected'
-                      : ''
-                  }`}
-                >
-
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="card"
-                    checked={
-                      paymentMethod==='card'
-                    }
-                    onChange={e=>
-                      setPaymentMethod(
-                        e.target.value
-                      )
-                    }
-                  />
-
-                  <div>
-
-                    <strong>
-                      Debit / Credit Card
-                    </strong>
-
-                    <span>
-                      Secure card payment.
-                    </span>
-
-                  </div>
-
-                </label>
+                {!paymentSettings.codEnabled && <p className="settings-checkout-note">Cash on Delivery filhal band hai. Online payments bhi abhi available nahi hain; order place nahi kiya ja sakta.</p>}
 
 
                 {paymentMethod==='card' && (
@@ -4008,15 +4014,24 @@ function Account(){
             <p>{user.email}</p>
           </div>
 
-          <button
-            className="ghost-btn"
-            onClick={async ()=>{
-              await signOut();
-            }}
-          >
-            <LogOut size={16}/>
-            Logout
-          </button>
+          <div className="account-head-actions">
+            {profile?.role === 'admin' && (
+              <Link className="gold-btn account-admin-dashboard" to="/admin">
+                <LayoutDashboard size={16}/>
+                Admin Dashboard
+                <ArrowRight size={15}/>
+              </Link>
+            )}
+            <button
+              className="ghost-btn"
+              onClick={async ()=>{
+                await signOut();
+              }}
+            >
+              <LogOut size={16}/>
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="account-grid">
@@ -5346,7 +5361,153 @@ function AdminReviews(){
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER VOICE</p><h1>Reviews</h1><p>Customer reviews ko approve, reject aur manage karein.</p></div><button className="ghost-btn" onClick={load}>Refresh</button></div><div className="order-filters">{['pending','approved','rejected','all'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s}</button>)}</div>{loading?<EmptyState title="Loading reviews..." text="Reviews fetch ho rahi hain." icon={Star}/>:visible.length?<div className="admin-review-list">{visible.map(r=><article className="admin-review-card" key={r.id}><div className="review-card-head"><div><strong>{r.reviewer_name||'Customer'}</strong><span>{new Date(r.created_at).toLocaleString()}</span></div><StarRating value={r.rating}/></div><small>Product ID: {r.product_id}</small>{r.title&&<h3>{r.title}</h3>}{r.comment&&<p>{r.comment}</p>}<div className="row-actions"><span className={`status status-${r.status}`}>{r.status}</span>{r.status!=='approved'&&<button onClick={()=>moderate(r.id,'approved')}><Check size={15}/> Approve</button>}{r.status!=='rejected'&&<button onClick={()=>moderate(r.id,'rejected')}><X size={15}/> Reject</button>}</div></article>)}</div>:<EmptyState title={`No ${filter} reviews`} text="Is moderation queue mein abhi koi review nahi hai." icon={Star}/>}</AdminLayout>;
 }
 
+const DEFAULT_ADMIN_SETTINGS = {
+  general: { storeName: 'Hafiz Mart', tagline: 'Everything You Need, Delivered', supportEmail: '', supportPhone: '', whatsapp: '', address: '', currency: 'PKR', timezone: 'Asia/Karachi', facebook: '', instagram: '', tiktok: '' },
+  shipping: { enabled: true, defaultRate: 300, freeDeliveryThreshold: 5000, minDays: 2, maxDays: 5, cityRates: [{ city: 'Multan', rate: 270 }], codEnabledByDefault: true },
+  storefront: { announcementEnabled: true, announcementText: 'Shop your favourites at Hafiz Mart', announcementLink: '/deals', announcementButton: 'Shop Deals', announcementTheme: 'gold', maintenanceMode: false, maintenanceMessage: 'We are improving your shopping experience. Please check back soon.' },
+  payments: { codEnabled: true, onlinePaymentsEnabled: false },
+  policies: { cancellationWindowHours: 2, returnWindowDays: 7, returnsPolicy: 'Contact support within the return window. Items must be unused and in their original packaging.', shippingPolicy: 'Delivery estimates may vary by city and courier conditions.', privacyPolicy: 'Customer information is used to process orders and provide support.', terms: 'By placing an order, customers agree to the store policies displayed at checkout.' },
+  notifications: { emailEnabled: false, whatsappEnabled: false, orderReceived: 'Assalam-o-Alaikum {{customer_name}}, your Hafiz Mart order {{order_number}} has been received.', orderShipped: 'Your Hafiz Mart order {{order_number}} has been shipped.', orderDelivered: 'Your Hafiz Mart order {{order_number}} has been delivered. Thank you for shopping with us.' },
+  inventory: { lowStockThreshold: 5, hideOutOfStock: true, allowBackorders: false, reviewsRequireApproval: true, maxReviewImages: 3 }
+};
+
+function mergeAdminSettings(base, incoming) {
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return base;
+  const result = { ...base };
+  Object.keys(incoming).forEach(key => {
+    const value = incoming[key];
+    if (value && typeof value === 'object' && !Array.isArray(value) && base[key] && typeof base[key] === 'object' && !Array.isArray(base[key])) result[key] = mergeAdminSettings(base[key], value);
+    else if (value !== undefined && value !== null) result[key] = value;
+  });
+  return result;
+}
+
+function AdminSettings() {
+  const { user } = useAuth();
+  const { update: updateStore } = useStore();
+  const [settings, setSettings] = useState(DEFAULT_ADMIN_SETTINGS);
+  const [savedSettings, setSavedSettings] = useState(DEFAULT_ADMIN_SETTINGS);
+  const [activeSection, setActiveSection] = useState('general');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [noticeType, setNoticeType] = useState('success');
+
+  const sections = [
+    { id: 'general', label: 'General', icon: Store, description: 'Store identity, contact details and social links.' },
+    { id: 'shipping', label: 'Shipping', icon: Truck, description: 'City rates, free delivery threshold and delivery estimates.' },
+    { id: 'storefront', label: 'Storefront', icon: Megaphone, description: 'Announcement bar and maintenance-mode controls.' },
+    { id: 'payments', label: 'Payments', icon: CreditCard, description: 'Payment methods available to customers.' },
+    { id: 'policies', label: 'Policies & Legal', icon: FileText, description: 'Cancellation, returns, shipping and legal-page content.' },
+    { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Email/WhatsApp preferences and message templates.' },
+    { id: 'inventory', label: 'Inventory', icon: Boxes, description: 'Stock thresholds, backorders and review moderation.' }
+  ];
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      const { data, error } = await supabase.from('admin_store_settings').select('settings').eq('id', 'default').maybeSingle();
+      if (!active) return;
+      if (error) {
+        setLoadError(error.message);
+        setNotice('Settings database se load nahi ho sakin. Migration apply karna zaroori ho sakta hai.');
+        setNoticeType('error');
+      } else {
+        const merged = mergeAdminSettings(DEFAULT_ADMIN_SETTINGS, data?.settings || {});
+        setSettings(merged);
+        setSavedSettings(merged);
+        setLoadError('');
+      }
+      setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const updateField = (section, key, value) => setSettings(current => ({ ...current, [section]: { ...current[section], [key]: value } }));
+  const updateCityRate = (index, key, value) => setSettings(current => ({ ...current, shipping: { ...current.shipping, cityRates: current.shipping.cityRates.map((row, i) => i === index ? { ...row, [key]: value } : row) } }));
+  const addCityRate = () => setSettings(current => ({ ...current, shipping: { ...current.shipping, cityRates: [...current.shipping.cityRates, { city: '', rate: current.shipping.defaultRate || 300 }] } }));
+  const removeCityRate = index => setSettings(current => ({ ...current, shipping: { ...current.shipping, cityRates: current.shipping.cityRates.filter((_, i) => i !== index) } }));
+
+  const saveSettings = async event => {
+    event.preventDefault();
+    setNotice('');
+    const invalidCity = settings.shipping.cityRates.some(row => !String(row.city || '').trim() || !Number.isFinite(Number(row.rate)) || Number(row.rate) < 0);
+    if (invalidCity) { setNotice('Har city ka naam aur valid, non-negative delivery rate enter karein.'); setNoticeType('error'); return; }
+    if (Number(settings.shipping.minDays) < 0 || Number(settings.shipping.maxDays) < Number(settings.shipping.minDays)) { setNotice('Delivery ke maximum din minimum din se kam nahi ho sakte.'); setNoticeType('error'); return; }
+    if (Number(settings.shipping.defaultRate) < 0 || Number(settings.shipping.freeDeliveryThreshold) < 0) { setNotice('Shipping rate aur free-delivery threshold zero ya us se zyada hone chahiye.'); setNoticeType('error'); return; }
+    setSaving(true);
+    const payload = { id: 'default', settings, updated_at: new Date().toISOString(), updated_by: user?.id || null };
+    const { error } = await supabase.from('admin_store_settings').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      setNotice(`Settings save nahi huin: ${error.message}`);
+      setNoticeType('error');
+    } else {
+      setSavedSettings(settings);
+      updateStore({ settings });
+      setLoadError('');
+      setNotice('Settings Supabase mein save ho gayi hain.');
+      setNoticeType('success');
+    }
+    setSaving(false);
+  };
+
+  const discardChanges = () => { setSettings(savedSettings); setNotice('Unsaved changes discard kar di gayi hain.'); setNoticeType('success'); };
+  const current = settings[activeSection];
+  const cityRates = Array.isArray(settings.shipping.cityRates) ? settings.shipping.cityRates : [];
+  const textField = (label, value, onChange, options = {}) => <label className="settings-field" key={label}><span>{label}{options.required ? ' *' : ''}</span><input type={options.type || 'text'} min={options.min} max={options.max} step={options.step} required={!!options.required} value={value ?? ''} placeholder={options.placeholder || ''} onChange={e => onChange(options.type === 'number' ? e.target.value : e.target.value)} /></label>;
+  const textArea = (label, value, onChange, rows = 4) => <label className="settings-field settings-field-wide" key={label}><span>{label}</span><textarea rows={rows} value={value ?? ''} onChange={e => onChange(e.target.value)} /></label>;
+  const toggle = (label, checked, onChange, hint = '') => <label className="settings-toggle" key={label}><span><strong>{label}</strong>{hint && <small>{hint}</small>}</span><input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} /><i aria-hidden="true" /></label>;
+
+  return <AdminLayout>
+    <div className="admin-head settings-page-head"><div><p className="eyebrow">STORE CONTROL CENTRE</p><h1>Admin Settings</h1><p>Hafiz Mart ke store operations aur customer experience ki settings manage karein.</p></div><div className="settings-save-state"><ShieldCheck size={17}/><span>Supabase-backed settings</span></div></div>
+    <div className="settings-layout">
+      <aside className="settings-tabs" aria-label="Settings sections">{sections.map(section => { const Icon = section.icon; return <button type="button" key={section.id} className={`settings-tab ${activeSection === section.id ? 'active' : ''}`} onClick={() => { setActiveSection(section.id); setNotice(''); }}><Icon size={17}/><span>{section.label}</span><ChevronRight size={15}/></button>; })}</aside>
+      <form className="settings-panel" onSubmit={saveSettings}>
+        <div className="settings-panel-heading"><div><p className="eyebrow">SETTINGS / {activeSection.toUpperCase()}</p><h2>{sections.find(section => section.id === activeSection)?.label}</h2><p>{sections.find(section => section.id === activeSection)?.description}</p></div><span className="settings-section-icon">{(() => { const Icon = sections.find(section => section.id === activeSection)?.icon || Settings; return <Icon size={23}/>; })()}</span></div>
+        {loading ? <div className="settings-loading"><LoaderCircle size={22} className="spin"/><span>Supabase se settings load ho rahi hain...</span></div> : <>
+          {loadError && <div className="settings-notice error"><AlertTriangle size={17}/><span>Database se settings load nahi huin. Pehle supplied SQL migration Supabase SQL Editor mein apply karein. Details: {loadError}</span></div>}
+          {activeSection === 'general' && <div className="settings-grid">
+            {textField('Store name', current.storeName, v => updateField('general','storeName',v), {required:true})}
+            {textField('Tagline', current.tagline, v => updateField('general','tagline',v))}
+            {textField('Support email', current.supportEmail, v => updateField('general','supportEmail',v), {type:'email'})}
+            {textField('Support phone', current.supportPhone, v => updateField('general','supportPhone',v))}
+            {textField('WhatsApp number (international format)', current.whatsapp, v => updateField('general','whatsapp',v), {placeholder:'923001234567'})}
+            {textField('Currency', current.currency, v => updateField('general','currency',v), {required:true})}
+            {textField('Timezone', current.timezone, v => updateField('general','timezone',v), {required:true})}
+            {textField('Facebook URL', current.facebook, v => updateField('general','facebook',v), {type:'url'})}
+            {textField('Instagram URL', current.instagram, v => updateField('general','instagram',v), {type:'url'})}
+            {textField('TikTok URL', current.tiktok, v => updateField('general','tiktok',v), {type:'url'})}
+            {textArea('Store address', current.address, v => updateField('general','address',v), 3)}
+          </div>}
+          {activeSection === 'shipping' && <div className="settings-stack">
+            {toggle('Enable shipping settings', current.enabled, v => updateField('shipping','enabled',v), 'Is toggle ki storefront/checkout integration aglay implementation phase mein connect hogi.')}
+            <div className="settings-grid">{textField('Default delivery fee (PKR)', current.defaultRate, v => updateField('shipping','defaultRate',v), {type:'number',min:0})}{textField('Free delivery above (PKR)', current.freeDeliveryThreshold, v => updateField('shipping','freeDeliveryThreshold',v), {type:'number',min:0})}{textField('Estimated minimum days', current.minDays, v => updateField('shipping','minDays',v), {type:'number',min:0})}{textField('Estimated maximum days', current.maxDays, v => updateField('shipping','maxDays',v), {type:'number',min:0})}</div>
+            <div className="settings-subheading"><div><h3>City-wise rates</h3><p>Existing baseline: Multan Rs. 270, other cities default Rs. 300.</p></div><button className="ghost-btn" type="button" onClick={addCityRate}><Plus size={15}/> Add city</button></div>
+            <div className="settings-city-list">{cityRates.map((row,index)=><div className="settings-city-row" key={`${index}-${row.city}`}><label className="settings-field"><span>City / area</span><input value={row.city} onChange={e=>updateCityRate(index,'city',e.target.value)} placeholder="e.g. Lahore"/></label><label className="settings-field"><span>Delivery fee (PKR)</span><input type="number" min="0" value={row.rate} onChange={e=>updateCityRate(index,'rate',e.target.value)}/></label><button type="button" className="settings-remove" onClick={()=>removeCityRate(index)} aria-label="Remove city rate"><Trash2 size={16}/></button></div>)}</div>
+          </div>}
+          {activeSection === 'storefront' && <div className="settings-stack">
+            {toggle('Show announcement bar', current.announcementEnabled, v => updateField('storefront','announcementEnabled',v), 'Announcement content will be connected to the public storefront in the next wiring phase.')}
+            <div className="settings-grid">{textField('Announcement button text',current.announcementButton,v=>updateField('storefront','announcementButton',v))}{textField('Announcement link',current.announcementLink,v=>updateField('storefront','announcementLink',v))}<label className="settings-field"><span>Announcement theme</span><select value={current.announcementTheme} onChange={e=>updateField('storefront','announcementTheme',e.target.value)}><option value="gold">Gold</option><option value="dark">Dark</option><option value="light">Light</option></select></label>{textArea('Announcement message',current.announcementText,v=>updateField('storefront','announcementText',v),3)}</div>
+            <div className="settings-danger-zone"><div><h3><AlertTriangle size={17}/> Maintenance mode</h3><p>Enable karne par public shopping/order creation ko server-side block karna chahiye. Existing admin access barqarar rahega.</p></div>{toggle('Enable maintenance mode',current.maintenanceMode,v=>updateField('storefront','maintenanceMode',v),'Is waqt database trigger order creation block karega; full public-site maintenance screen aglay phase mein connect hogi.')}{textArea('Maintenance message',current.maintenanceMessage,v=>updateField('storefront','maintenanceMessage',v),3)}</div>
+          </div>}
+          {activeSection === 'payments' && <div className="settings-stack">
+            {toggle('Cash on Delivery (COD)',current.codEnabled,v=>updateField('payments','codEnabled',v),'COD disable karne par database order trigger naye COD orders ko reject karega.')}
+            <div className="settings-info-card"><CreditCard size={22}/><div><strong>Online payments — not connected</strong><p>Card payment abhi gateway/backend se integrated nahi. Is liye online payments ko yahan se enable nahi kiya ja sakta. Gateway setup aur test complete hone ke baad control activate hoga.</p><span className="settings-status-pill">NOT CONFIGURED</span></div></div>
+          </div>}
+          {activeSection === 'policies' && <div className="settings-stack"><div className="settings-grid">{textField('Cancellation window (hours)',current.cancellationWindowHours,v=>updateField('policies','cancellationWindowHours',v),{type:'number',min:0})}{textField('Return window (days)',current.returnWindowDays,v=>updateField('policies','returnWindowDays',v),{type:'number',min:0})}</div>{textArea('Returns & refunds policy',current.returnsPolicy,v=>updateField('policies','returnsPolicy',v),5)}{textArea('Shipping policy',current.shippingPolicy,v=>updateField('policies','shippingPolicy',v),4)}{textArea('Privacy policy',current.privacyPolicy,v=>updateField('policies','privacyPolicy',v),4)}{textArea('Terms & conditions',current.terms,v=>updateField('policies','terms',v),4)}</div>}
+          {activeSection === 'notifications' && <div className="settings-stack">{toggle('Email notifications',current.emailEnabled,v=>updateField('notifications','emailEnabled',v),'Provider/SMTP connection abhi configure nahi; toggle preference save karega, email send nahi karega.')}{toggle('WhatsApp notifications',current.whatsappEnabled,v=>updateField('notifications','whatsappEnabled',v),'WhatsApp Business provider aur secure server-side credentials baad mein configure honge.')}{textArea('Order received template',current.orderReceived,v=>updateField('notifications','orderReceived',v),3)}{textArea('Order shipped template',current.orderShipped,v=>updateField('notifications','orderShipped',v),3)}{textArea('Order delivered template',current.orderDelivered,v=>updateField('notifications','orderDelivered',v),3)}<p className="settings-helper">Available placeholders: {'{{customer_name}}'}, {'{{order_number}}'}.</p></div>}
+          {activeSection === 'inventory' && <div className="settings-stack"><div className="settings-grid">{textField('Low-stock threshold',current.lowStockThreshold,v=>updateField('inventory','lowStockThreshold',v),{type:'number',min:0})}{textField('Maximum review images',current.maxReviewImages,v=>updateField('inventory','maxReviewImages',v),{type:'number',min:0,max:10})}</div>{toggle('Hide out-of-stock products',current.hideOutOfStock,v=>updateField('inventory','hideOutOfStock',v),'Storefront catalogue integration aglay phase mein connect hogi.')}{toggle('Allow backorders',current.allowBackorders,v=>updateField('inventory','allowBackorders',v),'Stock validation mein is rule ko aglay phase mein enforce karenge.')}{toggle('Reviews require admin approval',current.reviewsRequireApproval,v=>updateField('inventory','reviewsRequireApproval',v),'Review submission/moderation flow integration aglay phase mein hogi.')}</div>}
+          {notice && <div className={`settings-notice ${noticeType}`}><span>{noticeType === 'error' ? <AlertTriangle size={17}/> : <Check size={17}/>}</span><span>{notice}</span></div>}
+          <div className="settings-actions"><button type="button" className="ghost-btn" onClick={discardChanges} disabled={saving}><RotateCcw size={15}/> Discard changes</button><button type="submit" className="gold-btn" disabled={saving || loading}><Save size={16}/>{saving ? 'Saving settings...' : 'Save settings'}</button></div>
+        </>}
+      </form>
+    </div>
+  </AdminLayout>;
+}
+
 function AdminPlaceholder({title,icon:Icon=Settings}){return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN</p><h1>{title}</h1><p>Is module ka workflow abhi next phase mein expand hoga.</p></div></div><EmptyState title={`${title} is empty`} text="No dummy records have been added." icon={Icon}/></AdminLayout>}
 
-export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><ScrollReveal/><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
-<Route path="/reset-password" element={<ResetPassword/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminPlaceholder title="Settings"/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }
+export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><ScrollReveal/><MaintenanceScreen/><AnnouncementBar/><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
+<Route path="/reset-password" element={<ResetPassword/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }
