@@ -2240,6 +2240,7 @@ function Checkout(){
   const [error,setError]=useState('');
   const [couponError,setCouponError]=useState('');
   const [order,setOrder]=useState(null);
+  const [receipt,setReceipt]=useState(null);
 
   const waNumber=
     import.meta.env.VITE_WHATSAPP_NUMBER||'923000000000';
@@ -2744,89 +2745,87 @@ function Checkout(){
       return;
     }
 
-    const lines=
-      cartItems
-        .map(x=>
-          `• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`
-        )
-        .join('\n');
+    const receiptItems = cartItems.map(x => ({
+      productId: x.product.id,
+      name: x.product.name,
+      image: x.product.image || '',
+      quantity: x.qty,
+      unitPrice: Number(x.product.salePrice || x.product.price),
+      lineTotal: Number(x.product.salePrice || x.product.price) * x.qty
+    }));
 
-    const couponLine=
-      coupon
-        ? `\nCoupon: ${coupon.code} (-Rs. ${Number(created.discount||0).toLocaleString()})`
-        : '';
+    const receiptData = {
+      orderNumber: created.order_number,
+      customerName,
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+      shippingAddress: fullAddress,
+      billingAddress: billingSame ? 'Same as Shipping' : billingAddress,
+      city: form.city,
+      paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : paymentMethod,
+      items: receiptItems,
+      subtotal: Number(created.subtotal || subtotal),
+      discount: Number(created.discount || 0),
+      deliveryFee: Number(created.delivery_fee || deliveryFee),
+      total: Number(created.total || total),
+      createdAt: new Date().toISOString()
+    };
 
-    const billingLine=
-      billingSame
-        ? 'Billing Address: Same as Shipping'
-        : `Billing Address: ${billingAddress}`;
+    const whatsappLines = receiptItems
+      .map(item => `• ${item.name} x${item.quantity} — Rs. ${item.lineTotal.toLocaleString()}`)
+      .join('\n');
 
-    const text=
+    const whatsappText =
 `Assalam o Alaikum, Hafiz Mart se order confirm karna hai.
 
-Order: ${created.order_number}
-
-Customer: ${customerName}
-WhatsApp: ${form.phone}
-Email: ${form.email}
+Order: ${receiptData.orderNumber}
+Customer: ${receiptData.customerName}
+WhatsApp: ${receiptData.phone}
+Email: ${receiptData.email}
 
 Shipping Address:
-${fullAddress}
+${receiptData.shippingAddress}
 
-${billingLine}
+Billing Address: ${receiptData.billingAddress}
+Payment Method: ${receiptData.paymentMethod}
 
-Delivery: ${form.city.toLowerCase()==='multan'?'Rs. 270':'Rs. 300'}
-Payment Method: Cash on Delivery
+${whatsappLines}
 
-${lines}${couponLine}
+Subtotal: Rs. ${receiptData.subtotal.toLocaleString()}
+Discount: Rs. ${receiptData.discount.toLocaleString()}
+Delivery: Rs. ${receiptData.deliveryFee.toLocaleString()}
+Total: Rs. ${receiptData.total.toLocaleString()}`;
 
-Subtotal: Rs. ${Number(created.subtotal).toLocaleString()}
-Discount: Rs. ${Number(created.discount||0).toLocaleString()}
-Delivery: Rs. ${Number(created.delivery_fee||deliveryFee).toLocaleString()}
-
-Total: Rs. ${Number(created.total).toLocaleString()}`;
-
-    update({
-      cart:[]
-    });
-
+    update({ cart: [] });
+    setReceipt({ ...receiptData, whatsappText });
     setOrder(created);
     setBusy(false);
-
-    window.open(
-      `https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`,
-      '_blank',
-      'noopener,noreferrer'
-    );
   };
 
-  if(order){
+  if(order && receipt){
     return (
-      <main className="page container">
-
-        <EmptyState
-          title="Order Placed Successfully"
-          text={`Aapka order ${order.order_number} successfully create ho gaya hai. WhatsApp mein order details bhi open ho rahi hain.`}
-          action="Continue Shopping"
-          to="/shop"
-          icon={Check}
-        />
-
-        <div className="order-success-card">
-          <span>ORDER NUMBER</span>
-
-          <strong>
-            {order.order_number}
-          </strong>
-
-          <small>
-            Total: Rs. {
-              Number(order.total)
-                .toLocaleString()
-            }
-          </small>
+      <main className="page">
+        <div className="container">
+          <div className="receipt-page">
+            <div className="receipt-success">
+              <div className="receipt-check"><Check size={24}/></div>
+              <p className="eyebrow">ORDER CONFIRMED</p>
+              <h1>Thank you for your order!</h1>
+              <p>Your order has been successfully placed. Neeche complete receipt hai.</p>
+              <div className="receipt-number">Order #{receipt.orderNumber}</div>
+            </div>
+            <section className="receipt-card">
+              <div className="receipt-card-head"><div><p className="eyebrow">HAFIZ MART</p><h2>Order Receipt</h2></div><div className="receipt-meta"><span>Order Date</span><strong>{new Date(receipt.createdAt).toLocaleString()}</strong></div></div>
+              <div className="receipt-info-grid">
+                <div><span>Customer</span><strong>{receipt.customerName}</strong></div><div><span>Phone</span><strong>{receipt.phone}</strong></div><div><span>Email</span><strong>{receipt.email || '—'}</strong></div><div><span>Payment</span><strong>{receipt.paymentMethod}</strong></div>
+                <div className="receipt-info-wide"><span>Shipping Address</span><strong>{receipt.shippingAddress}</strong></div><div className="receipt-info-wide"><span>Billing Address</span><strong>{receipt.billingAddress}</strong></div>
+              </div>
+              <div className="receipt-items">{receipt.items.map(item => <div className="receipt-item" key={item.productId}><div className="receipt-item-main">{item.image ? <img src={item.image} alt=""/> : <div className="receipt-item-placeholder"><ShoppingBag size={16}/></div>}<div><strong>{item.name}</strong><span>Qty {item.quantity} × Rs. {item.unitPrice.toLocaleString()}</span></div></div><strong>Rs. {item.lineTotal.toLocaleString()}</strong></div>)}</div>
+              <div className="receipt-total-box"><div><span>Subtotal</span><strong>Rs. {receipt.subtotal.toLocaleString()}</strong></div><div><span>Discount</span><strong>- Rs. {receipt.discount.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {receipt.deliveryFee.toLocaleString()}</strong></div><div className="receipt-grand"><span>Grand Total</span><strong>Rs. {receipt.total.toLocaleString()}</strong></div></div>
+              <div className="receipt-actions"><button className="gold-btn" onClick={() => window.print()}><FileText size={16}/> Print / Save Receipt</button><a className="ghost-btn" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(receipt.whatsappText)}`} target="_blank" rel="noreferrer"><MessageCircle size={16}/> Send on WhatsApp</a><Link className="ghost-btn" to="/track-order">Track Order</Link><Link className="ghost-btn" to="/shop">Continue Shopping</Link></div>
+            </section>
+          </div>
         </div>
-
       </main>
     );
   }
@@ -4100,18 +4099,9 @@ function Account(){
               <div>
                 <p className="eyebrow">ORDER TRACKING</p>
                 <h2>Track Your Order</h2>
-                <p>
-                  Apna order number enter karke latest order status aur delivery progress dekhein.
-                </p>
+                <p>Apna order number enter karke latest order status aur delivery progress dekhein.</p>
               </div>
-
-              <Link
-                className="gold-btn"
-                to="/track-order"
-              >
-                Track Order
-                <ArrowRight size={17}/>
-              </Link>
+              <div className="account-track-actions"><Link className="gold-btn" to="/track-order">Track Order <ArrowRight size={17}/></Link><Link className="ghost-btn" to="/complaints"><MessageSquare size={16}/> Complaints & Support</Link></div>
             </div>
 
             {/* ORDER HISTORY */}
@@ -4188,6 +4178,37 @@ function Account(){
     </main>
   );
 }
+function Complaints() {
+  const { user } = useAuth();
+  const [orders, setOrders] = useState([]);
+  const [complaints, setComplaints] = useState([]);
+  const [form, setForm] = useState({ orderId: "", type: "Order Issue", subject: "", message: "" });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const load = async () => {
+    if (!user) { setLoading(false); return; }
+    setLoading(true);
+    const [ordersRes, complaintsRes] = await Promise.all([supabase.from("orders").select("id,order_number,total,status,created_at").eq("user_id", user.id).order("created_at", { ascending: false }), supabase.from("complaints").select("*").eq("user_id", user.id).order("created_at", { ascending: false })]);
+    if (ordersRes.error) setNotice(ordersRes.error.message); else setOrders(ordersRes.data || []);
+    if (complaintsRes.error) setNotice(complaintsRes.error.message); else setComplaints(complaintsRes.data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [user]);
+  const submit = async e => {
+    e.preventDefault();
+    if (!user) return;
+    if (!form.subject.trim() || !form.message.trim()) { setNotice("Subject aur complaint details dono enter karein."); return; }
+    setBusy(true); setNotice("");
+    const selectedOrder = orders.find(o => o.id === form.orderId);
+    const { error } = await supabase.from("complaints").insert({ user_id: user.id, order_id: form.orderId || null, order_number: selectedOrder?.order_number || null, type: form.type, subject: form.subject.trim(), message: form.message.trim(), status: "pending" });
+    if (error) setNotice(error.message); else { setForm({ orderId: "", type: "Order Issue", subject: "", message: "" }); setNotice("Complaint successfully submit ho gayi. Admin jaldi review karega."); await load(); }
+    setBusy(false);
+  };
+  if (!user) return <main className="page container"><EmptyState title="Login Required" text="Complaint submit karne ke liye customer account mein login karein." action="Login" to="/login" icon={MessageSquare}/></main>;
+  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints & Support</h1><p>Order ya product ke hawale se issue ho to yahan complaint submit karein.</p></div></div><div className="complaint-layout"><form className="form-card complaint-form" onSubmit={submit}><div className="panel-head-row"><div><p className="eyebrow">NEW COMPLAINT</p><h2>How can we help?</h2></div><MessageSquare size={20}/></div><label>Related Order<select value={form.orderId} onChange={e => setForm({ ...form, orderId: e.target.value })}><option value="">General / No specific order</option>{orders.map(o => <option key={o.id} value={o.id}>{o.order_number} — Rs. {Number(o.total || 0).toLocaleString()} ({o.status})</option>)}</select></label><label>Complaint Type<select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}><option>Order Issue</option><option>Product Issue</option><option>Delivery Issue</option><option>Payment Issue</option><option>Return / Exchange</option><option>Other</option></select></label><label>Subject<input required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} placeholder="Short summary of your issue"/></label><label>Details<textarea required rows="6" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} placeholder="Please explain your complaint..."/></label>{notice && <div className="settings-notice success"><span><Check size={17}/></span><span>{notice}</span></div>}<button className="gold-btn" disabled={busy}>{busy ? "Submitting..." : "Submit Complaint"} <ArrowRight size={16}/></button></form><section className="complaint-history"><div className="section-heading"><div><p className="eyebrow">MY TICKETS</p><h2>Complaint History</h2></div></div>{loading ? <div className="mini-empty">Complaints load ho rahi hain...</div> : complaints.length ? <div className="complaint-list">{complaints.map(c => <article className="complaint-card" key={c.id}><div className="complaint-card-head"><div><strong>{c.subject}</strong><span>{c.order_number ? `Order ${c.order_number}` : "General complaint"} · {new Date(c.created_at).toLocaleString()}</span></div><em className={`status status-${c.status}`}>{String(c.status || "pending").replaceAll("_"," ")}</em></div><p>{c.message}</p>{c.admin_response && <div className="complaint-response"><span>Admin Response</span><p>{c.admin_response}</p></div>}</article>)}</div> : <div className="mini-empty"><MessageSquare size={24}/><strong>No complaints yet</strong><span>Your submitted complaints will appear here.</span></div>}</section></div></div></main>;
+}
+
 function OrderTracker() {
   const { user } = useAuth();
 
@@ -5050,7 +5071,7 @@ function AdminLayout({children}){
   const { profile, loading, signOut } = useAuth();
   if(loading) return <main className="page container"><EmptyState title="Loading admin..." text="Authentication aur store data verify ho raha hai."/> </main>;
   if(!profile || profile.role!=='admin') return <main className="page container"><EmptyState title="Admin access required" text="Is section ke liye admin account se login karein." action="Login" to="/login" icon={User}/></main>;
-  const links=[['/admin',LayoutDashboard,'Dashboard'],['/admin/products',Package,'Products'],['/admin/categories',Tag,'Categories'],['/admin/banners',Sparkles,'Sale Banners'],['/admin/coupons',TicketPercent,'Coupons'],['/admin/orders',ShoppingCart,'Orders'],['/admin/customers',Users,'Customers'],['/admin/reviews',Star,'Reviews'],['/admin/settings',Settings,'Settings']];
+  const links=[['/admin',LayoutDashboard,'Dashboard'],['/admin/products',Package,'Products'],['/admin/categories',Tag,'Categories'],['/admin/banners',Sparkles,'Sale Banners'],['/admin/coupons',TicketPercent,'Coupons'],['/admin/orders',ShoppingCart,'Orders'],['/admin/complaints',MessageSquare,'Complaints'],['/admin/customers',Users,'Customers'],['/admin/reviews',Star,'Reviews'],['/admin/settings',Settings,'Settings']];
   return <main className="admin-shell"><aside className="admin-sidebar"><Link to="/admin" className="admin-logo"><img src={logo} alt="Hafiz Mart"/></Link><nav>{links.map(([to,I,label])=><Link key={to} to={to}><I size={17}/>{label}</Link>)}</nav><Link className="store-link" to="/"><ArrowRight size={15}/> View Store</Link><button className="store-link" onClick={signOut}>Sign out</button></aside><section className="admin-content">{children}</section></main>;
 }
 
@@ -5339,12 +5360,27 @@ function AdminCoupons(){
 }
 
 function AdminOrders(){
-  const [orders,setOrders]=useState([]); const [items,setItems]=useState([]); const [loading,setLoading]=useState(true); const [selected,setSelected]=useState(null); const [filter,setFilter]=useState('all'); const [saving,setSaving]=useState(null);
+  const [orders,setOrders]=useState([]); const [items,setItems]=useState([]); const [loading,setLoading]=useState(true); const [selected,setSelected]=useState(null); const [filter,setFilter]=useState('all'); const [saving,setSaving]=useState(null); const [deleting,setDeleting]=useState(null);
   const load=async()=>{setLoading(true); const [o,i]=await Promise.all([supabase.from('orders').select('*').order('created_at',{ascending:false}),supabase.from('order_items').select('*')]); if(o.error) alert(o.error.message); else setOrders(o.data||[]); if(i.error) alert(i.error.message); else setItems(i.data||[]); setLoading(false);};
   useEffect(()=>{load()},[]);
   const updateStatus=async(id,status)=>{setSaving(id); const {error}=await supabase.from('orders').update({status}).eq('id',id); if(error) alert(error.message); else setOrders(rows=>rows.map(o=>o.id===id?{...o,status}:o)); setSaving(null);};
+  const deleteOrder=async(order)=>{if(!confirm(`Order ${order.order_number||order.id.slice(0,8)} permanently delete karna hai? Ye action undo nahi hoga.`)) return; setDeleting(order.id); const {error}=await supabase.rpc('admin_delete_order',{p_order_id:order.id}); if(error) alert(error.message); else {setOrders(rows=>rows.filter(o=>o.id!==order.id)); setItems(rows=>rows.filter(x=>x.order_id!==order.id)); if(selected===order.id) setSelected(null);} setDeleting(null);};
   const visible=filter==='all'?orders:orders.filter(o=>o.status===filter);
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ORDERS</p><h1>Orders</h1><p>{orders.length} real order(s) from Supabase.</p></div><button className="ghost-btn" onClick={load}>Refresh</button></div><div className="order-filters">{['all','pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s==='all'?'All':s.replaceAll('_',' ')}</button>)}</div>{loading?<EmptyState title="Loading orders..." text="Supabase se orders fetch ho rahe hain."/>:visible.length?<div className="order-list">{visible.map(o=>{const oi=items.filter(x=>x.order_id===o.id);return <motion.div className="order-card" key={o.id} layout><div className="order-card-head"><div><span className="order-number">{o.order_number||o.id.slice(0,8)}</span><strong>{o.customer_name||'Customer'}</strong><small>{new Date(o.created_at).toLocaleString()} · {o.phone||'No phone'}</small></div><div className="order-total"><strong>Rs. {Number(o.total||0).toLocaleString()}</strong><select disabled={saving===o.id} value={o.status||'pending'} onChange={e=>updateStatus(o.id,e.target.value)}>{['pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><option key={s} value={s}>{s.replaceAll('_',' ')}</option>)}</select></div></div><button className="order-detail-toggle" onClick={()=>setSelected(selected===o.id?null:o.id)}>{selected===o.id?'Hide details':'View order details'} <ChevronRight size={15} className={selected===o.id?'rotate':''}/></button>{selected===o.id&&<div className="order-details"><div className="order-customer"><div><span>Phone</span><strong>{o.phone||'—'}</strong></div><div><span>Email</span><strong>{o.email||'—'}</strong></div><div><span>Address</span><strong>{o.address||'—'}, {o.city||''}</strong></div></div><div className="order-items">{oi.length?oi.map(x=><div key={x.id}><span>{x.product_name||'Product'} × {x.quantity}</span><strong>Rs. {(Number(x.unit_price||0)*Number(x.quantity||0)).toLocaleString()}</strong></div>):<div><span>Items snapshot</span><strong>See order record</strong></div>}</div><div className="order-breakdown"><span>Subtotal</span><strong>Rs. {Number(o.subtotal||0).toLocaleString()}</strong><span>Discount</span><strong>Rs. {Number(o.discount||0).toLocaleString()}</strong><span>Delivery</span><strong>Rs. {Number(o.delivery_fee||0).toLocaleString()}</strong><span className="grand">Total</span><strong className="grand">Rs. {Number(o.total||0).toLocaleString()}</strong></div></div>}</motion.div>})}</div>:<EmptyState title="No Orders Yet" text="Abhi koi real customer order nahi hai. Checkout complete hone ke baad order yahan show hoga." action="View Store" to="/" icon={ShoppingCart}/>}</AdminLayout>;
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ORDERS</p><h1>Orders</h1><p>{orders.length} real order(s) from Supabase.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['all','pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s==='all'?'All':s.replaceAll('_',' ')}</button>)}</div>{loading?<EmptyState title="Loading orders..." text="Supabase se orders fetch ho rahe hain."/>:visible.length?<div className="order-list">{visible.map(o=>{const oi=items.filter(x=>x.order_id===o.id);return <motion.div className="order-card" key={o.id} layout><div className="order-card-head"><div><span className="order-number">{o.order_number||o.id.slice(0,8)}</span><strong>{o.customer_name||'Customer'}</strong><small>{new Date(o.created_at).toLocaleString()} · {o.phone||'No phone'}</small></div><div className="order-total"><strong>Rs. {Number(o.total||0).toLocaleString()}</strong><select disabled={saving===o.id} value={o.status||'pending'} onChange={e=>updateStatus(o.id,e.target.value)}>{['pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><option key={s} value={s}>{s.replaceAll('_',' ')}</option>)}</select></div></div><button className="order-detail-toggle" onClick={()=>setSelected(selected===o.id?null:o.id)}>{selected===o.id?'Hide details':'View order details'} <ChevronRight size={15} className={selected===o.id?'rotate':''}/></button>{selected===o.id&&<div className="order-details"><div className="order-customer"><div><span>Phone</span><strong>{o.phone||'—'}</strong></div><div><span>Email</span><strong>{o.email||'—'}</strong></div><div><span>Address</span><strong>{o.address||'—'}, {o.city||''}</strong></div></div><div className="order-items">{oi.length?oi.map(x=><div key={x.id}><span>{x.product_name||'Product'} × {x.quantity}</span><strong>Rs. {(Number(x.unit_price||0)*Number(x.quantity||0)).toLocaleString()}</strong></div>):<div><span>Items snapshot</span><strong>See order record</strong></div>}</div><div className="order-breakdown"><span>Subtotal</span><strong>Rs. {Number(o.subtotal||0).toLocaleString()}</strong><span>Discount</span><strong>Rs. {Number(o.discount||0).toLocaleString()}</strong><span>Delivery</span><strong>Rs. {Number(o.delivery_fee||0).toLocaleString()}</strong><span className="grand">Total</span><strong className="grand">Rs. {Number(o.total||0).toLocaleString()}</strong></div><div className="order-admin-actions"><button className="danger-btn" disabled={deleting===o.id} onClick={()=>deleteOrder(o)}><Trash2 size={15}/>{deleting===o.id?'Deleting...':'Delete Order'}</button></div></div>}</motion.div>})}</div>:<EmptyState title="No Orders Yet" text="Abhi koi real customer order nahi hai. Checkout complete hone ke baad order yahan show hoga." action="View Store" to="/" icon={ShoppingCart}/>}</AdminLayout>;
+}
+
+function AdminComplaints(){
+  const [rows,setRows]=useState([]); const [loading,setLoading]=useState(true); const [filter,setFilter]=useState('all'); const [saving,setSaving]=useState(null);
+  const load=async()=>{setLoading(true); const {data,error}=await supabase.from('complaints').select('*').order('created_at',{ascending:false}); if(error) alert(error.message); else setRows(data||[]); setLoading(false);};
+  useEffect(()=>{load()},[]);
+  const updateComplaint=async(id,status,admin_response)=>{setSaving(id); const {error}=await supabase.from('complaints').update({status,admin_response:admin_response.trim()||null,updated_at:new Date().toISOString()}).eq('id',id); if(error) alert(error.message); else setRows(r=>r.map(x=>x.id===id?{...x,status,admin_response:admin_response.trim()||null}:x)); setSaving(null);};
+  const visible=filter==='all'?rows:rows.filter(r=>r.status===filter);
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints</h1><p>Customer complaints aur support tickets manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['all','pending','in_progress','resolved','closed'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s.replaceAll('_',' ')}</button>)}</div>{loading?<EmptyState title="Loading complaints..." text="Complaints fetch ho rahi hain." icon={MessageSquare}/>:visible.length?<div className="complaint-admin-list">{visible.map(c=><ComplaintAdminCard key={c.id} complaint={c} saving={saving===c.id} onSave={updateComplaint}/>)}</div>:<EmptyState title={`No ${filter} complaints`} text="Is queue mein abhi koi complaint nahi hai." icon={MessageSquare}/>}</AdminLayout>;
+}
+function ComplaintAdminCard({complaint,saving,onSave}){
+  const [status,setStatus]=useState(complaint.status||'pending'); const [response,setResponse]=useState(complaint.admin_response||'');
+  useEffect(()=>{setStatus(complaint.status||'pending');setResponse(complaint.admin_response||'')},[complaint.status,complaint.admin_response]);
+  return <article className="complaint-admin-card"><div className="complaint-card-head"><div><strong>{complaint.subject}</strong><span>{complaint.order_number?`Order ${complaint.order_number}`:'General complaint'} · {new Date(complaint.created_at).toLocaleString()}</span></div><em className={`status status-${complaint.status}`}>{String(complaint.status||'pending').replaceAll('_',' ')}</em></div><div className="complaint-admin-meta"><span>Type: <strong>{complaint.type||'Other'}</strong></span><span>Customer ID: <strong>{complaint.user_id}</strong></span></div><p>{complaint.message}</p><div className="complaint-admin-controls"><label>Status<select value={status} onChange={e=>setStatus(e.target.value)}><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></label><label>Admin Response<textarea rows="3" value={response} onChange={e=>setResponse(e.target.value)} placeholder="Response for customer..."/></label><button className="gold-btn" disabled={saving} onClick={()=>onSave(complaint.id,status,response)}>{saving?'Saving...':'Save Response'} <Check size={15}/></button></div></article>;
 }
 
 function AdminCustomers(){
@@ -5368,7 +5404,7 @@ const DEFAULT_ADMIN_SETTINGS = {
   payments: { codEnabled: true, onlinePaymentsEnabled: false },
   policies: { cancellationWindowHours: 2, returnWindowDays: 7, returnsPolicy: 'Contact support within the return window. Items must be unused and in their original packaging.', shippingPolicy: 'Delivery estimates may vary by city and courier conditions.', privacyPolicy: 'Customer information is used to process orders and provide support.', terms: 'By placing an order, customers agree to the store policies displayed at checkout.' },
   notifications: { emailEnabled: false, whatsappEnabled: false, orderReceived: 'Assalam-o-Alaikum {{customer_name}}, your Hafiz Mart order {{order_number}} has been received.', orderShipped: 'Your Hafiz Mart order {{order_number}} has been shipped.', orderDelivered: 'Your Hafiz Mart order {{order_number}} has been delivered. Thank you for shopping with us.' },
-  inventory: { lowStockThreshold: 5, hideOutOfStock: true, allowBackorders: false, reviewsRequireApproval: true, maxReviewImages: 3 }
+  inventory: { lowStockThreshold: 5, hideOutOfStock: true, allowBackorders: false, reviewsRequireApproval: false, maxReviewImages: 3 }
 };
 
 function mergeAdminSettings(base, incoming) {
@@ -5509,5 +5545,5 @@ function AdminSettings() {
 
 function AdminPlaceholder({title,icon:Icon=Settings}){return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN</p><h1>{title}</h1><p>Is module ka workflow abhi next phase mein expand hoga.</p></div></div><EmptyState title={`${title} is empty`} text="No dummy records have been added." icon={Icon}/></AdminLayout>}
 
-export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><ScrollReveal/><MaintenanceScreen/><AnnouncementBar/><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
-<Route path="/reset-password" element={<ResetPassword/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }
+export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><ScrollReveal/><MaintenanceScreen/><AnnouncementBar/><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
+<Route path="/reset-password" element={<ResetPassword/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }
