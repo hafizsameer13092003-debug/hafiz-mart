@@ -4101,7 +4101,7 @@ function Account(){
                 <h2>Track Your Order</h2>
                 <p>Apna order number enter karke latest order status aur delivery progress dekhein.</p>
               </div>
-              <div className="account-track-actions"><Link className="gold-btn" to="/track-order">Track Order <ArrowRight size={17}/></Link><Link className="ghost-btn" to="/complaints"><MessageSquare size={16}/> Complaints & Support</Link></div>
+              <div className="account-track-actions"><Link className="gold-btn" to="/track-order">Track Order <ArrowRight size={17}/></Link><Link className="support-btn" to="/complaints"><MessageSquare size={16}/> Complaints & Support</Link></div>
             </div>
 
             {/* ORDER HISTORY */}
@@ -4694,13 +4694,13 @@ function Login() {
 
         <h1>
           {mode === "login"
-            ? "Welcome back"
+            ? "Login to your account"
             : "Create account"}
         </h1>
 
         <p className="muted">
           {mode === "login"
-            ? "Hafiz Mart admin/customer account mein sign in karein."
+            ? "Apne Hafiz Mart account mein sign in karein."
             : "Hafiz Mart par apna account create karein."}
         </p>
 

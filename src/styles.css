@@ -4597,3 +4597,36 @@ footer {
   body{background:#fff!important;color:#111!important}
   .receipt-page{max-width:none}.receipt-card{box-shadow:none;border:1px solid #ddd;background:#fff;color:#111}.receipt-card *{color:#111!important}.receipt-info-grid>div,.receipt-item-placeholder{background:#fff;border-color:#ddd}.receipt-success{padding:0 0 18px}.receipt-success h1{font-size:28px}
 }
+
+
+/* Account: visible Complaints & Support button */
+.account-track-actions .support-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:44px;
+  padding:11px 16px;
+  border-radius:10px;
+  background:#d7ae49;
+  border:1px solid #d7ae49;
+  color:#111111;
+  font-size:12px;
+  font-weight:800;
+  line-height:1;
+  opacity:1;
+  visibility:visible;
+  box-shadow:0 8px 24px rgba(215,174,73,.16);
+  transition:transform .2s ease,box-shadow .2s ease,background .2s ease;
+}
+.account-track-actions .support-btn:hover{
+  background:#efc85d;
+  border-color:#efc85d;
+  color:#111111;
+  transform:translateY(-1px);
+  box-shadow:0 10px 28px rgba(215,174,73,.24);
+}
+.account-track-actions .support-btn svg{flex:0 0 auto;}
+@media(max-width:520px){
+  .account-track-actions .support-btn{width:100%;}
+}
