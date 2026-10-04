@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut, Eye, EyeOff, Store, Truck, Megaphone, CreditCard, FileText, Bell, Boxes, Save, AlertTriangle, Globe } from "lucide-react";
+import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut, Eye, EyeOff, Bell, BarChart3, Download, Send, UserCheck, UserX, DollarSign, FileText, Store, Truck, Megaphone, CreditCard, Boxes, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib_supabase";
 
@@ -41,6 +41,57 @@ const useAuth = () => useContext(AuthContext);
 const emptyStore = { products: [], categories: [], banners: [], cart: [], wishlist: [] };
 const STORE_KEY = "hafiz-mart-cart";
 
+const DEFAULT_ADMIN_SETTINGS = {
+  general: { storeName: 'Hafiz Mart', tagline: 'Everything You Need, Delivered', supportEmail: '', supportPhone: '', whatsapp: '', address: '', currency: 'PKR', timezone: 'Asia/Karachi', facebook: '', instagram: '', tiktok: '' },
+  shipping: { enabled: true, defaultRate: 300, freeDeliveryThreshold: 10000, minDays: 2, maxDays: 5, cityRates: [{ city: 'Multan', rate: 270 }] },
+  storefront: { announcementEnabled: true, announcementText: 'Shop your favourites at Hafiz Mart', announcementLink: '/deals', announcementButton: 'Shop Deals', announcementTheme: 'gold', maintenanceMode: false, maintenanceMessage: 'We are improving your shopping experience. Please check back soon.' },
+  payments: { codEnabled: true, onlinePaymentsEnabled: false },
+  policies: { cancellationWindowHours: 2, returnWindowDays: 7, returnsPolicy: '', shippingPolicy: '', privacyPolicy: '', terms: '' },
+  notifications: { inAppEnabled: true, emailEnabled: false, whatsappEnabled: false, notifyOnNewOrder: true, notifyOnNewCustomer: true, notifyOnComplaint: true, notifyOnReview: true, notifyOnOrderStatus: true, notifyOnComplaintResponse: true, notifyOnTransactionFailure: true, notifyOnRefund: true, notifyOnLowStock: true },
+  inventory: { lowStockThreshold: 5, hideOutOfStock: true, allowBackorders: false, reviewsRequireApproval: false, maxReviewImages: 5 },
+  content: { showCategoriesOnHome: true, showDealsSection: true, featuredProductsLimit: 8 },
+  users: { requireManualVerification: false, allowGuestCheckout: false, defaultAccountStatus: 'active' },
+  reports: { defaultRange: '30', includeCustomerPhone: false }
+};
+
+function mergeAdminSettings(base, incoming) {
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return base;
+  const out = { ...base };
+  Object.keys(incoming).forEach(key => {
+    const v = incoming[key];
+    if (v && typeof v === 'object' && !Array.isArray(v) && base[key] && typeof base[key] === 'object' && !Array.isArray(base[key])) out[key] = mergeAdminSettings(base[key], v);
+    else if (v !== undefined && v !== null) out[key] = v;
+  });
+  return out;
+}
+
+function userHasPermission(profile, permission) {
+  if (!profile || profile.role !== 'admin') return false;
+  const teamRole = profile.team_role || 'owner';
+  if (teamRole === 'owner') return true;
+  return Boolean(profile.permissions && profile.permissions[permission]);
+}
+
+function NotificationBell({ admin = false }) {
+  const { user } = useAuth();
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!user) { setCount(0); return undefined; }
+    let active = true;
+    const load = async () => {
+      const { count: unread, error } = await supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('recipient_user_id', user.id).eq('is_read', false);
+      if (active && !error) setCount(unread || 0);
+    };
+    load();
+    const channel = supabase.channel(`notifications-${user.id}-${admin ? 'admin' : 'customer'}`).on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `recipient_user_id=eq.${user.id}` }, load).subscribe();
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, [user, admin]);
+  if (!user) return null;
+  const to = admin ? '/admin/notifications' : '/notifications';
+  return <Link className="notification-bell" to={to} aria-label="Notifications"><Bell size={18}/>{count > 0 && <span>{count > 99 ? '99+' : count}</span>}</Link>;
+}
+
+
 function readCart() {
   try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{"cart":[],"wishlist":[]}'); } catch { return { cart: [], wishlist: [] }; }
 }
@@ -53,7 +104,7 @@ function mapBanner(b) { return { ...b, buttonText: b.button_text || '', buttonLi
 
 const StoreContext = createContext(null);
 function StoreProvider({ children }) {
-  const [store, setStore] = useState({ ...emptyStore, ...readCart(), settings: DEFAULT_ADMIN_SETTINGS });
+  const [store, setStore] = useState({ ...emptyStore, ...readCart(), adminSettings: DEFAULT_ADMIN_SETTINGS });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -65,11 +116,8 @@ function StoreProvider({ children }) {
       supabase.from('banners').select('*').eq('status', 'active').order('created_at', { ascending: false }),
       supabase.from('admin_store_settings').select('settings').eq('id', 'default').maybeSingle()
     ]);
-    if (settingsRes.error) {
-      console.error('Store settings load error', settingsRes.error);
-    }
     if (!productsRes.error && !categoriesRes.error && !bannersRes.error) {
-      const mappedCategories = (categoriesRes.data || []).map(mapCategory); const catMap = new Map(mappedCategories.map(c => [c.id, c.name])); const mappedProducts = (productsRes.data || []).map(p => ({ ...mapProduct(p), category: catMap.get(p.category_id) || '' })); setStore(s => ({ ...s, products: mappedProducts, categories: mappedCategories, banners: (bannersRes.data || []).map(mapBanner), settings: settingsRes.error ? (s.settings || DEFAULT_ADMIN_SETTINGS) : mergeAdminSettings(DEFAULT_ADMIN_SETTINGS, settingsRes.data?.settings || {}) }));
+      const mappedCategories = (categoriesRes.data || []).map(mapCategory); const catMap = new Map(mappedCategories.map(c => [c.id, c.name])); const mappedProducts = (productsRes.data || []).map(p => ({ ...mapProduct(p), category: catMap.get(p.category_id) || '' })); const adminSettings = settingsRes.error ? DEFAULT_ADMIN_SETTINGS : mergeAdminSettings(DEFAULT_ADMIN_SETTINGS, settingsRes.data?.settings || {}); setStore(s => ({ ...s, products: mappedProducts, categories: mappedCategories, banners: (bannersRes.data || []).map(mapBanner), adminSettings })); if (settingsRes.error) console.error('Admin settings load error', settingsRes.error);
     } else {
       console.error('Supabase load error', productsRes.error || categoriesRes.error || bannersRes.error);
     }
@@ -89,7 +137,7 @@ function StoreProvider({ children }) {
   };
   const cartItems = useMemo(() => store.cart.map((line, index) => ({ ...line, index, product: store.products.find(p => p.id === line.productId) })).filter(x => x.product), [store.cart, store.products]);
   const subtotal = cartItems.reduce((sum, x) => sum + (Number(x.product.salePrice || x.product.price) * x.qty), 0);
-  const value = { store, settings: store.settings || DEFAULT_ADMIN_SETTINGS, update, addToCart, cartItems, subtotal, refresh, loading };
+  const value = { store, update, addToCart, cartItems, subtotal, refresh, loading };
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 const useStore = () => useContext(StoreContext);
@@ -103,30 +151,6 @@ function Toast({ message, onClose }) {
 function WhatsAppButton() {
   const number = import.meta.env.VITE_WHATSAPP_NUMBER || "923000000000";
   return <a className="whatsapp" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer" aria-label="Contact Hafiz Mart on WhatsApp"><MessageCircle size={22}/><span>WhatsApp</span></a>;
-}
-
-function AnnouncementBar() {
-  const { store } = useStore();
-  const location = useLocation();
-  const settings = store.settings || DEFAULT_ADMIN_SETTINGS;
-  const announcement = settings.storefront || {};
-  if (location.pathname.startsWith('/admin') || !announcement.announcementEnabled || !String(announcement.announcementText || '').trim()) return null;
-  const href = String(announcement.announcementLink || '/deals').trim() || '/deals';
-  const external = /^https?:\/\//i.test(href);
-  return <div className={`store-announcement theme-${announcement.announcementTheme || 'gold'}`}>
-    <div className="store-announcement-inner"><span>{announcement.announcementText}</span>{announcement.announcementButton && (external
-      ? <a href={href} target="_blank" rel="noreferrer">{announcement.announcementButton}<ArrowRight size={14}/></a>
-      : <Link to={href}>{announcement.announcementButton}<ArrowRight size={14}/></Link>)}</div>
-  </div>;
-}
-
-function MaintenanceScreen() {
-  const { store } = useStore();
-  const { profile, loading } = useAuth();
-  const location = useLocation();
-  const settings = store.settings || DEFAULT_ADMIN_SETTINGS;
-  if (loading || location.pathname.startsWith('/admin') || profile?.role === 'admin' || !settings.storefront?.maintenanceMode) return null;
-  return <div className="maintenance-overlay" role="alert"><div className="maintenance-card"><div className="maintenance-mark"><Store size={30}/></div><p className="eyebrow">TEMPORARILY UNAVAILABLE</p><h1>{settings.general?.storeName || 'Hafiz Mart'} is getting an update</h1><p>{settings.storefront?.maintenanceMessage || 'We are improving our shopping experience. Please check back soon.'}</p><a className="gold-btn" href={`https://wa.me/${String(settings.general?.whatsapp || import.meta.env.VITE_WHATSAPP_NUMBER || '').replace(/\D/g, '')}`} target="_blank" rel="noreferrer"><MessageCircle size={16}/> Contact support</a></div></div>;
 }
 
 function ScrollToTop() {
@@ -205,7 +229,7 @@ function ScrollReveal() {
 
 function Navbar() {
   const { store, cartItems } = useStore();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -532,6 +556,8 @@ const menuGroups = [
               </span>
             </Link>
 
+            {user && <NotificationBell admin={profile?.role === "admin"} />}
+
             <Link
               to={user ? "/account" : "/login"}
               aria-label="Account"
@@ -751,12 +777,14 @@ const [newsletterBusy, setNewsletterBusy] = useState(false);
 const [newsletterMessage, setNewsletterMessage] = useState("");
 
   const activeProducts = store.products.filter(
-    p => p.status !== "inactive" && (!store.settings?.inventory?.hideOutOfStock || Number(p.stock || 0) > 0)
+    p => p.status !== "inactive"
   );
+  const contentSettings = store.adminSettings?.content || DEFAULT_ADMIN_SETTINGS.content;
+  const featuredLimit = Math.max(0, Number(contentSettings.featuredProductsLimit || 8));
 
   const trendingProducts = activeProducts.slice(0, 8);
   const newArrivals = activeProducts.slice(8, 16);
-  const featuredProducts = activeProducts.slice(0, 4);
+  const featuredProducts = activeProducts.slice(0, featuredLimit);
 
 const categoryNames = [
   "Women's New Arrivals",
@@ -850,7 +878,7 @@ const cats = categoryNames.map(name => {
         </section>
 
         {/* CATEGORIES */}
-        <section className="home-section">
+        {contentSettings.showCategoriesOnHome !== false && <section className="home-section">
           <div className="container">
 
             <div className="home-section-heading">
@@ -916,7 +944,7 @@ const cats = categoryNames.map(name => {
 )}
 
           </div>
-        </section>
+        </section>}
 
         {/* TRENDING */}
         <section className="home-section home-section-dark">
@@ -964,7 +992,7 @@ const cats = categoryNames.map(name => {
         </section>
 
         {/* PROMO */}
-        <section className="home-promo-section">
+        {contentSettings.showDealsSection !== false && <section className="home-promo-section">
           <div className="container">
 
             <div className="home-promo">
@@ -991,7 +1019,7 @@ const cats = categoryNames.map(name => {
             </div>
 
           </div>
-        </section>
+        </section>}
 
         {/* NEW ARRIVALS */}
         {newArrivals.length > 0 && (
@@ -1239,6 +1267,10 @@ function StarRating({value=0,size=16}){
 
 function ProductReviews({ productId }) {
   const { user, profile } = useAuth();
+  const { store } = useStore();
+  const reviewSettings = store.adminSettings?.inventory || DEFAULT_ADMIN_SETTINGS.inventory;
+  const reviewRequiresApproval = reviewSettings.reviewsRequireApproval === true;
+  const maxReviewImages = Math.max(1, Number(reviewSettings.maxReviewImages || 5));
 
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1268,7 +1300,7 @@ function ProductReviews({ productId }) {
         "id,user_id,product_id,reviewer_name,rating,title,comment,image_urls,status,created_at"
       )
       .eq("product_id", productId)
-      .eq("status", "approved")
+      .neq("status", "rejected")
       .order("created_at", {
         ascending: false
       });
@@ -1324,9 +1356,9 @@ function ProductReviews({ productId }) {
       return;
     }
 
-    if (reviewImages.length + selected.length > 5) {
+    if (reviewImages.length + selected.length > maxReviewImages) {
       setMessage(
-        "Maximum 5 images per review upload kar sakte hain."
+        `Maximum ${maxReviewImages} images per review upload kar sakte hain.`
       );
       return;
     }
@@ -1441,7 +1473,7 @@ function ProductReviews({ productId }) {
         image_urls:
           reviewImages,
 
-        status: "approved"
+        status: reviewRequiresApproval ? "pending" : "approved"
       });
 
     if (error) {
@@ -1860,10 +1892,10 @@ function ProductDetails() {
   return <main className="page"><div className="container product-detail"><div className="detail-gallery"><div className="detail-image"><img src={currentImage} alt={product.name}/></div>{images.length>1&&<div className="thumbnail-row">{images.map((src,i)=><button key={src+i} className={i===selectedImage?'active':''} onClick={()=>setSelectedImage(i)}><img src={src} alt={`${product.name} ${i+1}`}/></button>)}</div>}</div><div className="detail-copy"><p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1><div className="detail-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice&&<del>Rs. {Number(product.price).toLocaleString()}</del>}</div><p className="detail-description">{product.description||product.shortDescription||"Is product ki detailed description abhi add nahi ki gayi."}</p><div className="stock-line">{Number(product.stock||0)>0?<><Check size={16}/> In stock — {product.stock} available</>:"Out of stock"}</div><div className="detail-actions"><div className="qty"><button onClick={()=>setQty(Math.max(1,qty-1))}><Minus size={15}/></button><strong>{qty}</strong><button onClick={()=>setQty(Math.min(Number(product.stock||1),qty+1))}><Plus size={15}/></button></div><button className="gold-btn" disabled={!Number(product.stock||0)} onClick={()=>{addToCart(product,qty);setToast("Product cart mein add ho gaya")}}><ShoppingBag size={17}/> Add to Cart</button><button className={`icon-btn ${wished?"active":""}`} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart size={19} fill={wished?"currentColor":"none"}/></button></div><a className="whatsapp-order" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a><Toast message={toast} onClose={()=>setToast("")}/></div></div><div className="container"><ProductReviews productId={product.id}/></div></main>;
 }
 function Categories() { const {store}=useStore(); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">DISCOVER</p><h1>Categories</h1><p>Explore products by category.</p></div></div>{store.categories.length?<div className="category-grid large">{store.categories.map(c=><Link className="category-card" key={c.id} to={`/shop?category=${encodeURIComponent(c.name)}`}><div><Tag size={22}/></div><strong>{c.name}</strong><span>{store.products.filter(p=>p.categoryId===c.id).length} products</span></Link>)}</div>:<EmptyState title="No Categories Yet" text="Admin panel se apni first category create karein." action="Open Admin" to="/admin/categories" icon={Tag}/>}</div></main>; }
-function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice && (!store.settings?.inventory?.hideOutOfStock || Number(p.stock || 0) > 0)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Jab aap kisi product par sale price set karenge to woh yahan show hoga." action="Manage Products" to="/admin/products" icon={Tag}/>}</div></main>; }
+function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Jab aap kisi product par sale price set karenge to woh yahan show hoga." action="Manage Products" to="/admin/products" icon={Tag}/>}</div></main>; }
 function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Product cards par heart icon press karke items save karein." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
 
-function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const deliveryLabel='Calculated at checkout'; const total=subtotal; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: ${deliveryLabel}\nTotal before delivery: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt=""/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty"><button onClick={()=>changeQty(x.index,-1)}><Minus size={14}/></button><strong>{x.qty}</strong><button onClick={()=>changeQty(x.index,1)}><Plus size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button className="remove-btn" onClick={()=>remove(x.index)}><Trash2 size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>{deliveryLabel}</strong></div><div className="summary-total"><span>Subtotal</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
+function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt=""/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty"><button onClick={()=>changeQty(x.index,-1)}><Minus size={14}/></button><strong>{x.qty}</strong><button onClick={()=>changeQty(x.index,1)}><Plus size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button className="remove-btn" onClick={()=>remove(x.index)}><Trash2 size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
 
 function Shop() {
   const { store } = useStore();
@@ -1958,7 +1990,7 @@ function Shop() {
   };
 
   let products = store.products
-    .filter((p) => p.status !== "inactive" && (!store.settings?.inventory?.hideOutOfStock || Number(p.stock || 0) > 0))
+    .filter((p) => p.status !== "inactive")
     .filter((p) => !category || p.category === category)
     .filter(
       (p) =>
@@ -2190,10 +2222,11 @@ function Shop() {
 }
 
 function Checkout(){
-  const { store, cartItems, subtotal, update } = useStore();
-  const settings = store.settings || DEFAULT_ADMIN_SETTINGS;
-  const shippingSettings = settings.shipping || DEFAULT_ADMIN_SETTINGS.shipping;
-  const paymentSettings = settings.payments || DEFAULT_ADMIN_SETTINGS.payments;
+  const { cartItems, subtotal, update, store } = useStore();
+  const appSettings = store.adminSettings || DEFAULT_ADMIN_SETTINGS;
+  const shippingSettings = appSettings.shipping || DEFAULT_ADMIN_SETTINGS.shipping;
+  const paymentSettings = appSettings.payments || DEFAULT_ADMIN_SETTINGS.payments;
+  const storefrontSettings = appSettings.storefront || DEFAULT_ADMIN_SETTINGS.storefront;
   const { user } = useAuth();
 
   const [step,setStep]=useState(1);
@@ -2312,10 +2345,6 @@ function Checkout(){
     }
   },[user]);
 
-  useEffect(() => {
-    if (!paymentSettings.codEnabled && paymentMethod === 'cod') setPaymentMethod('');
-  }, [paymentSettings.codEnabled, paymentMethod]);
-
   const updateField=(key,value)=>{
     setForm(f=>({
       ...f,
@@ -2330,22 +2359,17 @@ function Checkout(){
     }));
   };
 
-  const normalizedCity = String(form.city || '').trim().toLocaleLowerCase();
-  const cityRates = Array.isArray(shippingSettings.cityRates) ? shippingSettings.cityRates : [];
-  const cityRate = cityRates.find(row => String(row.city || '').trim().toLocaleLowerCase() === normalizedCity);
-  const freeThreshold = Number(shippingSettings.freeDeliveryThreshold ?? 5000);
-  const deliveryFee = shippingSettings.enabled === false || (Number.isFinite(freeThreshold) && subtotal >= freeThreshold)
+  const normalizedCity = String(form.city || '').trim().toLowerCase();
+  const cityRate = (shippingSettings.cityRates || []).find(row => String(row.city || '').trim().toLowerCase() === normalizedCity);
+  const freeThreshold = Number(shippingSettings.freeDeliveryThreshold ?? 10000);
+  const deliveryFee = freeThreshold > 0 && subtotal >= freeThreshold
     ? 0
-    : Math.max(0, Number(cityRate?.rate ?? shippingSettings.defaultRate ?? 300));
+    : Math.max(0, Number(cityRate?.rate ?? shippingSettings.defaultRate ?? (normalizedCity === 'multan' ? 270 : 300)));
 
-  const discount=
-    Number(coupon?.discount||0);
-
-  const total=
-    Math.max(
-      0,
-      subtotal-discount+deliveryFee
-    );
+  const discount=Number(coupon?.discount||0);
+  const freeShippingCoupon=Boolean(coupon?.freeShipping);
+  const finalDeliveryFee=freeShippingCoupon ? 0 : deliveryFee;
+  const total=Math.max(0,subtotal-discount+finalDeliveryFee);
 
   const validateWhatsApp=(phone)=>{
     const cleaned=
@@ -2408,7 +2432,7 @@ function Checkout(){
       setCouponError(error.message);
     }else if(
       !result ||
-      Number(result.discount||0)<=0
+      (Number(result.discount||0)<=0 && !result.free_shipping)
     ){
       setCouponError(
         result?.message||
@@ -2423,8 +2447,9 @@ function Checkout(){
             .trim()
             .toUpperCase(),
 
-        discount:
-          Number(result.discount||0)
+        discount:Number(result.discount||0),
+        freeShipping:Boolean(result.free_shipping),
+        displayName:result.display_name||''
       });
     }
 
@@ -2539,9 +2564,12 @@ function Checkout(){
     if(step===4){
 
       if(!paymentMethod){
-        setError(
-          'Payment method select karein.'
-        );
+        setError(paymentSettings.codEnabled ? 'Payment method select karein.' : 'Filhaal koi payment method available nahi hai.');
+        return false;
+      }
+
+      if(paymentMethod==='cod' && !paymentSettings.codEnabled){
+        setError('Cash on Delivery filhaal available nahi hai.');
         return false;
       }
 
@@ -2665,6 +2693,10 @@ function Checkout(){
     e.preventDefault();
 
     if(!validateStep()) return;
+    if(storefrontSettings.maintenanceMode){
+      setError(storefrontSettings.maintenanceMessage || 'Store maintenance mein hai. Baad mein dobara koshish karein.');
+      return;
+    }
 
     setBusy(true);
     setError('');
@@ -2745,59 +2777,13 @@ function Checkout(){
       return;
     }
 
-    const receiptItems = cartItems.map(x => ({
-      productId: x.product.id,
-      name: x.product.name,
-      image: x.product.image || '',
-      quantity: x.qty,
-      unitPrice: Number(x.product.salePrice || x.product.price),
-      lineTotal: Number(x.product.salePrice || x.product.price) * x.qty
-    }));
-
-    const receiptData = {
-      orderNumber: created.order_number,
-      customerName,
-      phone: form.phone.trim(),
-      email: form.email.trim(),
-      shippingAddress: fullAddress,
-      billingAddress: billingSame ? 'Same as Shipping' : billingAddress,
-      city: form.city,
-      paymentMethod: paymentMethod === 'cod' ? 'Cash on Delivery' : paymentMethod,
-      items: receiptItems,
-      subtotal: Number(created.subtotal || subtotal),
-      discount: Number(created.discount || 0),
-      deliveryFee: Number(created.delivery_fee || deliveryFee),
-      total: Number(created.total || total),
-      createdAt: new Date().toISOString()
-    };
-
-    const whatsappLines = receiptItems
-      .map(item => `• ${item.name} x${item.quantity} — Rs. ${item.lineTotal.toLocaleString()}`)
-      .join('\n');
-
-    const whatsappText =
-`Assalam o Alaikum, Hafiz Mart se order confirm karna hai.
-
-Order: ${receiptData.orderNumber}
-Customer: ${receiptData.customerName}
-WhatsApp: ${receiptData.phone}
-Email: ${receiptData.email}
-
-Shipping Address:
-${receiptData.shippingAddress}
-
-Billing Address: ${receiptData.billingAddress}
-Payment Method: ${receiptData.paymentMethod}
-
-${whatsappLines}
-
-Subtotal: Rs. ${receiptData.subtotal.toLocaleString()}
-Discount: Rs. ${receiptData.discount.toLocaleString()}
-Delivery: Rs. ${receiptData.deliveryFee.toLocaleString()}
-Total: Rs. ${receiptData.total.toLocaleString()}`;
-
-    update({ cart: [] });
-    setReceipt({ ...receiptData, whatsappText });
+    const receiptItems = cartItems.map(x => ({ productId:x.product.id, name:x.product.name, image:x.product.image||'', quantity:x.qty, unitPrice:Number(x.product.salePrice||x.product.price), lineTotal:Number(x.product.salePrice||x.product.price)*x.qty }));
+    const billingLine = billingSame ? 'Billing Address: Same as Shipping' : `Billing Address: ${billingAddress}`;
+    const receiptData = { orderNumber:created.order_number, customerName, phone:form.phone, email:form.email, shippingAddress:fullAddress, billingAddress:billingLine.replace('Billing Address: ','').trim(), paymentMethod:paymentMethod==='cod'?'Cash on Delivery':paymentMethod, items:receiptItems, subtotal:Number(created.subtotal||subtotal), discount:Number(created.discount||0), deliveryFee:Number(created.delivery_fee ?? finalDeliveryFee), total:Number(created.total||total), createdAt:new Date().toISOString() };
+    const whatsappLines = receiptItems.map(item => `• ${item.name} x${item.quantity} — Rs. ${item.lineTotal.toLocaleString()}`).join('\n');
+    const whatsappText = `Assalam o Alaikum, Hafiz Mart se order confirm karna hai.\n\nOrder: ${receiptData.orderNumber}\nCustomer: ${receiptData.customerName}\nWhatsApp: ${receiptData.phone}\nEmail: ${receiptData.email}\n\nShipping Address:\n${receiptData.shippingAddress}\n\nBilling Address: ${receiptData.billingAddress}\nPayment Method: ${receiptData.paymentMethod}\n\n${whatsappLines}\n\nSubtotal: Rs. ${receiptData.subtotal.toLocaleString()}\nDiscount: Rs. ${receiptData.discount.toLocaleString()}\nDelivery: Rs. ${receiptData.deliveryFee.toLocaleString()}\nTotal: Rs. ${receiptData.total.toLocaleString()}`;
+    update({cart:[]});
+    setReceipt({...receiptData,whatsappText});
     setOrder(created);
     setBusy(false);
   };
@@ -2807,29 +2793,19 @@ Total: Rs. ${receiptData.total.toLocaleString()}`;
       <main className="page">
         <div className="container">
           <div className="receipt-page">
-            <div className="receipt-success">
-              <div className="receipt-check"><Check size={24}/></div>
-              <p className="eyebrow">ORDER CONFIRMED</p>
-              <h1>Thank you for your order!</h1>
-              <p>Your order has been successfully placed. Neeche complete receipt hai.</p>
-              <div className="receipt-number">Order #{receipt.orderNumber}</div>
-            </div>
+            <div className="receipt-success"><div className="receipt-check"><Check size={24}/></div><p className="eyebrow">ORDER CONFIRMED</p><h1>Thank you for your order!</h1><p>Your order has been successfully placed. Neeche complete receipt hai.</p><div className="receipt-number">Order #{receipt.orderNumber}</div></div>
             <section className="receipt-card">
               <div className="receipt-card-head"><div><p className="eyebrow">HAFIZ MART</p><h2>Order Receipt</h2></div><div className="receipt-meta"><span>Order Date</span><strong>{new Date(receipt.createdAt).toLocaleString()}</strong></div></div>
-              <div className="receipt-info-grid">
-                <div><span>Customer</span><strong>{receipt.customerName}</strong></div><div><span>Phone</span><strong>{receipt.phone}</strong></div><div><span>Email</span><strong>{receipt.email || '—'}</strong></div><div><span>Payment</span><strong>{receipt.paymentMethod}</strong></div>
-                <div className="receipt-info-wide"><span>Shipping Address</span><strong>{receipt.shippingAddress}</strong></div><div className="receipt-info-wide"><span>Billing Address</span><strong>{receipt.billingAddress}</strong></div>
-              </div>
-              <div className="receipt-items">{receipt.items.map(item => <div className="receipt-item" key={item.productId}><div className="receipt-item-main">{item.image ? <img src={item.image} alt=""/> : <div className="receipt-item-placeholder"><ShoppingBag size={16}/></div>}<div><strong>{item.name}</strong><span>Qty {item.quantity} × Rs. {item.unitPrice.toLocaleString()}</span></div></div><strong>Rs. {item.lineTotal.toLocaleString()}</strong></div>)}</div>
-              <div className="receipt-total-box"><div><span>Subtotal</span><strong>Rs. {receipt.subtotal.toLocaleString()}</strong></div><div><span>Discount</span><strong>- Rs. {receipt.discount.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {receipt.deliveryFee.toLocaleString()}</strong></div><div className="receipt-grand"><span>Grand Total</span><strong>Rs. {receipt.total.toLocaleString()}</strong></div></div>
-              <div className="receipt-actions"><button className="gold-btn" onClick={() => window.print()}><FileText size={16}/> Print / Save Receipt</button><a className="ghost-btn" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(receipt.whatsappText)}`} target="_blank" rel="noreferrer"><MessageCircle size={16}/> Send on WhatsApp</a><Link className="ghost-btn" to="/track-order">Track Order</Link><Link className="ghost-btn" to="/shop">Continue Shopping</Link></div>
+              <div className="receipt-info-grid"><div><span>Customer</span><strong>{receipt.customerName}</strong></div><div><span>Phone</span><strong>{receipt.phone}</strong></div><div><span>Email</span><strong>{receipt.email||'—'}</strong></div><div><span>Payment</span><strong>{receipt.paymentMethod}</strong></div><div className="receipt-info-wide"><span>Shipping Address</span><strong>{receipt.shippingAddress}</strong></div><div className="receipt-info-wide"><span>Billing Address</span><strong>{receipt.billingAddress}</strong></div></div>
+              <div className="receipt-items">{receipt.items.map(item=><div className="receipt-item" key={item.productId}><div className="receipt-item-main">{item.image?<img src={item.image} alt=""/>:<div className="receipt-item-placeholder"><ShoppingBag size={16}/></div>}<div><strong>{item.name}</strong><span>Qty {item.quantity} × Rs. {item.unitPrice.toLocaleString()}</span></div></div><strong>Rs. {item.lineTotal.toLocaleString()}</strong></div>)}</div>
+              <div className="receipt-total-box"><div><span>Subtotal</span><strong>Rs. {receipt.subtotal.toLocaleString()}</strong></div><div><span>Discount</span><strong>- Rs. {receipt.discount.toLocaleString()}</strong></div><div><span>Delivery</span><strong>{receipt.deliveryFee===0?'FREE':`Rs. ${receipt.deliveryFee.toLocaleString()}`}</strong></div><div className="receipt-grand"><span>Grand Total</span><strong>Rs. {receipt.total.toLocaleString()}</strong></div></div>
+              <div className="receipt-actions"><button className="gold-btn" onClick={()=>window.print()}><FileText size={16}/> Print / Save Receipt</button><a className="ghost-btn" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(receipt.whatsappText)}`} target="_blank" rel="noreferrer"><MessageCircle size={16}/> Send on WhatsApp</a><Link className="ghost-btn" to="/track-order">Track Order</Link><Link className="ghost-btn" to="/shop">Continue Shopping</Link></div>
             </section>
           </div>
         </div>
       </main>
     );
   }
-
   if(!cartItems.length){
     return (
       <main className="page container">
@@ -3301,8 +3277,9 @@ Total: Rs. ${receiptData.total.toLocaleString()}`;
                 </div>
 
 
-                {/* COD is controlled by persisted Admin Settings. */}
-                {paymentSettings.codEnabled && <label
+                {/* COD */}
+
+                <label
                   className={`checkout-choice ${
                     paymentMethod==='cod'
                       ? 'selected'
@@ -3337,15 +3314,46 @@ Total: Rs. ${receiptData.total.toLocaleString()}`;
 
                   </div>
 
-                </label>}
+                </label>
 
-                {/* Card payments stay unavailable until a real gateway is integrated. */}
-                <div className="checkout-choice checkout-choice-disabled" aria-disabled="true">
-                  <input type="radio" name="paymentMethod" value="card" disabled checked={false} readOnly />
-                  <div><strong>Debit / Credit Card</strong><span>Online payment gateway abhi configure nahi hai.</span></div>
-                </div>
 
-                {!paymentSettings.codEnabled && <p className="settings-checkout-note">Cash on Delivery filhal band hai. Online payments bhi abhi available nahi hain; order place nahi kiya ja sakta.</p>}
+                {/* CARD */}
+
+                <label
+                  className={`checkout-choice ${
+                    paymentMethod==='card'
+                      ? 'selected'
+                      : ''
+                  }`}
+                >
+
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="card"
+                    checked={
+                      paymentMethod==='card'
+                    }
+                    onChange={e=>
+                      setPaymentMethod(
+                        e.target.value
+                      )
+                    }
+                  />
+
+                  <div>
+
+                    <strong>
+                      Debit / Credit Card
+                    </strong>
+
+                    <span>
+                      Secure card payment.
+                    </span>
+
+                  </div>
+
+                </label>
 
 
                 {paymentMethod==='card' && (
@@ -4014,22 +4022,8 @@ function Account(){
           </div>
 
           <div className="account-head-actions">
-            {profile?.role === 'admin' && (
-              <Link className="gold-btn account-admin-dashboard" to="/admin">
-                <LayoutDashboard size={16}/>
-                Admin Dashboard
-                <ArrowRight size={15}/>
-              </Link>
-            )}
-            <button
-              className="ghost-btn"
-              onClick={async ()=>{
-                await signOut();
-              }}
-            >
-              <LogOut size={16}/>
-              Logout
-            </button>
+            {profile?.role === 'admin' && <Link className="gold-btn account-admin-dashboard" to="/admin"><LayoutDashboard size={16}/> Admin Dashboard <ArrowRight size={15}/></Link>}
+            <button className="ghost-btn" onClick={async ()=>{await signOut();}}><LogOut size={16}/> Logout</button>
           </div>
         </div>
 
@@ -4099,9 +4093,16 @@ function Account(){
               <div>
                 <p className="eyebrow">ORDER TRACKING</p>
                 <h2>Track Your Order</h2>
-                <p>Apna order number enter karke latest order status aur delivery progress dekhein.</p>
+                <p>
+                  Apna order number enter karke latest order status aur delivery progress dekhein.
+                </p>
               </div>
-              <div className="account-track-actions"><Link className="gold-btn" to="/track-order">Track Order <ArrowRight size={17}/></Link><Link className="support-btn" to="/complaints"><MessageSquare size={16}/> Complaints & Support</Link></div>
+
+              <div className="account-track-actions">
+                <Link className="gold-btn" to="/track-order">Track Order <ArrowRight size={17}/></Link>
+                <Link className="support-btn" to="/complaints"><MessageSquare size={16}/> Complaints & Support</Link>
+                <Link className="ghost-btn" to="/notifications"><Bell size={16}/> Notifications</Link>
+              </div>
             </div>
 
             {/* ORDER HISTORY */}
@@ -4178,37 +4179,6 @@ function Account(){
     </main>
   );
 }
-function Complaints() {
-  const { user } = useAuth();
-  const [orders, setOrders] = useState([]);
-  const [complaints, setComplaints] = useState([]);
-  const [form, setForm] = useState({ orderId: "", type: "Order Issue", subject: "", message: "" });
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
-  const load = async () => {
-    if (!user) { setLoading(false); return; }
-    setLoading(true);
-    const [ordersRes, complaintsRes] = await Promise.all([supabase.from("orders").select("id,order_number,total,status,created_at").eq("user_id", user.id).order("created_at", { ascending: false }), supabase.from("complaints").select("*").eq("user_id", user.id).order("created_at", { ascending: false })]);
-    if (ordersRes.error) setNotice(ordersRes.error.message); else setOrders(ordersRes.data || []);
-    if (complaintsRes.error) setNotice(complaintsRes.error.message); else setComplaints(complaintsRes.data || []);
-    setLoading(false);
-  };
-  useEffect(() => { load(); }, [user]);
-  const submit = async e => {
-    e.preventDefault();
-    if (!user) return;
-    if (!form.subject.trim() || !form.message.trim()) { setNotice("Subject aur complaint details dono enter karein."); return; }
-    setBusy(true); setNotice("");
-    const selectedOrder = orders.find(o => o.id === form.orderId);
-    const { error } = await supabase.from("complaints").insert({ user_id: user.id, order_id: form.orderId || null, order_number: selectedOrder?.order_number || null, type: form.type, subject: form.subject.trim(), message: form.message.trim(), status: "pending" });
-    if (error) setNotice(error.message); else { setForm({ orderId: "", type: "Order Issue", subject: "", message: "" }); setNotice("Complaint successfully submit ho gayi. Admin jaldi review karega."); await load(); }
-    setBusy(false);
-  };
-  if (!user) return <main className="page container"><EmptyState title="Login Required" text="Complaint submit karne ke liye customer account mein login karein." action="Login" to="/login" icon={MessageSquare}/></main>;
-  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints & Support</h1><p>Order ya product ke hawale se issue ho to yahan complaint submit karein.</p></div></div><div className="complaint-layout"><form className="form-card complaint-form" onSubmit={submit}><div className="panel-head-row"><div><p className="eyebrow">NEW COMPLAINT</p><h2>How can we help?</h2></div><MessageSquare size={20}/></div><label>Related Order<select value={form.orderId} onChange={e => setForm({ ...form, orderId: e.target.value })}><option value="">General / No specific order</option>{orders.map(o => <option key={o.id} value={o.id}>{o.order_number} — Rs. {Number(o.total || 0).toLocaleString()} ({o.status})</option>)}</select></label><label>Complaint Type<select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}><option>Order Issue</option><option>Product Issue</option><option>Delivery Issue</option><option>Payment Issue</option><option>Return / Exchange</option><option>Other</option></select></label><label>Subject<input required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} placeholder="Short summary of your issue"/></label><label>Details<textarea required rows="6" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} placeholder="Please explain your complaint..."/></label>{notice && <div className="settings-notice success"><span><Check size={17}/></span><span>{notice}</span></div>}<button className="gold-btn" disabled={busy}>{busy ? "Submitting..." : "Submit Complaint"} <ArrowRight size={16}/></button></form><section className="complaint-history"><div className="section-heading"><div><p className="eyebrow">MY TICKETS</p><h2>Complaint History</h2></div></div>{loading ? <div className="mini-empty">Complaints load ho rahi hain...</div> : complaints.length ? <div className="complaint-list">{complaints.map(c => <article className="complaint-card" key={c.id}><div className="complaint-card-head"><div><strong>{c.subject}</strong><span>{c.order_number ? `Order ${c.order_number}` : "General complaint"} · {new Date(c.created_at).toLocaleString()}</span></div><em className={`status status-${c.status}`}>{String(c.status || "pending").replaceAll("_"," ")}</em></div><p>{c.message}</p>{c.admin_response && <div className="complaint-response"><span>Admin Response</span><p>{c.admin_response}</p></div>}</article>)}</div> : <div className="mini-empty"><MessageSquare size={24}/><strong>No complaints yet</strong><span>Your submitted complaints will appear here.</span></div>}</section></div></div></main>;
-}
-
 function OrderTracker() {
   const { user } = useAuth();
 
@@ -4694,13 +4664,13 @@ function Login() {
 
         <h1>
           {mode === "login"
-            ? "Login to your account"
+            ? "Welcome back"
             : "Create account"}
         </h1>
 
         <p className="muted">
           {mode === "login"
-            ? "Apne Hafiz Mart account mein sign in karein."
+            ? "Hafiz Mart admin/customer account mein sign in karein."
             : "Hafiz Mart par apna account create karein."}
         </p>
 
@@ -5068,11 +5038,56 @@ function ResetPassword(){
   );
 }
 function AdminLayout({children}){
-  const { profile, loading, signOut } = useAuth();
-  if(loading) return <main className="page container"><EmptyState title="Loading admin..." text="Authentication aur store data verify ho raha hai."/> </main>;
-  if(!profile || profile.role!=='admin') return <main className="page container"><EmptyState title="Admin access required" text="Is section ke liye admin account se login karein." action="Login" to="/login" icon={User}/></main>;
-  const links=[['/admin',LayoutDashboard,'Dashboard'],['/admin/products',Package,'Products'],['/admin/categories',Tag,'Categories'],['/admin/banners',Sparkles,'Sale Banners'],['/admin/coupons',TicketPercent,'Coupons'],['/admin/orders',ShoppingCart,'Orders'],['/admin/complaints',MessageSquare,'Complaints'],['/admin/customers',Users,'Customers'],['/admin/reviews',Star,'Reviews'],['/admin/settings',Settings,'Settings']];
-  return <main className="admin-shell"><aside className="admin-sidebar"><Link to="/admin" className="admin-logo"><img src={logo} alt="Hafiz Mart"/></Link><nav>{links.map(([to,I,label])=><Link key={to} to={to}><I size={17}/>{label}</Link>)}</nav><Link className="store-link" to="/"><ArrowRight size={15}/> View Store</Link><button className="store-link" onClick={signOut}>Sign out</button></aside><section className="admin-content">{children}</section></main>;
+  const { profile, user, loading, signOut } = useAuth();
+  const location = useLocation();
+  const [unread, setUnread] = useState(0);
+  const links = [
+    ['/admin',LayoutDashboard,'Dashboard','view_dashboard'],
+    ['/admin/products',Package,'Products','manage_products'],
+    ['/admin/categories',Tag,'Categories','manage_content'],
+    ['/admin/banners',Sparkles,'Sale Banners','manage_content'],
+    ['/admin/coupons',TicketPercent,'Coupons','manage_marketing'],
+    ['/admin/orders',ShoppingCart,'Orders','manage_orders'],
+    ['/admin/complaints',MessageSquare,'Complaints','manage_support'],
+    ['/admin/customers',Users,'Users','manage_users'],
+    ['/admin/reviews',Star,'Reviews','manage_reviews'],
+    ['/admin/transactions',DollarSign,'Transactions','view_transactions'],
+    ['/admin/reports',BarChart3,'Reports','view_reports'],
+    ['/admin/notifications',Bell,'Notifications','view_notifications'],
+    ['/admin/settings',Settings,'Settings','manage_settings']
+  ];
+  const visibleLinks = links.filter(([, , , permission]) => userHasPermission(profile, permission));
+  const routePermission = pathname => {
+    if(pathname==='/admin') return 'view_dashboard';
+    if(pathname.startsWith('/admin/products')) return 'manage_products';
+    if(pathname.startsWith('/admin/categories') || pathname.startsWith('/admin/banners')) return 'manage_content';
+    if(pathname.startsWith('/admin/coupons')) return 'manage_marketing';
+    if(pathname.startsWith('/admin/orders')) return 'manage_orders';
+    if(pathname.startsWith('/admin/complaints')) return 'manage_support';
+    if(pathname.startsWith('/admin/customers')) return 'manage_users';
+    if(pathname.startsWith('/admin/reviews')) return 'manage_reviews';
+    if(pathname.startsWith('/admin/transactions')) return 'view_transactions';
+    if(pathname.startsWith('/admin/reports')) return 'view_reports';
+    if(pathname.startsWith('/admin/notifications')) return 'view_notifications';
+    if(pathname.startsWith('/admin/settings')) return 'manage_settings';
+    return 'view_dashboard';
+  };
+  useEffect(()=>{
+    if(!user){setUnread(0);return undefined;}
+    let active=true;
+    const load=async()=>{
+      const {count,error}=await supabase.from('notifications').select('id',{count:'exact',head:true}).eq('recipient_user_id',user.id).eq('is_read',false);
+      if(active&&!error)setUnread(count||0);
+    };
+    load();
+    const channel=supabase.channel(`admin-notifications-${user.id}`).on('postgres_changes',{event:'*',schema:'public',table:'notifications',filter:`recipient_user_id=eq.${user.id}`},load).subscribe();
+    return()=>{active=false;supabase.removeChannel(channel)};
+  },[user]);
+  if(loading) return <main className="page container"><EmptyState title="Loading admin..." text="Authentication aur store data verify ho raha hai."/></main>;
+  if(!profile || !visibleLinks.length) return <main className="page container"><EmptyState title="Admin access required" text="Is section ke liye authorized team account chahiye." action="Login" to="/login" icon={User}/></main>;
+  const required=routePermission(location.pathname);
+  if(!userHasPermission(profile,required)) return <main className="page container"><EmptyState title="Access restricted" text="Aapke current role ke paas is section ki permission nahi hai." action="Back to Dashboard" to="/admin" icon={ShieldCheck}/></main>;
+  return <main className="admin-shell"><aside className="admin-sidebar"><Link to="/admin" className="admin-logo"><img src={logo} alt="Hafiz Mart"/></Link><nav>{visibleLinks.map(([to,I,label,permission])=><Link key={to} to={to} className={location.pathname===to?'active':''}><I size={17}/><span>{label}</span>{permission==='view_notifications'&&unread>0&&<b className="admin-notification-badge">{unread>99?'99+':unread}</b>}</Link>)}</nav><Link className="store-link" to="/"><ArrowRight size={15}/> View Store</Link><button className="store-link" onClick={signOut}>Sign out</button></aside><section className="admin-content">{children}</section></main>;
 }
 
 function Admin(){
@@ -5349,45 +5364,128 @@ function AdminBanners(){ const {store,refresh}=useStore(); const blank={title:''
 }
 
 function AdminCoupons(){
-  const blank={code:'',discountType:'percent',discountValue:'',minOrderAmount:'0',maxDiscount:'',usageLimit:'',startsAt:'',expiresAt:'',status:'active'};
+  const blank={code:'',displayName:'',discountType:'percent',discountValue:'',minOrderAmount:'0',maxDiscount:'',usageLimit:'',startsAt:'',expiresAt:'',status:'active'};
   const [form,setForm]=useState(blank); const [rows,setRows]=useState([]); const [editing,setEditing]=useState(null); const [loading,setLoading]=useState(true);
   const load=async()=>{setLoading(true);const {data,error}=await supabase.from('coupons').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false);};
   useEffect(()=>{load()},[]);
-  const save=async e=>{e.preventDefault();const payload={code:form.code.trim().toLowerCase(),discount_type:form.discountType,discount_value:Number(form.discountValue||0),min_order_amount:Number(form.minOrderAmount||0),max_discount:form.maxDiscount?Number(form.maxDiscount):null,usage_limit:form.usageLimit?Number(form.usageLimit):null,starts_at:form.startsAt||null,expires_at:form.expiresAt||null,status:form.status,updated_at:new Date().toISOString()};const result=editing?await supabase.from('coupons').update(payload).eq('id',editing):await supabase.from('coupons').insert(payload);if(result.error)alert(result.error.message);else{setForm(blank);setEditing(null);load();}};
-  const beginEdit=c=>{setEditing(c.id);setForm({code:c.code||'',discountType:c.discount_type||'percent',discountValue:c.discount_value||'',minOrderAmount:c.min_order_amount||0,maxDiscount:c.max_discount||'',usageLimit:c.usage_limit||'',startsAt:c.starts_at?new Date(c.starts_at).toISOString().slice(0,16):'',expiresAt:c.expires_at?new Date(c.expires_at).toISOString().slice(0,16):'',status:c.status||'active'});window.scrollTo({top:0,behavior:'smooth'});};
+  const save=async e=>{e.preventDefault();const payload={code:form.code.trim().toLowerCase(),display_name:form.displayName.trim()||null,discount_type:form.discountType,discount_value:form.discountType==='free_shipping'?0:Number(form.discountValue||0),min_order_amount:Number(form.minOrderAmount||0),max_discount:form.maxDiscount?Number(form.maxDiscount):null,usage_limit:form.usageLimit?Number(form.usageLimit):null,starts_at:form.startsAt||null,expires_at:form.expiresAt||null,status:form.status,updated_at:new Date().toISOString()};const result=editing?await supabase.from('coupons').update(payload).eq('id',editing):await supabase.from('coupons').insert(payload);if(result.error)alert(result.error.message);else{setForm(blank);setEditing(null);load();}};
+  const beginEdit=c=>{setEditing(c.id);setForm({code:c.code||'',displayName:c.display_name||'',discountType:c.discount_type||'percent',discountValue:c.discount_value||'',minOrderAmount:c.min_order_amount||0,maxDiscount:c.max_discount||'',usageLimit:c.usage_limit||'',startsAt:c.starts_at?new Date(c.starts_at).toISOString().slice(0,16):'',expiresAt:c.expires_at?new Date(c.expires_at).toISOString().slice(0,16):'',status:c.status||'active'});window.scrollTo({top:0,behavior:'smooth'});};
   const remove=async id=>{if(!confirm('Delete this coupon?'))return;const {error}=await supabase.from('coupons').delete().eq('id',id);if(error)alert(error.message);else load();};
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">PROMOTIONS</p><h1>Coupons</h1><p>Create percentage or fixed-amount discounts with limits and dates.</p></div></div><form className="admin-form" onSubmit={save}><div className="form-grid"><label>Coupon Code*<input required value={form.code} onChange={e=>setForm({...form,code:e.target.value.toUpperCase()})} placeholder="SAVE10"/></label><label>Discount Type<select value={form.discountType} onChange={e=>setForm({...form,discountType:e.target.value})}><option value="percent">Percentage (%)</option><option value="fixed">Fixed (Rs.)</option></select></label><label>Discount Value*<input required type="number" min="0" step="0.01" value={form.discountValue} onChange={e=>setForm({...form,discountValue:e.target.value})}/></label><label>Minimum Order (Rs.)<input type="number" min="0" value={form.minOrderAmount} onChange={e=>setForm({...form,minOrderAmount:e.target.value})}/></label><label>Max Discount (Rs.)<input type="number" min="0" value={form.maxDiscount} onChange={e=>setForm({...form,maxDiscount:e.target.value})} placeholder="Optional"/></label><label>Usage Limit<input type="number" min="1" value={form.usageLimit} onChange={e=>setForm({...form,usageLimit:e.target.value})} placeholder="Unlimited if blank"/></label><label>Starts At<input type="datetime-local" value={form.startsAt} onChange={e=>setForm({...form,startsAt:e.target.value})}/></label><label>Expires At<input type="datetime-local" value={form.expiresAt} onChange={e=>setForm({...form,expiresAt:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div><div className="form-actions"><button type="button" className="ghost-btn" onClick={()=>{setForm(blank);setEditing(null)}}>Reset</button><button className="gold-btn">{editing?<Pencil size={16}/>:<Plus size={17}/>} {editing?'Save Coupon':'Create Coupon'}</button></div></form>{loading?<EmptyState title="Loading coupons..." text="Supabase se coupons fetch ho rahe hain." icon={TicketPercent}/>:rows.length?<div className="coupon-list">{rows.map(c=><div className="coupon-card" key={c.id}><div className="coupon-code"><TicketPercent size={18}/><strong>{c.code.toUpperCase()}</strong><span>{c.discount_type==='percent'?`${c.discount_value}% off`:`Rs. ${Number(c.discount_value).toLocaleString()} off`}</span></div><div className="coupon-meta"><span>Min: Rs. {Number(c.min_order_amount||0).toLocaleString()}</span><span>Used: {c.used_count}{c.usage_limit?` / ${c.usage_limit}`:''}</span><span className={`status status-${c.status}`}>{c.status}</span></div><div className="row-actions"><button onClick={()=>beginEdit(c)}><Pencil size={15}/></button><button onClick={()=>remove(c.id)}><Trash2 size={15}/></button></div></div>)}</div>:<EmptyState title="No Coupons Yet" text="Pehla coupon create karein; checkout par customer code apply kar sakega." icon={TicketPercent}/>}</AdminLayout>;
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">PROMOTIONS</p><h1>Coupons</h1><p>Create percentage or fixed-amount discounts with limits and dates.</p></div></div><form className="admin-form" onSubmit={save}><div className="form-grid"><label>Coupon Code*<input required value={form.code} onChange={e=>setForm({...form,code:e.target.value.toUpperCase()})} placeholder="WELCOME"/></label><label>Customer-facing Offer Name<input value={form.displayName} onChange={e=>setForm({...form,displayName:e.target.value})} placeholder="Hafiz VIP Offer"/></label><label>Discount Type<select value={form.discountType} onChange={e=>setForm({...form,discountType:e.target.value})}><option value="percent">Percentage (%)</option><option value="fixed">Fixed (Rs.)</option><option value="free_shipping">Free Delivery</option></select></label><label>Discount Value{form.discountType==='free_shipping'&&<small className="form-hint">Free Delivery voucher ke liye 0 use hoga.</small>}<input required={form.discountType!=='free_shipping'} disabled={form.discountType==='free_shipping'} type="number" min="0" step="0.01" value={form.discountType==='free_shipping'?0:form.discountValue} onChange={e=>setForm({...form,discountValue:e.target.value})}/></label><label>Minimum Order (Rs.)<input type="number" min="0" value={form.minOrderAmount} onChange={e=>setForm({...form,minOrderAmount:e.target.value})}/></label><label>Max Discount (Rs.)<input type="number" min="0" value={form.maxDiscount} onChange={e=>setForm({...form,maxDiscount:e.target.value})} placeholder="Optional"/></label><label>Usage Limit<input type="number" min="1" value={form.usageLimit} onChange={e=>setForm({...form,usageLimit:e.target.value})} placeholder="Unlimited if blank"/></label><label>Starts At<input type="datetime-local" value={form.startsAt} onChange={e=>setForm({...form,startsAt:e.target.value})}/></label><label>Expires At<input type="datetime-local" value={form.expiresAt} onChange={e=>setForm({...form,expiresAt:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div><div className="form-actions"><button type="button" className="ghost-btn" onClick={()=>{setForm(blank);setEditing(null)}}>Reset</button><button className="gold-btn">{editing?<Pencil size={16}/>:<Plus size={17}/>} {editing?'Save Coupon':'Create Coupon'}</button></div></form>{loading?<EmptyState title="Loading coupons..." text="Supabase se coupons fetch ho rahe hain." icon={TicketPercent}/>:rows.length?<div className="coupon-list">{rows.map(c=><div className="coupon-card" key={c.id}><div className="coupon-code"><TicketPercent size={18}/><strong>{c.code.toUpperCase()}</strong><span>{c.discount_type==='percent'?`${c.discount_value}% off`:c.discount_type==='free_shipping'?'Free Delivery':`Rs. ${Number(c.discount_value).toLocaleString()} off`}</span><small className="coupon-display-name">{c.display_name||'Custom offer'}</small></div><div className="coupon-meta"><span>Min: Rs. {Number(c.min_order_amount||0).toLocaleString()}</span><span>Used: {c.used_count}{c.usage_limit?` / ${c.usage_limit}`:''}</span><span className={`status status-${c.status}`}>{c.status}</span></div><div className="row-actions"><button onClick={()=>beginEdit(c)}><Pencil size={15}/></button><button onClick={()=>remove(c.id)}><Trash2 size={15}/></button></div></div>)}</div>:<EmptyState title="No Coupons Yet" text="Pehla coupon create karein; checkout par customer code apply kar sakega." icon={TicketPercent}/>}</AdminLayout>;
 }
 
 function AdminOrders(){
-  const [orders,setOrders]=useState([]); const [items,setItems]=useState([]); const [loading,setLoading]=useState(true); const [selected,setSelected]=useState(null); const [filter,setFilter]=useState('all'); const [saving,setSaving]=useState(null); const [deleting,setDeleting]=useState(null);
-  const load=async()=>{setLoading(true); const [o,i]=await Promise.all([supabase.from('orders').select('*').order('created_at',{ascending:false}),supabase.from('order_items').select('*')]); if(o.error) alert(o.error.message); else setOrders(o.data||[]); if(i.error) alert(i.error.message); else setItems(i.data||[]); setLoading(false);};
-  useEffect(()=>{load()},[]);
-  const updateStatus=async(id,status)=>{setSaving(id); const {error}=await supabase.from('orders').update({status}).eq('id',id); if(error) alert(error.message); else setOrders(rows=>rows.map(o=>o.id===id?{...o,status}:o)); setSaving(null);};
-  const deleteOrder=async(order)=>{if(!confirm(`Order ${order.order_number||order.id.slice(0,8)} permanently delete karna hai? Ye action undo nahi hoga.`)) return; setDeleting(order.id); const {error}=await supabase.rpc('admin_delete_order',{p_order_id:order.id}); if(error) alert(error.message); else {setOrders(rows=>rows.filter(o=>o.id!==order.id)); setItems(rows=>rows.filter(x=>x.order_id!==order.id)); if(selected===order.id) setSelected(null);} setDeleting(null);};
+  const [orders,setOrders]=useState([]);const [items,setItems]=useState([]);const [loading,setLoading]=useState(true);const [selected,setSelected]=useState(null);const [filter,setFilter]=useState('all');const [saving,setSaving]=useState(null);const [deleting,setDeleting]=useState(null);
+  const load=async()=>{setLoading(true);const [o,i]=await Promise.all([supabase.from('orders').select('*').order('created_at',{ascending:false}),supabase.from('order_items').select('*')]);if(o.error)alert(o.error.message);else setOrders(o.data||[]);if(i.error)alert(i.error.message);else setItems(i.data||[]);setLoading(false)};useEffect(()=>{load()},[]);
+  const updateStatus=async(id,status)=>{setSaving(id);const {error}=await supabase.from('orders').update({status}).eq('id',id);if(error)alert(error.message);else setOrders(r=>r.map(o=>o.id===id?{...o,status}:o));setSaving(null)};
+  const deleteOrder=async(order)=>{if(!confirm(`Order ${order.order_number||order.id.slice(0,8)} permanently delete karna hai? Ye action undo nahi hoga.`))return;setDeleting(order.id);const {error}=await supabase.rpc('admin_delete_order',{p_order_id:order.id});if(error)alert(error.message);else{setOrders(r=>r.filter(o=>o.id!==order.id));setItems(r=>r.filter(x=>x.order_id!==order.id));setSelected(null)}setDeleting(null)};
   const visible=filter==='all'?orders:orders.filter(o=>o.status===filter);
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ORDERS</p><h1>Orders</h1><p>{orders.length} real order(s) from Supabase.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['all','pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s==='all'?'All':s.replaceAll('_',' ')}</button>)}</div>{loading?<EmptyState title="Loading orders..." text="Supabase se orders fetch ho rahe hain."/>:visible.length?<div className="order-list">{visible.map(o=>{const oi=items.filter(x=>x.order_id===o.id);return <motion.div className="order-card" key={o.id} layout><div className="order-card-head"><div><span className="order-number">{o.order_number||o.id.slice(0,8)}</span><strong>{o.customer_name||'Customer'}</strong><small>{new Date(o.created_at).toLocaleString()} · {o.phone||'No phone'}</small></div><div className="order-total"><strong>Rs. {Number(o.total||0).toLocaleString()}</strong><select disabled={saving===o.id} value={o.status||'pending'} onChange={e=>updateStatus(o.id,e.target.value)}>{['pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><option key={s} value={s}>{s.replaceAll('_',' ')}</option>)}</select></div></div><button className="order-detail-toggle" onClick={()=>setSelected(selected===o.id?null:o.id)}>{selected===o.id?'Hide details':'View order details'} <ChevronRight size={15} className={selected===o.id?'rotate':''}/></button>{selected===o.id&&<div className="order-details"><div className="order-customer"><div><span>Phone</span><strong>{o.phone||'—'}</strong></div><div><span>Email</span><strong>{o.email||'—'}</strong></div><div><span>Address</span><strong>{o.address||'—'}, {o.city||''}</strong></div></div><div className="order-items">{oi.length?oi.map(x=><div key={x.id}><span>{x.product_name||'Product'} × {x.quantity}</span><strong>Rs. {(Number(x.unit_price||0)*Number(x.quantity||0)).toLocaleString()}</strong></div>):<div><span>Items snapshot</span><strong>See order record</strong></div>}</div><div className="order-breakdown"><span>Subtotal</span><strong>Rs. {Number(o.subtotal||0).toLocaleString()}</strong><span>Discount</span><strong>Rs. {Number(o.discount||0).toLocaleString()}</strong><span>Delivery</span><strong>Rs. {Number(o.delivery_fee||0).toLocaleString()}</strong><span className="grand">Total</span><strong className="grand">Rs. {Number(o.total||0).toLocaleString()}</strong></div><div className="order-admin-actions"><button className="danger-btn" disabled={deleting===o.id} onClick={()=>deleteOrder(o)}><Trash2 size={15}/>{deleting===o.id?'Deleting...':'Delete Order'}</button></div></div>}</motion.div>})}</div>:<EmptyState title="No Orders Yet" text="Abhi koi real customer order nahi hai. Checkout complete hone ke baad order yahan show hoga." action="View Store" to="/" icon={ShoppingCart}/>}</AdminLayout>;
-}
-
-function AdminComplaints(){
-  const [rows,setRows]=useState([]); const [loading,setLoading]=useState(true); const [filter,setFilter]=useState('all'); const [saving,setSaving]=useState(null);
-  const load=async()=>{setLoading(true); const {data,error}=await supabase.from('complaints').select('*').order('created_at',{ascending:false}); if(error) alert(error.message); else setRows(data||[]); setLoading(false);};
-  useEffect(()=>{load()},[]);
-  const updateComplaint=async(id,status,admin_response)=>{setSaving(id); const {error}=await supabase.from('complaints').update({status,admin_response:admin_response.trim()||null,updated_at:new Date().toISOString()}).eq('id',id); if(error) alert(error.message); else setRows(r=>r.map(x=>x.id===id?{...x,status,admin_response:admin_response.trim()||null}:x)); setSaving(null);};
-  const visible=filter==='all'?rows:rows.filter(r=>r.status===filter);
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints</h1><p>Customer complaints aur support tickets manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['all','pending','in_progress','resolved','closed'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s.replaceAll('_',' ')}</button>)}</div>{loading?<EmptyState title="Loading complaints..." text="Complaints fetch ho rahi hain." icon={MessageSquare}/>:visible.length?<div className="complaint-admin-list">{visible.map(c=><ComplaintAdminCard key={c.id} complaint={c} saving={saving===c.id} onSave={updateComplaint}/>)}</div>:<EmptyState title={`No ${filter} complaints`} text="Is queue mein abhi koi complaint nahi hai." icon={MessageSquare}/>}</AdminLayout>;
-}
-function ComplaintAdminCard({complaint,saving,onSave}){
-  const [status,setStatus]=useState(complaint.status||'pending'); const [response,setResponse]=useState(complaint.admin_response||'');
-  useEffect(()=>{setStatus(complaint.status||'pending');setResponse(complaint.admin_response||'')},[complaint.status,complaint.admin_response]);
-  return <article className="complaint-admin-card"><div className="complaint-card-head"><div><strong>{complaint.subject}</strong><span>{complaint.order_number?`Order ${complaint.order_number}`:'General complaint'} · {new Date(complaint.created_at).toLocaleString()}</span></div><em className={`status status-${complaint.status}`}>{String(complaint.status||'pending').replaceAll('_',' ')}</em></div><div className="complaint-admin-meta"><span>Type: <strong>{complaint.type||'Other'}</strong></span><span>Customer ID: <strong>{complaint.user_id}</strong></span></div><p>{complaint.message}</p><div className="complaint-admin-controls"><label>Status<select value={status} onChange={e=>setStatus(e.target.value)}><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></label><label>Admin Response<textarea rows="3" value={response} onChange={e=>setResponse(e.target.value)} placeholder="Response for customer..."/></label><button className="gold-btn" disabled={saving} onClick={()=>onSave(complaint.id,status,response)}>{saving?'Saving...':'Save Response'} <Check size={15}/></button></div></article>;
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ORDERS</p><h1>Orders</h1><p>{orders.length} real order(s) from Supabase.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['all','pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s==='all'?'All':s.replaceAll('_',' ')}</button>)}</div>{loading?<EmptyState title="Loading orders..." text="Supabase se orders fetch ho rahe hain."/>:visible.length?<div className="order-list">{visible.map(o=>{const oi=items.filter(x=>x.order_id===o.id);return <motion.div className="order-card" key={o.id} layout><div className="order-card-head"><div><span className="order-number">{o.order_number||o.id.slice(0,8)}</span><strong>{o.customer_name||'Customer'}</strong><small>{new Date(o.created_at).toLocaleString()} · {o.phone||'No phone'}</small></div><div className="order-total"><strong>Rs. {Number(o.total||0).toLocaleString()}</strong><select disabled={saving===o.id} value={o.status||'pending'} onChange={e=>updateStatus(o.id,e.target.value)}>{['pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><option key={s} value={s}>{s.replaceAll('_',' ')}</option>)}</select></div></div><button className="order-detail-toggle" onClick={()=>setSelected(selected===o.id?null:o.id)}>{selected===o.id?'Hide details':'View order details'} <ChevronRight size={15} className={selected===o.id?'rotate':''}/></button>{selected===o.id&&<div className="order-details"><div className="order-customer"><div><span>Phone</span><strong>{o.phone||'—'}</strong></div><div><span>Email</span><strong>{o.email||'—'}</strong></div><div><span>Address</span><strong>{o.address||'—'}, {o.city||''}</strong></div></div><div className="order-items">{oi.length?oi.map(x=><div key={x.id}><span>{x.product_name||'Product'} × {x.quantity}</span><strong>Rs. {(Number(x.unit_price||0)*Number(x.quantity||0)).toLocaleString()}</strong></div>):<div><span>Items snapshot</span><strong>See order record</strong></div>}</div><div className="order-breakdown"><span>Subtotal</span><strong>Rs. {Number(o.subtotal||0).toLocaleString()}</strong><span>Discount</span><strong>Rs. {Number(o.discount||0).toLocaleString()}</strong><span>Delivery</span><strong>Rs. {Number(o.delivery_fee||0).toLocaleString()}</strong><span className="grand">Total</span><strong className="grand">Rs. {Number(o.total||0).toLocaleString()}</strong></div><div className="order-admin-actions"><button className="danger-btn" disabled={deleting===o.id} onClick={()=>deleteOrder(o)}><Trash2 size={15}/>{deleting===o.id?'Deleting...':'Delete Order'}</button></div></div>}</motion.div>})}</div>:<EmptyState title="No Orders Yet" text="Abhi koi real customer order nahi hai." action="View Store" to="/" icon={ShoppingCart}/>}</AdminLayout>;
 }
 
 function AdminCustomers(){
-  const [customers,setCustomers]=useState([]); const [loading,setLoading]=useState(true);
-  useEffect(()=>{(async()=>{const {data,error}=await supabase.from('profiles').select('*').eq('role','customer').order('created_at',{ascending:false}); if(error) alert(error.message); else setCustomers(data||[]); setLoading(false);})()},[]);
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMERS</p><h1>Customers</h1><p>Registered customer profiles from Supabase.</p></div></div>{loading?<EmptyState title="Loading customers..." text="Customer profiles fetch ho rahe hain."/>:customers.length?<div className="simple-list">{customers.map(c=><div key={c.id}><div><User size={17}/><strong>{c.full_name||c.name||'Customer'}</strong><span>{c.email||'Email unavailable'}{c.phone?` · ${c.phone}`:''}</span></div><span>{c.created_at?new Date(c.created_at).toLocaleDateString():''}</span></div>)}</div>:<EmptyState title="No Customers Yet" text="Customer account create hone ke baad profiles yahan show hongi." icon={Users}/>}</AdminLayout>;
+  const { profile: currentProfile } = useAuth();
+  const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);const [tab,setTab]=useState('customers');const [search,setSearch]=useState('');const [saving,setSaving]=useState(null);const [expanded,setExpanded]=useState(null);
+  const permissionKeys=['view_dashboard','manage_products','manage_content','manage_marketing','manage_orders','manage_support','manage_users','manage_reviews','view_transactions','view_reports','view_notifications','manage_notifications','manage_settings'];
+  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('profiles').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};
+  useEffect(()=>{load()},[]);
+  const updateUser=async(id,patch)=>{if(id===currentProfile?.id)return;setSaving(id);const {data,error}=await supabase.rpc('admin_update_user',{p_user_id:id,p_patch:patch});if(error)alert(error.message);else setRows(r=>r.map(x=>x.id===id?{...x,...(data||patch)}:x));setSaving(null)};
+  const filtered=rows.filter(r=>tab==='customers'?r.role==='customer':r.role==='admin').filter(r=>`${r.full_name||''} ${r.email||''} ${r.phone||''}`.toLowerCase().includes(search.toLowerCase()));
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">USER MANAGEMENT</p><h1>{tab==='customers'?'Customers':'Team & Roles'}</h1><p>Users ko view, verify, block aur permissions ke saath manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="admin-user-toolbar"><div className="order-filters"><button className={tab==='customers'?'active':''} onClick={()=>{setTab('customers');setExpanded(null)}}>Customers</button><button className={tab==='team'?'active':''} onClick={()=>{setTab('team');setExpanded(null)}}>Team & Roles</button></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email or phone..."/></div>{loading?<EmptyState title="Loading users..." text="User profiles fetch ho rahe hain." icon={Users}/>:filtered.length?<div className="admin-user-list">{filtered.map(c=>{const perms=c.permissions||{};return <article className="admin-user-card" key={c.id}><div className="admin-user-main"><div className="admin-user-avatar"><User size={18}/></div><div><strong>{c.full_name||c.name||'Customer'}</strong><span>{c.email||'Email unavailable'}{c.phone?` · ${c.phone}`:''}</span><small>{c.created_at?new Date(c.created_at).toLocaleDateString():''}</small></div><div className="admin-user-statuses"><span className={`status status-${c.account_status||'active'}`}>{c.account_status||'active'}</span>{c.is_verified&&<span className="verified-pill"><UserCheck size={12}/> Verified</span>}</div></div>{expanded===c.id&&<div className="admin-user-editor"><label>Account Status<select disabled={c.id===currentProfile?.id||tab==='team'&&c.team_role==='owner'} value={c.account_status||'active'} onChange={e=>updateUser(c.id,{account_status:e.target.value})}><option value="active">Active</option><option value="blocked">Blocked</option><option value="suspended">Suspended</option></select></label><label className="admin-user-check"><input type="checkbox" disabled={c.id===currentProfile?.id} checked={!!c.is_verified} onChange={e=>updateUser(c.id,{is_verified:e.target.checked})}/><span>Store verification</span></label>{tab==='team'&&<><label>Team Role<select disabled={c.id===currentProfile?.id||c.team_role==='owner'} value={c.team_role||'manager'} onChange={e=>updateUser(c.id,{team_role:e.target.value})}><option value="owner">Owner</option><option value="manager">Manager</option><option value="editor">Content Editor</option><option value="support">Support</option></select></label><div className="permissions-grid"><h4>Permissions</h4>{permissionKeys.map(key=><label key={key}><input type="checkbox" checked={c.team_role==='owner'||!!perms[key]} disabled={c.team_role==='owner'||c.id===currentProfile?.id} onChange={e=>updateUser(c.id,{permissions:{...perms,[key]:e.target.checked}})}/><span>{key.replaceAll('_',' ')}</span></label>)}</div></>}</div>}<div className="admin-user-actions"><button className="ghost-btn" onClick={()=>setExpanded(expanded===c.id?null:c.id)}>{expanded===c.id?'Close':'Manage User'} <ChevronRight size={15}/></button>{c.id!==currentProfile?.id&&tab==='customers'&&<button className={c.account_status==='blocked'?'gold-btn':'danger-btn'} disabled={saving===c.id} onClick={()=>updateUser(c.id,{account_status:c.account_status==='blocked'?'active':'blocked'})}>{c.account_status==='blocked'?<><UserCheck size={15}/> Unblock</>:<><UserX size={15}/> Block</>}</button>}</div></article>})}</div>:<EmptyState title="No users found" text="Search ya tab change karke dobara try karein." icon={Users}/>}</AdminLayout>;
 }
+
+function AdminComplaints(){
+  const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);const [filter,setFilter]=useState('all');const [saving,setSaving]=useState(null);
+  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('complaints').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};useEffect(()=>{load()},[]);
+  const updateComplaint=async(id,status,response)=>{setSaving(id);const {error}=await supabase.from('complaints').update({status,admin_response:response.trim()||null,updated_at:new Date().toISOString()}).eq('id',id);if(error)alert(error.message);else setRows(r=>r.map(x=>x.id===id?{...x,status,admin_response:response.trim()||null}:x));setSaving(null)};
+  const visible=filter==='all'?rows:rows.filter(r=>r.status===filter);
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints</h1><p>{rows.length} support ticket(s) from customers.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['all','pending','in_progress','resolved','closed'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s.replaceAll('_',' ')}</button>)}</div>{loading?<EmptyState title="Loading complaints..." text="Complaints fetch ho rahi hain." icon={MessageSquare}/>:visible.length?<div className="complaint-admin-list">{visible.map(c=><ComplaintAdminCard key={c.id} complaint={c} saving={saving===c.id} onSave={updateComplaint}/>)}</div>:<EmptyState title={`No ${filter} complaints`} text="Is queue mein abhi koi complaint nahi hai." icon={MessageSquare}/>}</AdminLayout>;
+}
+function ComplaintAdminCard({complaint,saving,onSave}){const [status,setStatus]=useState(complaint.status||'pending');const [response,setResponse]=useState(complaint.admin_response||'');useEffect(()=>{setStatus(complaint.status||'pending');setResponse(complaint.admin_response||'')},[complaint.status,complaint.admin_response]);return <article className="complaint-admin-card"><div className="complaint-card-head"><div><strong>{complaint.subject}</strong><span>{complaint.order_number?`Order ${complaint.order_number}`:'General complaint'} · {new Date(complaint.created_at).toLocaleString()}</span></div><em className={`status status-${complaint.status}`}>{String(complaint.status||'pending').replaceAll('_',' ')}</em></div><div className="complaint-admin-meta"><span>Type: <strong>{complaint.type||'Other'}</strong></span><span>User: <strong>{complaint.user_id}</strong></span></div><p>{complaint.message}</p>{Array.isArray(complaint.image_urls)&&complaint.image_urls.length>0&&<div className="complaint-images admin-complaint-images">{complaint.image_urls.map((url,i)=><a key={`${complaint.id}-${i}`} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Evidence ${i+1}`}/></a>)}</div>}<div className="complaint-admin-controls"><label>Status<select value={status} onChange={e=>setStatus(e.target.value)}><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></label><label>Admin Response<textarea rows="3" value={response} onChange={e=>setResponse(e.target.value)} placeholder="Response for customer..."/></label><button className="gold-btn" disabled={saving} onClick={()=>onSave(complaint.id,status,response)}>{saving?'Saving...':'Save Response'} <Check size={15}/></button></div></article>}
+
+function AdminNotifications(){
+  const { user, profile }=useAuth();
+  const [rows,setRows]=useState([]);
+  const [users,setUsers]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState(false);
+  const [form,setForm]=useState({audience:'all',userId:'',type:'announcement',title:'',message:'',priority:'normal'});
+
+  const load=async()=>{
+    if(!user) return;
+    setLoading(true);
+    const [n,u]=await Promise.all([
+      supabase.from('notifications').select('*').eq('recipient_user_id',user.id).order('created_at',{ascending:false}),
+      supabase.from('profiles').select('id,full_name,email').eq('role','customer').order('created_at',{ascending:false})
+    ]);
+    if(n.error) alert(n.error.message); else setRows(n.data||[]);
+    if(!u.error) setUsers(u.data||[]);
+    setLoading(false);
+  };
+
+  useEffect(()=>{load()},[user]);
+
+  const markRead=async id=>{
+    const {error}=await supabase.from('notifications').update({is_read:true,read_at:new Date().toISOString()}).eq('id',id).eq('recipient_user_id',user.id);
+    if(error) alert(error.message); else setRows(r=>r.map(x=>x.id===id?{...x,is_read:true,read_at:new Date().toISOString()}:x));
+  };
+
+  const markAll=async()=>{
+    const {error}=await supabase.from('notifications').update({is_read:true,read_at:new Date().toISOString()}).eq('recipient_user_id',user.id).eq('is_read',false);
+    if(error) alert(error.message); else setRows(r=>r.map(x=>({...x,is_read:true})));
+  };
+
+  const send=async e=>{
+    e.preventDefault();
+    if(!userHasPermission(profile,'manage_notifications')){alert('Notifications send karne ki permission nahi hai.');return;}
+    if(!form.title.trim()||!form.message.trim()){alert('Title aur message required hain.');return;}
+    setBusy(true);
+    const recipients=users.filter(u=>form.audience==='all'||u.id===form.userId);
+    if(!recipients.length){alert('Customer select karein.');setBusy(false);return;}
+    const payload=recipients.map(u=>({recipient_user_id:u.id,type:form.type,title:form.title.trim(),message:form.message.trim(),priority:form.priority,is_read:false}));
+    const {error}=await supabase.from('notifications').insert(payload);
+    if(error) alert(error.message);
+    else {setForm({audience:'all',userId:'',type:'announcement',title:'',message:'',priority:'normal'});alert('Notification send ho gayi.');}
+    setBusy(false);
+  };
+
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">NOTIFICATIONS</p><h1>Notifications</h1><p>Offers, announcements aur important customer updates bhejein.</p></div><button className="ghost-btn" onClick={markAll}><Check size={15}/> Mark all seen</button></div><form className="admin-form notification-compose" onSubmit={send}><div className="form-grid"><label>Audience<select value={form.audience} onChange={e=>setForm({...form,audience:e.target.value})}><option value="all">All customers</option><option value="one">One customer</option></select></label><label>Type<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option value="announcement">Announcement</option><option value="offer">Offer</option><option value="support">Support</option><option value="order">Order</option></select></label>{form.audience==='one'&&<label>Customer<select required value={form.userId} onChange={e=>setForm({...form,userId:e.target.value})}><option value="">Select customer</option>{users.map(u=><option key={u.id} value={u.id}>{u.full_name||u.email} — {u.email}</option>)}</select></label>}<label>Priority<select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})}><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></label><label className="span-2">Title<input required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></label><label className="span-2">Message<textarea required rows="4" value={form.message} onChange={e=>setForm({...form,message:e.target.value})}/></label></div><div className="form-actions"><button className="gold-btn" disabled={busy}><Send size={15}/>{busy?'Sending...':'Send Notification'}</button></div></form><div className="notification-inbox"><div className="section-heading"><div><p className="eyebrow">ADMIN INBOX</p><h2>Your alerts</h2></div></div>{loading?<div className="mini-empty">Notifications load ho rahi hain...</div>:rows.length?<div className="notification-list">{rows.map(n=><article onClick={()=>!n.is_read&&markRead(n.id)} className={`notification-card ${n.priority||'normal'} ${n.is_read?'read':'unread'}`} key={n.id}><div className="notification-icon"><Bell size={17}/></div><div><strong>{n.title}</strong><span>{new Date(n.created_at).toLocaleString()} · {n.type}</span><p>{n.message}</p></div>{!n.is_read&&<i>NEW</i>}</article>)}</div>:<div className="mini-empty"><Bell size={24}/><strong>No notifications</strong><span>New orders, complaints aur system alerts yahan appear hongi.</span></div>}</div></AdminLayout>;
+}
+
+function CustomerNotifications(){
+  const { user }=useAuth();const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);
+  const load=async()=>{if(!user){setLoading(false);return}setLoading(true);const {data,error}=await supabase.from('notifications').select('*').eq('recipient_user_id',user.id).order('created_at',{ascending:false});if(error)console.error(error.message);else setRows(data||[]);setLoading(false)};useEffect(()=>{load()},[user]);
+  const markRead=async id=>{await supabase.from('notifications').update({is_read:true,read_at:new Date().toISOString()}).eq('id',id).eq('recipient_user_id',user.id);setRows(r=>r.map(x=>x.id===id?{...x,is_read:true}:x))};
+  const markAll=async()=>{await supabase.from('notifications').update({is_read:true,read_at:new Date().toISOString()}).eq('recipient_user_id',user.id).eq('is_read',false);setRows(r=>r.map(x=>({...x,is_read:true})))};
+  if(!user)return <main className="page container"><EmptyState title="Login Required" text="Notifications dekhne ke liye login karein." action="Login" to="/login" icon={Bell}/></main>;
+  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR INBOX</p><h1>Notifications</h1><p>Offers, order updates aur support responses.</p></div><button className="ghost-btn" onClick={markAll}>Mark all as read</button></div>{loading?<div className="mini-empty">Notifications load ho rahi hain...</div>:rows.length?<div className="notification-list customer-notifications">{rows.map(n=><article onClick={()=>!n.is_read&&markRead(n.id)} className={`notification-card ${n.priority||'normal'} ${n.is_read?'read':'unread'}`} key={n.id}><div className="notification-icon"><Bell size={17}/></div><div><strong>{n.title}</strong><span>{new Date(n.created_at).toLocaleString()}</span><p>{n.message}</p></div>{!n.is_read&&<i>NEW</i>}</article>)}</div>:<div className="mini-empty"><Bell size={24}/><strong>No notifications</strong><span>Jab koi update aaye ga to yahan dikhega.</span></div>}</div></main>;
+}
+
+function AdminReports(){
+  const { store }=useStore();
+  const [orders,setOrders]=useState([]);const [customers,setCustomers]=useState(0);const [loading,setLoading]=useState(true);const [range,setRange]=useState('all');
+  useEffect(()=>{(async()=>{setLoading(true);const [o,c]=await Promise.all([supabase.from('orders').select('*').order('created_at',{ascending:false}),supabase.from('profiles').select('id',{count:'exact',head:true}).eq('role','customer')]);if(o.error)alert(o.error.message);setOrders(o.data||[]);setCustomers(c.count||0);setLoading(false)})()},[]);
+  const startDate=range==='7'?Date.now()-7*86400000:range==='30'?Date.now()-30*86400000:range==='90'?Date.now()-90*86400000:null;
+  const filtered=orders.filter(o=>!startDate||new Date(o.created_at).getTime()>=startDate);const revenue=filtered.filter(o=>o.status!=='cancelled').reduce((n,o)=>n+Number(o.total||0),0);const delivered=filtered.filter(o=>o.status==='delivered').length;const active=filtered.filter(o=>['pending','confirmed','packed','shipped','out_for_delivery'].includes(o.status)).length;
+  const exportCsv=()=>{const includePhone=Boolean(store.adminSettings?.reports?.includeCustomerPhone);const headers=includePhone?['Order Number','Customer','Phone','City','Status','Subtotal','Discount','Delivery Fee','Total','Created At']:['Order Number','Customer','City','Status','Subtotal','Discount','Delivery Fee','Total','Created At'];const data=filtered.map(o=>includePhone?[o.order_number||'',o.customer_name||'',o.phone||'',o.city||'',o.status||'',o.subtotal||0,o.discount||0,o.delivery_fee||0,o.total||0,new Date(o.created_at).toISOString()]:[o.order_number||'',o.customer_name||'',o.city||'',o.status||'',o.subtotal||0,o.discount||0,o.delivery_fee||0,o.total||0,new Date(o.created_at).toISOString()]);const csv=[headers,...data].map(row=>row.map(v=>`"${String(v).replaceAll('\"','\"\"')}"`).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`hafiz-mart-report-${range}.csv`;a.click();URL.revokeObjectURL(url)};
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">REPORTS</p><h1>Business Reports</h1><p>Orders, revenue aur customer metrics.</p></div><div className="report-head-actions"><select value={range} onChange={e=>setRange(e.target.value)}><option value="all">All time</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select><button className="gold-btn" onClick={exportCsv}><Download size={15}/> Export CSV</button></div></div>{loading?<div className="mini-empty">Reports calculate ho rahi hain...</div>:<><div className="stats-grid six"><div className="stat-card"><BarChart3 size={18}/><span>Orders</span><strong>{filtered.length}</strong><small>Selected period</small></div><div className="stat-card"><DollarSign size={18}/><span>Revenue</span><strong>Rs. {revenue.toLocaleString()}</strong><small>Non-cancelled</small></div><div className="stat-card"><Users size={18}/><span>Customers</span><strong>{customers}</strong><small>Registered</small></div><div className="stat-card"><Check size={18}/><span>Delivered</span><strong>{delivered}</strong><small>Orders delivered</small></div><div className="stat-card"><LoaderCircle size={18}/><span>In Progress</span><strong>{active}</strong><small>Active orders</small></div><div className="stat-card"><ShoppingBag size={18}/><span>Average Order</span><strong>Rs. {filtered.length?Math.round(revenue/Math.max(1,filtered.filter(o=>o.status!=='cancelled').length)).toLocaleString():'0'}</strong><small>Average value</small></div></div><div className="panel report-table"><div className="section-heading"><div><p className="eyebrow">ORDER DATA</p><h2>Recent report rows</h2></div></div>{filtered.slice(0,30).map(o=><div className="report-row" key={o.id}><span>{o.order_number||o.id.slice(0,8)}</span><span>{o.customer_name||'Customer'}</span><span>{o.status}</span><strong>Rs. {Number(o.total||0).toLocaleString()}</strong></div>)}</div></>}</AdminLayout>;
+}
+
+function AdminTransactions(){
+  const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(null);
+  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('transactions').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};useEffect(()=>{load()},[]);
+  const update=async(id,patch)=>{setSaving(id);const {error}=await supabase.from('transactions').update({...patch,updated_at:new Date().toISOString()}).eq('id',id);if(error)alert(error.message);else setRows(r=>r.map(x=>x.id===id?{...x,...patch}:x));setSaving(null)};
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">PAYMENTS & TRANSACTIONS</p><h1>Transactions</h1><p>Payment status, refunds aur commission tracking.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div>{loading?<div className="mini-empty">Transactions load ho rahi hain...</div>:rows.length?<div className="transaction-list">{rows.map(r=><article className="transaction-card" key={r.id}><div className="transaction-head"><div><strong>{r.transaction_number||r.id.slice(0,8)}</strong><span>{r.order_number||r.order_id||'Order'} · {new Date(r.created_at).toLocaleString()}</span></div><strong>Rs. {Number(r.amount||0).toLocaleString()}</strong></div><div className="transaction-grid"><label>Status<select disabled={saving===r.id} value={r.status||'pending'} onChange={e=>update(r.id,{status:e.target.value})}><option value="pending">Pending</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="refunded">Refunded</option><option value="cancelled">Cancelled</option></select></label><label>Refund Amount<input type="number" min="0" value={r.refund_amount||0} onChange={e=>update(r.id,{refund_amount:Number(e.target.value||0)})}/></label><label>Commission<input type="number" min="0" value={r.commission_amount||0} onChange={e=>update(r.id,{commission_amount:Number(e.target.value||0)})}/></label><div className="transaction-method"><span>Method</span><strong>{r.payment_method||'COD'}</strong></div></div></article>)}</div>:<EmptyState title="No transactions yet" text="New orders ke saath transaction records yahan appear hongi." icon={DollarSign}/>}</AdminLayout>;
+}
+
+function Complaints(){
+  const { user }=useAuth();const [orders,setOrders]=useState([]);const [complaints,setComplaints]=useState([]);const [form,setForm]=useState({orderId:'',type:'Order Issue',subject:'',message:''});const [files,setFiles]=useState([]);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [notice,setNotice]=useState('');
+  const load=async()=>{if(!user){setLoading(false);return}setLoading(true);const [o,c]=await Promise.all([supabase.from('orders').select('id,order_number,total,status,created_at').eq('user_id',user.id).order('created_at',{ascending:false}),supabase.from('complaints').select('*').eq('user_id',user.id).order('created_at',{ascending:false})]);if(!o.error)setOrders(o.data||[]);if(!c.error)setComplaints(c.data||[]);else setNotice(c.error.message);setLoading(false)};useEffect(()=>{load()},[user]);
+  const submit=async e=>{e.preventDefault();if(!user)return;if(!form.subject.trim()||!form.message.trim()){setNotice('Subject aur complaint details dono required hain.');return}const selectedFiles=Array.from(files||[]);if(selectedFiles.length>5){setNotice('Maximum 5 complaint images upload kar sakte hain.');return}if(selectedFiles.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type)||f.size>5*1024*1024)){setNotice('Sirf JPG, PNG, WEBP images (max 5MB each) upload karein.');return}setBusy(true);setNotice('');const uploaded=[];for(const file of selectedFiles){const safe=file.name.toLowerCase().replace(/[^a-z0-9.]+/g,'-');const path=`complaints/${user.id}/${crypto.randomUUID()}-${safe}`;const {error:uploadError}=await supabase.storage.from('complaint-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});if(uploadError){setNotice('Complaint image upload nahi ho saki.');setBusy(false);return}const {data}=supabase.storage.from('complaint-images').getPublicUrl(path);if(data?.publicUrl)uploaded.push(data.publicUrl)}const selected=orders.find(o=>o.id===form.orderId);const {error}=await supabase.from('complaints').insert({user_id:user.id,order_id:form.orderId||null,order_number:selected?.order_number||null,type:form.type,subject:form.subject.trim(),message:form.message.trim(),image_urls:uploaded,status:'pending'});if(error)setNotice(error.message);else{setForm({orderId:'',type:'Order Issue',subject:'',message:''});setFiles([]);setNotice('Complaint successfully submit ho gayi.');await load()}setBusy(false)};
+  if(!user)return <main className="page container"><EmptyState title="Login Required" text="Complaint submit karne ke liye login karein." action="Login" to="/login" icon={MessageSquare}/></main>;
+  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints & Support</h1><p>Issue ho to complaint submit karein aur response yahin dekhein.</p></div></div><div className="complaint-layout"><form className="form-card complaint-form" onSubmit={submit}><div className="panel-head-row"><div><p className="eyebrow">NEW COMPLAINT</p><h2>How can we help?</h2></div><MessageSquare size={20}/></div><label>Related Order<select value={form.orderId} onChange={e=>setForm({...form,orderId:e.target.value})}><option value="">General / No specific order</option>{orders.map(o=><option key={o.id} value={o.id}>{o.order_number} — Rs. {Number(o.total||0).toLocaleString()}</option>)}</select></label><label>Complaint Type<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Order Issue</option><option>Product Issue</option><option>Delivery Issue</option><option>Payment Issue</option><option>Return / Exchange</option><option>Other</option></select></label><label>Subject<input required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})} placeholder="Short summary"/></label><label>Details<textarea required rows="6" value={form.message} onChange={e=>setForm({...form,message:e.target.value})} placeholder="Explain your issue..."/></label><label className="complaint-file-field">Evidence images (optional)<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>setFiles(Array.from(e.target.files||[]).slice(0,5))}/><small>{files.length?`${files.length} image(s) selected.`:'Up to 5 images, 5MB each.'}</small></label>{notice&&<p className="review-message">{notice}</p>}<button className="gold-btn" disabled={busy}>{busy?'Submitting...':'Submit Complaint'} <ArrowRight size={16}/></button></form><section className="complaint-history"><div className="section-heading"><div><p className="eyebrow">MY TICKETS</p><h2>Complaint History</h2></div></div>{loading?<div className="mini-empty">Complaints load ho rahi hain...</div>:complaints.length?<div className="complaint-list">{complaints.map(c=><article className="complaint-card" key={c.id}><div className="complaint-card-head"><div><strong>{c.subject}</strong><span>{c.order_number?`Order ${c.order_number}`:'General'} · {new Date(c.created_at).toLocaleString()}</span></div><em className={`status status-${c.status}`}>{String(c.status||'pending').replaceAll('_',' ')}</em></div><p>{c.message}</p>{Array.isArray(c.image_urls)&&c.image_urls.length>0&&<div className="complaint-images">{c.image_urls.map((url,i)=><a key={`${c.id}-${i}`} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Complaint evidence ${i+1}`}/></a>)}</div>}{c.admin_response&&<div className="complaint-response"><span>Admin Response</span><p>{c.admin_response}</p></div>}</article>)}</div>:<div className="mini-empty"><MessageSquare size={24}/><strong>No complaints yet</strong><span>Submitted complaints yahan appear hongi.</span></div>}</section></div></div></main>;
+}
+
 function AdminReviews(){
   const [rows,setRows]=useState([]); const [loading,setLoading]=useState(true); const [filter,setFilter]=useState('pending');
   const load=async()=>{setLoading(true);const {data,error}=await supabase.from('reviews').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};
@@ -5397,153 +5495,68 @@ function AdminReviews(){
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER VOICE</p><h1>Reviews</h1><p>Customer reviews ko approve, reject aur manage karein.</p></div><button className="ghost-btn" onClick={load}>Refresh</button></div><div className="order-filters">{['pending','approved','rejected','all'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s}</button>)}</div>{loading?<EmptyState title="Loading reviews..." text="Reviews fetch ho rahi hain." icon={Star}/>:visible.length?<div className="admin-review-list">{visible.map(r=><article className="admin-review-card" key={r.id}><div className="review-card-head"><div><strong>{r.reviewer_name||'Customer'}</strong><span>{new Date(r.created_at).toLocaleString()}</span></div><StarRating value={r.rating}/></div><small>Product ID: {r.product_id}</small>{r.title&&<h3>{r.title}</h3>}{r.comment&&<p>{r.comment}</p>}<div className="row-actions"><span className={`status status-${r.status}`}>{r.status}</span>{r.status!=='approved'&&<button onClick={()=>moderate(r.id,'approved')}><Check size={15}/> Approve</button>}{r.status!=='rejected'&&<button onClick={()=>moderate(r.id,'rejected')}><X size={15}/> Reject</button>}</div></article>)}</div>:<EmptyState title={`No ${filter} reviews`} text="Is moderation queue mein abhi koi review nahi hai." icon={Star}/>}</AdminLayout>;
 }
 
-const DEFAULT_ADMIN_SETTINGS = {
-  general: { storeName: 'Hafiz Mart', tagline: 'Everything You Need, Delivered', supportEmail: '', supportPhone: '', whatsapp: '', address: '', currency: 'PKR', timezone: 'Asia/Karachi', facebook: '', instagram: '', tiktok: '' },
-  shipping: { enabled: true, defaultRate: 300, freeDeliveryThreshold: 5000, minDays: 2, maxDays: 5, cityRates: [{ city: 'Multan', rate: 270 }], codEnabledByDefault: true },
-  storefront: { announcementEnabled: true, announcementText: 'Shop your favourites at Hafiz Mart', announcementLink: '/deals', announcementButton: 'Shop Deals', announcementTheme: 'gold', maintenanceMode: false, maintenanceMessage: 'We are improving your shopping experience. Please check back soon.' },
-  payments: { codEnabled: true, onlinePaymentsEnabled: false },
-  policies: { cancellationWindowHours: 2, returnWindowDays: 7, returnsPolicy: 'Contact support within the return window. Items must be unused and in their original packaging.', shippingPolicy: 'Delivery estimates may vary by city and courier conditions.', privacyPolicy: 'Customer information is used to process orders and provide support.', terms: 'By placing an order, customers agree to the store policies displayed at checkout.' },
-  notifications: { emailEnabled: false, whatsappEnabled: false, orderReceived: 'Assalam-o-Alaikum {{customer_name}}, your Hafiz Mart order {{order_number}} has been received.', orderShipped: 'Your Hafiz Mart order {{order_number}} has been shipped.', orderDelivered: 'Your Hafiz Mart order {{order_number}} has been delivered. Thank you for shopping with us.' },
-  inventory: { lowStockThreshold: 5, hideOutOfStock: true, allowBackorders: false, reviewsRequireApproval: false, maxReviewImages: 3 }
-};
+function AdminSettings(){
+  const { user }=useAuth();
+  const { update }=useStore();
+  const [settings,setSettings]=useState(DEFAULT_ADMIN_SETTINGS);
+  const [saved,setSaved]=useState(DEFAULT_ADMIN_SETTINGS);
+  const [section,setSection]=useState('general');
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  const [notice,setNotice]=useState('');
 
-function mergeAdminSettings(base, incoming) {
-  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return base;
-  const result = { ...base };
-  Object.keys(incoming).forEach(key => {
-    const value = incoming[key];
-    if (value && typeof value === 'object' && !Array.isArray(value) && base[key] && typeof base[key] === 'object' && !Array.isArray(base[key])) result[key] = mergeAdminSettings(base[key], value);
-    else if (value !== undefined && value !== null) result[key] = value;
-  });
-  return result;
-}
-
-function AdminSettings() {
-  const { user } = useAuth();
-  const { update: updateStore } = useStore();
-  const [settings, setSettings] = useState(DEFAULT_ADMIN_SETTINGS);
-  const [savedSettings, setSavedSettings] = useState(DEFAULT_ADMIN_SETTINGS);
-  const [activeSection, setActiveSection] = useState('general');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [noticeType, setNoticeType] = useState('success');
-
-  const sections = [
-    { id: 'general', label: 'General', icon: Store, description: 'Store identity, contact details and social links.' },
-    { id: 'shipping', label: 'Shipping', icon: Truck, description: 'City rates, free delivery threshold and delivery estimates.' },
-    { id: 'storefront', label: 'Storefront', icon: Megaphone, description: 'Announcement bar and maintenance-mode controls.' },
-    { id: 'payments', label: 'Payments', icon: CreditCard, description: 'Payment methods available to customers.' },
-    { id: 'policies', label: 'Policies & Legal', icon: FileText, description: 'Cancellation, returns, shipping and legal-page content.' },
-    { id: 'notifications', label: 'Notifications', icon: Bell, description: 'Email/WhatsApp preferences and message templates.' },
-    { id: 'inventory', label: 'Inventory', icon: Boxes, description: 'Stock thresholds, backorders and review moderation.' }
+  const sections=[
+    ['general','General',Store],['shipping','Shipping',Truck],['storefront','Storefront',Megaphone],
+    ['payments','Payments',CreditCard],['policies','Policies & Legal',FileText],['notifications','Notifications',Bell],
+    ['inventory','Inventory',Boxes],['content','Content',Sparkles],['users','Users & Roles',Users],['reports','Reports & Data',BarChart3],['security','Security',ShieldCheck]
   ];
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      const { data, error } = await supabase.from('admin_store_settings').select('settings').eq('id', 'default').maybeSingle();
-      if (!active) return;
-      if (error) {
-        setLoadError(error.message);
-        setNotice('Settings database se load nahi ho sakin. Migration apply karna zaroori ho sakta hai.');
-        setNoticeType('error');
-      } else {
-        const merged = mergeAdminSettings(DEFAULT_ADMIN_SETTINGS, data?.settings || {});
-        setSettings(merged);
-        setSavedSettings(merged);
-        setLoadError('');
-      }
-      setLoading(false);
-    })();
-    return () => { active = false; };
-  }, []);
+  useEffect(()=>{(async()=>{setLoading(true);const {data,error}=await supabase.from('admin_store_settings').select('settings').eq('id','default').maybeSingle();if(error)setNotice(error.message);else{const merged=mergeAdminSettings(DEFAULT_ADMIN_SETTINGS,data?.settings||{});setSettings(merged);setSaved(merged)}setLoading(false)})()},[]);
 
-  const updateField = (section, key, value) => setSettings(current => ({ ...current, [section]: { ...current[section], [key]: value } }));
-  const updateCityRate = (index, key, value) => setSettings(current => ({ ...current, shipping: { ...current.shipping, cityRates: current.shipping.cityRates.map((row, i) => i === index ? { ...row, [key]: value } : row) } }));
-  const addCityRate = () => setSettings(current => ({ ...current, shipping: { ...current.shipping, cityRates: [...current.shipping.cityRates, { city: '', rate: current.shipping.defaultRate || 300 }] } }));
-  const removeCityRate = index => setSettings(current => ({ ...current, shipping: { ...current.shipping, cityRates: current.shipping.cityRates.filter((_, i) => i !== index) } }));
+  const setField=(group,key,value)=>setSettings(s=>({...s,[group]:{...s[group],[key]:value}}));
+  const save=async e=>{e.preventDefault();setSaving(true);setNotice('');const payload={id:'default',settings,updated_at:new Date().toISOString(),updated_by:user?.id||null};const {error}=await supabase.from('admin_store_settings').upsert(payload,{onConflict:'id'});if(error)setNotice(`Save failed: ${error.message}`);else{setSaved(settings);update({adminSettings:settings});setNotice('Settings successfully saved.')}setSaving(false)};
+  const field=(label,value,onChange,type='text')=><label className="settings-field"><span>{label}</span><input type={type} min={type==='number'?0:undefined} value={value??''} onChange={e=>onChange(e.target.value)}/></label>;
+  const area=(label,value,onChange)=> <label className="settings-field settings-field-wide"><span>{label}</span><textarea rows="4" value={value??''} onChange={e=>onChange(e.target.value)}/></label>;
+  const toggle=(label,value,onChange,hint='')=> <label className="settings-toggle"><span><strong>{label}</strong>{hint&&<small>{hint}</small>}</span><input type="checkbox" checked={!!value} onChange={e=>onChange(e.target.checked)}/><i/></label>;
+  const current=settings[section]||{};
 
-  const saveSettings = async event => {
-    event.preventDefault();
-    setNotice('');
-    const invalidCity = settings.shipping.cityRates.some(row => !String(row.city || '').trim() || !Number.isFinite(Number(row.rate)) || Number(row.rate) < 0);
-    if (invalidCity) { setNotice('Har city ka naam aur valid, non-negative delivery rate enter karein.'); setNoticeType('error'); return; }
-    if (Number(settings.shipping.minDays) < 0 || Number(settings.shipping.maxDays) < Number(settings.shipping.minDays)) { setNotice('Delivery ke maximum din minimum din se kam nahi ho sakte.'); setNoticeType('error'); return; }
-    if (Number(settings.shipping.defaultRate) < 0 || Number(settings.shipping.freeDeliveryThreshold) < 0) { setNotice('Shipping rate aur free-delivery threshold zero ya us se zyada hone chahiye.'); setNoticeType('error'); return; }
-    setSaving(true);
-    const payload = { id: 'default', settings, updated_at: new Date().toISOString(), updated_by: user?.id || null };
-    const { error } = await supabase.from('admin_store_settings').upsert(payload, { onConflict: 'id' });
-    if (error) {
-      setNotice(`Settings save nahi huin: ${error.message}`);
-      setNoticeType('error');
-    } else {
-      setSavedSettings(settings);
-      updateStore({ settings });
-      setLoadError('');
-      setNotice('Settings Supabase mein save ho gayi hain.');
-      setNoticeType('success');
-    }
-    setSaving(false);
-  };
-
-  const discardChanges = () => { setSettings(savedSettings); setNotice('Unsaved changes discard kar di gayi hain.'); setNoticeType('success'); };
-  const current = settings[activeSection];
-  const cityRates = Array.isArray(settings.shipping.cityRates) ? settings.shipping.cityRates : [];
-  const textField = (label, value, onChange, options = {}) => <label className="settings-field" key={label}><span>{label}{options.required ? ' *' : ''}</span><input type={options.type || 'text'} min={options.min} max={options.max} step={options.step} required={!!options.required} value={value ?? ''} placeholder={options.placeholder || ''} onChange={e => onChange(options.type === 'number' ? e.target.value : e.target.value)} /></label>;
-  const textArea = (label, value, onChange, rows = 4) => <label className="settings-field settings-field-wide" key={label}><span>{label}</span><textarea rows={rows} value={value ?? ''} onChange={e => onChange(e.target.value)} /></label>;
-  const toggle = (label, checked, onChange, hint = '') => <label className="settings-toggle" key={label}><span><strong>{label}</strong>{hint && <small>{hint}</small>}</span><input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} /><i aria-hidden="true" /></label>;
-
-  return <AdminLayout>
-    <div className="admin-head settings-page-head"><div><p className="eyebrow">STORE CONTROL CENTRE</p><h1>Admin Settings</h1><p>Hafiz Mart ke store operations aur customer experience ki settings manage karein.</p></div><div className="settings-save-state"><ShieldCheck size={17}/><span>Supabase-backed settings</span></div></div>
-    <div className="settings-layout">
-      <aside className="settings-tabs" aria-label="Settings sections">{sections.map(section => { const Icon = section.icon; return <button type="button" key={section.id} className={`settings-tab ${activeSection === section.id ? 'active' : ''}`} onClick={() => { setActiveSection(section.id); setNotice(''); }}><Icon size={17}/><span>{section.label}</span><ChevronRight size={15}/></button>; })}</aside>
-      <form className="settings-panel" onSubmit={saveSettings}>
-        <div className="settings-panel-heading"><div><p className="eyebrow">SETTINGS / {activeSection.toUpperCase()}</p><h2>{sections.find(section => section.id === activeSection)?.label}</h2><p>{sections.find(section => section.id === activeSection)?.description}</p></div><span className="settings-section-icon">{(() => { const Icon = sections.find(section => section.id === activeSection)?.icon || Settings; return <Icon size={23}/>; })()}</span></div>
-        {loading ? <div className="settings-loading"><LoaderCircle size={22} className="spin"/><span>Supabase se settings load ho rahi hain...</span></div> : <>
-          {loadError && <div className="settings-notice error"><AlertTriangle size={17}/><span>Database se settings load nahi huin. Pehle supplied SQL migration Supabase SQL Editor mein apply karein. Details: {loadError}</span></div>}
-          {activeSection === 'general' && <div className="settings-grid">
-            {textField('Store name', current.storeName, v => updateField('general','storeName',v), {required:true})}
-            {textField('Tagline', current.tagline, v => updateField('general','tagline',v))}
-            {textField('Support email', current.supportEmail, v => updateField('general','supportEmail',v), {type:'email'})}
-            {textField('Support phone', current.supportPhone, v => updateField('general','supportPhone',v))}
-            {textField('WhatsApp number (international format)', current.whatsapp, v => updateField('general','whatsapp',v), {placeholder:'923001234567'})}
-            {textField('Currency', current.currency, v => updateField('general','currency',v), {required:true})}
-            {textField('Timezone', current.timezone, v => updateField('general','timezone',v), {required:true})}
-            {textField('Facebook URL', current.facebook, v => updateField('general','facebook',v), {type:'url'})}
-            {textField('Instagram URL', current.instagram, v => updateField('general','instagram',v), {type:'url'})}
-            {textField('TikTok URL', current.tiktok, v => updateField('general','tiktok',v), {type:'url'})}
-            {textArea('Store address', current.address, v => updateField('general','address',v), 3)}
-          </div>}
-          {activeSection === 'shipping' && <div className="settings-stack">
-            {toggle('Enable shipping settings', current.enabled, v => updateField('shipping','enabled',v), 'Is toggle ki storefront/checkout integration aglay implementation phase mein connect hogi.')}
-            <div className="settings-grid">{textField('Default delivery fee (PKR)', current.defaultRate, v => updateField('shipping','defaultRate',v), {type:'number',min:0})}{textField('Free delivery above (PKR)', current.freeDeliveryThreshold, v => updateField('shipping','freeDeliveryThreshold',v), {type:'number',min:0})}{textField('Estimated minimum days', current.minDays, v => updateField('shipping','minDays',v), {type:'number',min:0})}{textField('Estimated maximum days', current.maxDays, v => updateField('shipping','maxDays',v), {type:'number',min:0})}</div>
-            <div className="settings-subheading"><div><h3>City-wise rates</h3><p>Existing baseline: Multan Rs. 270, other cities default Rs. 300.</p></div><button className="ghost-btn" type="button" onClick={addCityRate}><Plus size={15}/> Add city</button></div>
-            <div className="settings-city-list">{cityRates.map((row,index)=><div className="settings-city-row" key={`${index}-${row.city}`}><label className="settings-field"><span>City / area</span><input value={row.city} onChange={e=>updateCityRate(index,'city',e.target.value)} placeholder="e.g. Lahore"/></label><label className="settings-field"><span>Delivery fee (PKR)</span><input type="number" min="0" value={row.rate} onChange={e=>updateCityRate(index,'rate',e.target.value)}/></label><button type="button" className="settings-remove" onClick={()=>removeCityRate(index)} aria-label="Remove city rate"><Trash2 size={16}/></button></div>)}</div>
-          </div>}
-          {activeSection === 'storefront' && <div className="settings-stack">
-            {toggle('Show announcement bar', current.announcementEnabled, v => updateField('storefront','announcementEnabled',v), 'Announcement content will be connected to the public storefront in the next wiring phase.')}
-            <div className="settings-grid">{textField('Announcement button text',current.announcementButton,v=>updateField('storefront','announcementButton',v))}{textField('Announcement link',current.announcementLink,v=>updateField('storefront','announcementLink',v))}<label className="settings-field"><span>Announcement theme</span><select value={current.announcementTheme} onChange={e=>updateField('storefront','announcementTheme',e.target.value)}><option value="gold">Gold</option><option value="dark">Dark</option><option value="light">Light</option></select></label>{textArea('Announcement message',current.announcementText,v=>updateField('storefront','announcementText',v),3)}</div>
-            <div className="settings-danger-zone"><div><h3><AlertTriangle size={17}/> Maintenance mode</h3><p>Enable karne par public shopping/order creation ko server-side block karna chahiye. Existing admin access barqarar rahega.</p></div>{toggle('Enable maintenance mode',current.maintenanceMode,v=>updateField('storefront','maintenanceMode',v),'Is waqt database trigger order creation block karega; full public-site maintenance screen aglay phase mein connect hogi.')}{textArea('Maintenance message',current.maintenanceMessage,v=>updateField('storefront','maintenanceMessage',v),3)}</div>
-          </div>}
-          {activeSection === 'payments' && <div className="settings-stack">
-            {toggle('Cash on Delivery (COD)',current.codEnabled,v=>updateField('payments','codEnabled',v),'COD disable karne par database order trigger naye COD orders ko reject karega.')}
-            <div className="settings-info-card"><CreditCard size={22}/><div><strong>Online payments — not connected</strong><p>Card payment abhi gateway/backend se integrated nahi. Is liye online payments ko yahan se enable nahi kiya ja sakta. Gateway setup aur test complete hone ke baad control activate hoga.</p><span className="settings-status-pill">NOT CONFIGURED</span></div></div>
-          </div>}
-          {activeSection === 'policies' && <div className="settings-stack"><div className="settings-grid">{textField('Cancellation window (hours)',current.cancellationWindowHours,v=>updateField('policies','cancellationWindowHours',v),{type:'number',min:0})}{textField('Return window (days)',current.returnWindowDays,v=>updateField('policies','returnWindowDays',v),{type:'number',min:0})}</div>{textArea('Returns & refunds policy',current.returnsPolicy,v=>updateField('policies','returnsPolicy',v),5)}{textArea('Shipping policy',current.shippingPolicy,v=>updateField('policies','shippingPolicy',v),4)}{textArea('Privacy policy',current.privacyPolicy,v=>updateField('policies','privacyPolicy',v),4)}{textArea('Terms & conditions',current.terms,v=>updateField('policies','terms',v),4)}</div>}
-          {activeSection === 'notifications' && <div className="settings-stack">{toggle('Email notifications',current.emailEnabled,v=>updateField('notifications','emailEnabled',v),'Provider/SMTP connection abhi configure nahi; toggle preference save karega, email send nahi karega.')}{toggle('WhatsApp notifications',current.whatsappEnabled,v=>updateField('notifications','whatsappEnabled',v),'WhatsApp Business provider aur secure server-side credentials baad mein configure honge.')}{textArea('Order received template',current.orderReceived,v=>updateField('notifications','orderReceived',v),3)}{textArea('Order shipped template',current.orderShipped,v=>updateField('notifications','orderShipped',v),3)}{textArea('Order delivered template',current.orderDelivered,v=>updateField('notifications','orderDelivered',v),3)}<p className="settings-helper">Available placeholders: {'{{customer_name}}'}, {'{{order_number}}'}.</p></div>}
-          {activeSection === 'inventory' && <div className="settings-stack"><div className="settings-grid">{textField('Low-stock threshold',current.lowStockThreshold,v=>updateField('inventory','lowStockThreshold',v),{type:'number',min:0})}{textField('Maximum review images',current.maxReviewImages,v=>updateField('inventory','maxReviewImages',v),{type:'number',min:0,max:10})}</div>{toggle('Hide out-of-stock products',current.hideOutOfStock,v=>updateField('inventory','hideOutOfStock',v),'Storefront catalogue integration aglay phase mein connect hogi.')}{toggle('Allow backorders',current.allowBackorders,v=>updateField('inventory','allowBackorders',v),'Stock validation mein is rule ko aglay phase mein enforce karenge.')}{toggle('Reviews require admin approval',current.reviewsRequireApproval,v=>updateField('inventory','reviewsRequireApproval',v),'Review submission/moderation flow integration aglay phase mein hogi.')}</div>}
-          {notice && <div className={`settings-notice ${noticeType}`}><span>{noticeType === 'error' ? <AlertTriangle size={17}/> : <Check size={17}/>}</span><span>{notice}</span></div>}
-          <div className="settings-actions"><button type="button" className="ghost-btn" onClick={discardChanges} disabled={saving}><RotateCcw size={15}/> Discard changes</button><button type="submit" className="gold-btn" disabled={saving || loading}><Save size={16}/>{saving ? 'Saving settings...' : 'Save settings'}</button></div>
-        </>}
-      </form>
-    </div>
-  </AdminLayout>;
+  return <AdminLayout><div className="admin-head settings-page-head"><div><p className="eyebrow">STORE CONTROL CENTRE</p><h1>Admin Settings</h1><p>Store, users, payments, notifications aur reporting controls.</p></div><span className="settings-save-state"><ShieldCheck size={16}/> Supabase-backed</span></div><div className="settings-layout"><aside className="settings-tabs">{sections.map(([id,label,Icon])=><button type="button" className={`settings-tab ${section===id?'active':''}`} key={id} onClick={()=>{setSection(id);setNotice('')}}><Icon size={17}/><span>{label}</span></button>)}</aside><form className="settings-panel" onSubmit={save}>
+    {loading?<div className="settings-loading"><LoaderCircle size={22}/><span>Settings load ho rahi hain...</span></div>:<>
+      <div className="settings-panel-heading"><div><p className="eyebrow">SETTINGS / {section.toUpperCase()}</p><h2>{sections.find(x=>x[0]===section)?.[1]}</h2></div></div>
+      {section==='general'&&<div className="settings-grid">{field('Store name',current.storeName,v=>setField('general','storeName',v))}{field('Tagline',current.tagline,v=>setField('general','tagline',v))}{field('Support email',current.supportEmail,v=>setField('general','supportEmail',v),'email')}{field('Support phone',current.supportPhone,v=>setField('general','supportPhone',v))}{field('WhatsApp number',current.whatsapp,v=>setField('general','whatsapp',v))}{field('Currency',current.currency,v=>setField('general','currency',v))}{field('Timezone',current.timezone,v=>setField('general','timezone',v))}{field('Facebook URL',current.facebook,v=>setField('general','facebook',v))}{field('Instagram URL',current.instagram,v=>setField('general','instagram',v))}{field('TikTok URL',current.tiktok,v=>setField('general','tiktok',v))}{field('YouTube URL',current.youtube,v=>setField('general','youtube',v))}{area('Store address',current.address,v=>setField('general','address',v))}</div>}
+      {section==='shipping'&&<div className="settings-stack">{toggle('Shipping enabled',current.enabled,v=>setField('shipping','enabled',v))}<div className="settings-grid">{field('Default delivery fee (PKR)',current.defaultRate,v=>setField('shipping','defaultRate',v),'number')}{field('Free delivery threshold (PKR)',current.freeDeliveryThreshold,v=>setField('shipping','freeDeliveryThreshold',v),'number')}{field('Minimum delivery days',current.minDays,v=>setField('shipping','minDays',v),'number')}{field('Maximum delivery days',current.maxDays,v=>setField('shipping','maxDays',v),'number')}</div><div className="settings-subheading"><div><h3>City-wise rates</h3><p>Multan Rs.270; fallback default Rs.300.</p></div></div><div className="settings-city-list">{(current.cityRates||[]).map((row,i)=><div className="settings-city-row" key={i}>{field('City',row.city,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,city:v}:r)}})))}{field('Rate (PKR)',row.rate,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,rate:v}:r)}})),'number')}<button type="button" className="settings-remove" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.filter((_,j)=>j!==i)}}))}><Trash2 size={15}/></button></div>)}</div><button type="button" className="ghost-btn" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:[...(x.shipping.cityRates||[]),{city:'',rate:x.shipping.defaultRate||300}]}}))}><Plus size={15}/> Add city</button></div>}
+      {section==='storefront'&&<div className="settings-stack">{toggle('Announcement bar',current.announcementEnabled,v=>setField('storefront','announcementEnabled',v))}<div className="settings-grid">{area('Announcement text',current.announcementText,v=>setField('storefront','announcementText',v))}{field('Button text',current.announcementButton,v=>setField('storefront','announcementButton',v))}{field('Button link',current.announcementLink,v=>setField('storefront','announcementLink',v))}<label className="settings-field"><span>Theme</span><select value={current.announcementTheme||'gold'} onChange={e=>setField('storefront','announcementTheme',e.target.value)}><option value="gold">Gold</option><option value="dark">Dark</option><option value="light">Light</option></select></label></div>{toggle('Maintenance mode',current.maintenanceMode,v=>setField('storefront','maintenanceMode',v),'Customer storefront ko maintenance screen dikhayega.')}{area('Maintenance message',current.maintenanceMessage,v=>setField('storefront','maintenanceMessage',v))}</div>}
+      {section==='payments'&&<div className="settings-stack">{toggle('Cash on Delivery',current.codEnabled,v=>setField('payments','codEnabled',v))}{toggle('Online payments',current.onlinePaymentsEnabled,v=>setField('payments','onlinePaymentsEnabled',v),'Gateway integration complete hone ke baad enable karein.')}<div className="settings-info-card"><CreditCard size={22}/><div><strong>Payment & Transaction tracking</strong><p>Failed payments, refunds aur commission ko Admin → Transactions se track karein. Real gateway data provider integration par depend karega.</p><span className="settings-status-pill">GATEWAY DEPENDENT</span></div></div></div>}
+      {section==='policies'&&<div className="settings-stack"><div className="settings-grid">{field('Cancellation window (hours)',current.cancellationWindowHours,v=>setField('policies','cancellationWindowHours',v),'number')}{field('Return window (days)',current.returnWindowDays,v=>setField('policies','returnWindowDays',v),'number')}</div>{area('Returns & refunds policy',current.returnsPolicy,v=>setField('policies','returnsPolicy',v))}{area('Shipping policy',current.shippingPolicy,v=>setField('policies','shippingPolicy',v))}{area('Privacy policy',current.privacyPolicy,v=>setField('policies','privacyPolicy',v))}{area('Terms & conditions',current.terms,v=>setField('policies','terms',v))}</div>}
+      {section==='notifications'&&<div className="settings-stack">{toggle('In-app notifications',current.inAppEnabled,v=>setField('notifications','inAppEnabled',v),'Sidebar badge unread notifications ko count karega.')}{toggle('Email notification plan',current.emailEnabled,v=>setField('notifications','emailEnabled',v),'SMTP/provider integration required.')}{toggle('WhatsApp notification plan',current.whatsappEnabled,v=>setField('notifications','whatsappEnabled',v),'WhatsApp Business provider required.')}{toggle('Notify admin on new order',current.notifyOnNewOrder,v=>setField('notifications','notifyOnNewOrder',v))}{toggle('Notify admin on new customer',current.notifyOnNewCustomer,v=>setField('notifications','notifyOnNewCustomer',v))}{toggle('Notify admin on complaint',current.notifyOnComplaint,v=>setField('notifications','notifyOnComplaint',v))}{toggle('Notify admin on review',current.notifyOnReview,v=>setField('notifications','notifyOnReview',v))}{toggle('Notify admin on transaction failure',current.notifyOnTransactionFailure,v=>setField('notifications','notifyOnTransactionFailure',v))}{toggle('Notify admin on refund',current.notifyOnRefund,v=>setField('notifications','notifyOnRefund',v))}{toggle('Notify admin on low stock',current.notifyOnLowStock,v=>setField('notifications','notifyOnLowStock',v))}{toggle('Notify customer on order status',current.notifyOnOrderStatus,v=>setField('notifications','notifyOnOrderStatus',v))}{toggle('Notify customer on complaint response',current.notifyOnComplaintResponse,v=>setField('notifications','notifyOnComplaintResponse',v))}<div className="settings-info-card"><Bell size={22}/><div><strong>Unread badge behavior</strong><p>Notification ko open/seen karne tak NEW badge aur unread count rahega.</p></div></div></div>}
+      {section==='inventory'&&<div className="settings-stack"><div className="settings-grid">{field('Low-stock threshold',current.lowStockThreshold,v=>setField('inventory','lowStockThreshold',v),'number')}{field('Maximum review images',current.maxReviewImages,v=>setField('inventory','maxReviewImages',v),'number')}</div>{toggle('Hide out-of-stock products',current.hideOutOfStock,v=>setField('inventory','hideOutOfStock',v))}{toggle('Allow backorders',current.allowBackorders,v=>setField('inventory','allowBackorders',v))}{toggle('Reviews require approval',current.reviewsRequireApproval,v=>setField('inventory','reviewsRequireApproval',v),'OFF rakhen to reviews immediately public list mein show hongi.')}</div>}
+      {section==='content'&&<div className="settings-stack"><div className="settings-info-card"><Sparkles size={22}/><div><strong>Content Management</strong><p>Banners aur categories database-backed hain; app update ke baghair content manage kar sakte hain.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/banners"><Sparkles size={15}/> Manage Banners</Link><Link className="ghost-btn" to="/admin/categories"><Tag size={15}/> Manage Categories</Link><Link className="ghost-btn" to="/admin/products"><Package size={15}/> Manage Products</Link></div></div></div>{toggle('Show categories on home',current.showCategoriesOnHome,v=>setField('content','showCategoriesOnHome',v))}{toggle('Show deals section',current.showDealsSection,v=>setField('content','showDealsSection',v))}{field('Featured products limit',current.featuredProductsLimit,v=>setField('content','featuredProductsLimit',v),'number')}</div>}
+      {section==='users'&&<div className="settings-stack"><div className="settings-info-card"><Users size={22}/><div><strong>User Management & Roles</strong><p>Customers ko verify/block/manage karein aur team accounts ko role + granular permissions dein.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/customers"><Users size={15}/> Open User Management</Link></div></div></div>{toggle('Require manual customer verification',current.requireManualVerification,v=>setField('users','requireManualVerification',v))}{toggle('Allow guest checkout',current.allowGuestCheckout,v=>setField('users','allowGuestCheckout',v))}<label className="settings-field"><span>Default account status</span><select value={current.defaultAccountStatus||'active'} onChange={e=>setField('users','defaultAccountStatus',e.target.value)}><option value="active">Active</option><option value="blocked">Blocked</option></select></label><div className="settings-permission-list"><h3>Team roles</h3><p>Actual team membership Users screen se manage hoga.</p><div><span>Owner — full access</span><span>Manager — selected operational access</span><span>Content Editor — products/categories/banners</span><span>Support — orders/complaints/notifications</span></div></div></div>}
+      {section==='security'&&<div className="settings-stack"><div className="settings-info-card"><ShieldCheck size={22}/><div><strong>Security & Audit</strong><p>Admin access permissions aur database RLS se protected hain. API keys, SMTP passwords aur WhatsApp secrets yahan store na karein.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/customers"><Users size={15}/> Manage Roles</Link><Link className="ghost-btn" to="/admin/notifications"><Bell size={15}/> Notification Center</Link></div></div></div><div className="settings-permission-list"><h3>Security controls</h3><p>Owner ko full access dein; team members ko minimum required permissions dein.</p><div><span>Permission-based admin routes</span><span>Admin action audit log</span><span>Protected database writes</span></div></div></div>}
+      {section==='reports'&&<div className="settings-stack"><div className="settings-info-card"><BarChart3 size={22}/><div><strong>Business Reports</strong><p>Revenue, orders, customers aur delivery metrics generate aur CSV export kar sakte hain.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/reports"><BarChart3 size={15}/> Open Reports</Link></div></div></div><label className="settings-field"><span>Default report period</span><select value={current.defaultRange||'30'} onChange={e=>setField('reports','defaultRange',e.target.value)}><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option></select></label>{toggle('Include customer phone in exported reports',current.includeCustomerPhone,v=>setField('reports','includeCustomerPhone',v),'Sirf zaroorat par enable karein.')}</div>}
+      {notice&&<div className="settings-notice"><Check size={16}/><span>{notice}</span></div>}<div className="settings-actions"><button type="button" className="ghost-btn" onClick={()=>{setSettings(saved);setNotice('Unsaved changes discarded.')}}><RotateCcw size={15}/> Discard</button><button className="gold-btn" disabled={saving}>{saving?'Saving...':'Save settings'} <Save size={16}/></button></div>
+    </>}
+  </form></div></AdminLayout>;
 }
 
-function AdminPlaceholder({title,icon:Icon=Settings}){return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN</p><h1>{title}</h1><p>Is module ka workflow abhi next phase mein expand hoga.</p></div></div><EmptyState title={`${title} is empty`} text="No dummy records have been added." icon={Icon}/></AdminLayout>}
-
-export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><ScrollReveal/><MaintenanceScreen/><AnnouncementBar/><Navbar/><Routes><Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/>
-<Route path="/reset-password" element={<ResetPassword/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/></Routes><WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></div></StoreProvider></AuthProvider>; }
+function AnnouncementBar(){
+  const {store}=useStore();
+  const cfg=store.adminSettings?.storefront || DEFAULT_ADMIN_SETTINGS.storefront;
+  if(!cfg.announcementEnabled || !String(cfg.announcementText||'').trim()) return null;
+  const href=String(cfg.announcementLink||'').trim(); const button=String(cfg.announcementButton||'').trim();
+  return <div className={`announcement-bar theme-${cfg.announcementTheme||'gold'}`}><div className="container announcement-inner"><span>{cfg.announcementText}</span>{href&&button?(href.startsWith('/')?<Link to={href}>{button}<ArrowRight size={13}/></Link>:<a href={href} target="_blank" rel="noreferrer">{button}<ArrowRight size={13}/></a>):null}</div></div>;
+}
+function MaintenancePage(){
+  const {store}=useStore(); const message=store.adminSettings?.storefront?.maintenanceMessage || DEFAULT_ADMIN_SETTINGS.storefront.maintenanceMessage;
+  return <main className="maintenance-page"><section className="maintenance-card"><div className="maintenance-icon"><Store size={28}/></div><p className="eyebrow">HAFIZ MART</p><h1>We’ll be back soon</h1><p>{message}</p><span className="maintenance-status"><span/> Store maintenance in progress</span></section></main>;
+}
+function AppRoutes(){
+  const {store}=useStore(); const {profile}=useAuth(); const location=useLocation();
+  const maintenance=Boolean(store.adminSettings?.storefront?.maintenanceMode); const isAdmin=profile?.role==='admin';
+  const authAllowed=['/login','/forgot-password','/reset-password'].includes(location.pathname); const adminAllowed=location.pathname.startsWith('/admin'); const bypass=isAdmin||adminAllowed||authAllowed;
+  return <><Navbar/>{(!maintenance||bypass)&&<AnnouncementBar/>}{maintenance&&!bypass?<MaintenancePage/>:<Routes>
+    <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
+    <Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/>
+  </Routes>}<WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></>;
+}
+export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider>; }
