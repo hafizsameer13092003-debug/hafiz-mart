@@ -5976,3 +5976,251 @@ textarea::placeholder{
     letter-spacing:-.7px !important;
   }
 }
+
+/* =========================================================
+   FINAL STOREFRONT CONTRAST POLISH — DEALS + TRUST
+   ========================================================= */
+
+/* Deals For You / promo block */
+.home-page .home-promo-section {
+  background: #f7f4ee !important;
+  padding: 56px 0 !important;
+}
+
+.home-page .home-promo {
+  position: relative !important;
+  overflow: hidden !important;
+  min-height: 300px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 40px !important;
+  padding: 50px 56px !important;
+  border: 1px solid #2a2926 !important;
+  border-radius: 2px !important;
+  background:
+    radial-gradient(circle at 82% 35%, rgba(202,157,62,.17), transparent 27%),
+    linear-gradient(135deg, #171717 0%, #0d0d0d 100%) !important;
+  box-shadow: 0 24px 55px rgba(28,23,14,.12) !important;
+}
+
+.home-page .home-promo::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 1px solid rgba(214,174,73,.16);
+  pointer-events: none;
+}
+
+.home-page .home-promo > div:first-child {
+  position: relative !important;
+  z-index: 2 !important;
+  max-width: 680px !important;
+}
+
+.home-page .home-promo .eyebrow {
+  color: #e0b75f !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 2.4px !important;
+  margin-bottom: 12px !important;
+}
+
+.home-page .home-promo h2 {
+  color: #ffffff !important;
+  font-family: Georgia, "Times New Roman", serif !important;
+  font-size: clamp(34px, 4.2vw, 56px) !important;
+  line-height: 1.02 !important;
+  letter-spacing: -1.6px !important;
+  font-weight: 500 !important;
+  margin: 0 0 17px !important;
+  text-shadow: 0 2px 18px rgba(0,0,0,.24) !important;
+}
+
+.home-page .home-promo p:not(.eyebrow) {
+  color: #d6d2cb !important;
+  max-width: 540px !important;
+  font-size: 14px !important;
+  line-height: 1.75 !important;
+  margin: 0 0 24px !important;
+}
+
+.home-page .home-promo .gold-btn {
+  display: inline-flex !important;
+  background: #e2bc64 !important;
+  color: #151515 !important;
+  border: 1px solid #e2bc64 !important;
+  box-shadow: 0 10px 24px rgba(226,188,100,.15) !important;
+}
+
+.home-page .home-promo .gold-btn:hover {
+  background: #f0cf7c !important;
+  color: #111 !important;
+  border-color: #f0cf7c !important;
+  transform: translateY(-2px) !important;
+}
+
+.home-page .promo-badge {
+  position: relative !important;
+  z-index: 2 !important;
+  flex: 0 0 176px !important;
+  width: 176px !important;
+  height: 176px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-direction: column !important;
+  border: 1px solid rgba(224,183,95,.72) !important;
+  background: rgba(224,183,95,.08) !important;
+  box-shadow: inset 0 0 0 10px rgba(224,183,95,.025) !important;
+  transform: rotate(4deg) !important;
+}
+
+.home-page .promo-badge strong {
+  color: #e0b75f !important;
+  font-size: 31px !important;
+  letter-spacing: 2px !important;
+}
+
+.home-page .promo-badge span {
+  color: #e0ddd6 !important;
+  font-size: 10px !important;
+  letter-spacing: 3px !important;
+  margin-top: 6px !important;
+}
+
+/* Trust strip under Deals For You */
+.home-page .home-trust {
+  padding: 26px 0 76px !important;
+  background: #f7f4ee !important;
+  border-top: 0 !important;
+}
+
+.home-page .home-trust-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+  gap: 12px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+
+.home-page .home-trust-item {
+  position: relative !important;
+  min-height: 160px !important;
+  padding: 28px 26px !important;
+  background: #ffffff !important;
+  border: 1px solid #e3ded4 !important;
+  border-radius: 2px !important;
+  box-shadow: 0 14px 32px rgba(43,36,23,.055) !important;
+}
+
+.home-page .home-trust-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #bd8b2f, transparent);
+}
+
+.home-page .home-trust-item > div {
+  width: 46px !important;
+  height: 46px !important;
+  margin-bottom: 16px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 1px solid #dfd0af !important;
+  border-radius: 50% !important;
+  background: #fbf7ed !important;
+  color: #98702a !important;
+  font-size: 20px !important;
+}
+
+.home-page .home-trust-item strong {
+  display: block !important;
+  color: #181715 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  margin-bottom: 7px !important;
+}
+
+.home-page .home-trust-item span {
+  display: block !important;
+  color: #67635c !important;
+  font-size: 12px !important;
+  line-height: 1.65 !important;
+}
+
+/* Make the section boundaries feel intentional and premium. */
+.home-page .home-section-dark {
+  background: #f1eee7 !important;
+}
+
+@media (max-width: 850px) {
+  .home-page .home-promo {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 38px 30px !important;
+  }
+
+  .home-page .promo-badge {
+    align-self: flex-end !important;
+    width: 150px !important;
+    height: 150px !important;
+    flex-basis: 150px !important;
+  }
+
+  .home-page .home-trust-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .home-page .home-trust-item {
+    min-height: 0 !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .home-page .home-promo-section {
+    padding: 44px 0 !important;
+  }
+
+  .home-page .home-promo {
+    padding: 34px 22px !important;
+    gap: 28px !important;
+  }
+
+  .home-page .home-promo::before {
+    inset: 10px;
+  }
+
+  .home-page .home-promo h2 {
+    font-size: 34px !important;
+    letter-spacing: -1px !important;
+  }
+
+  .home-page .home-promo p:not(.eyebrow) {
+    font-size: 13px !important;
+  }
+
+  .home-page .home-promo .gold-btn {
+    width: 100% !important;
+  }
+
+  .home-page .promo-badge {
+    align-self: center !important;
+    width: 132px !important;
+    height: 132px !important;
+    flex-basis: 132px !important;
+  }
+
+  .home-page .promo-badge strong {
+    font-size: 26px !important;
+  }
+
+  .home-page .home-trust {
+    padding-bottom: 56px !important;
+  }
+}
