@@ -785,34 +785,26 @@ const [newsletterMessage, setNewsletterMessage] = useState("");
   const trendingProducts = activeProducts.slice(0, 8);
   const newArrivals = activeProducts.slice(8, 16);
   const featuredProducts = activeProducts.slice(0, featuredLimit);
+  const heroProduct = activeProducts[0] || null;
 
-const categoryNames = [
-  "Women's New Arrivals",
-  "Women's Trending",
-  "Women's Modern Wear",
-  "Women's Accessories",
-  "Men's New Arrivals",
-  "Men's Trending"
-];
+const cats = store.categories.slice(0, 8).map(category => {
+  const productCount = store.products.filter(
+    product =>
+      product.status !== "inactive" &&
+      product.categoryId === category.id
+  ).length;
 
-const cats = categoryNames.map(name => {
-  const category = store.categories.find(
-    c => c.name?.trim().toLowerCase() === name.trim().toLowerCase()
-  );
-
-  const productCount = category
-    ? store.products.filter(
-        product =>
-          product.status !== "inactive" &&
-          product.categoryId === category.id
-      ).length
-    : 0;
+  const image =
+    category.image ||
+    activeProducts.find(product => product.categoryId === category.id)?.image ||
+    "";
 
   return {
-    id: category?.id || `coming-${name}`,
-    name,
+    id: category.id,
+    name: category.name,
+    image,
     productCount,
-    available: Boolean(category && productCount > 0)
+    available: productCount > 0
   };
 });
 
@@ -862,7 +854,19 @@ const cats = categoryNames.map(name => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.7 }}
             >
-              <img src={logo} alt="Hafiz Mart" />
+              <div className="home-hero-product-stage">
+                <span className="home-hero-product-kicker">HAFIZ MART EDIT</span>
+                <img
+                  src={heroProduct?.image || logo}
+                  alt={heroProduct?.name || "Hafiz Mart"}
+                />
+                {heroProduct && (
+                  <div className="home-hero-product-tag">
+                    <strong>{heroProduct.name}</strong>
+                    <span>Rs. {Number(heroProduct.salePrice || heroProduct.price || 0).toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
 
               <div className="hero-visual-info">
                 <span>HAFIZ MART</span>
@@ -902,8 +906,11 @@ const cats = categoryNames.map(name => {
         }`}
         key={c.id}
       >
-        <div className="category-icon">
-          <Tag size={20} />
+        <div
+          className={`category-icon ${c.image ? "has-image" : ""}`}
+          style={c.image ? { backgroundImage: `url("${c.image}")` } : undefined}
+        >
+          {!c.image && <Tag size={20} />}
         </div>
 
         <div>
@@ -1895,7 +1902,7 @@ function Categories() { const {store}=useStore(); return <main className="page">
 function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Jab aap kisi product par sale price set karenge to woh yahan show hoga." action="Manage Products" to="/admin/products" icon={Tag}/>}</div></main>; }
 function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Product cards par heart icon press karke items save karein." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
 
-function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt=""/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty"><button onClick={()=>changeQty(x.index,-1)}><Minus size={14}/></button><strong>{x.qty}</strong><button onClick={()=>changeQty(x.index,1)}><Plus size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button className="remove-btn" onClick={()=>remove(x.index)}><Trash2 size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
+function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt=""/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty"><button onClick={()=>changeQty(x.index,-1)}><Minus size={14}/></button><strong>{x.qty}</strong><button onClick={()=>changeQty(x.index,1)}><Plus size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button className="remove-btn" onClick={()=>remove(x.index)}><Trash2 size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
 
 function Shop() {
   const { store } = useStore();
@@ -3706,7 +3713,7 @@ function Checkout(){
 
                     <button
                       type="button"
-                      className="ghost-btn"
+                      className="coupon-apply-btn"
                       disabled={couponBusy}
                       onClick={applyCoupon}
                     >
@@ -4664,13 +4671,13 @@ function Login() {
 
         <h1>
           {mode === "login"
-            ? "Welcome back"
+            ? "Login to your account"
             : "Create account"}
         </h1>
 
         <p className="muted">
           {mode === "login"
-            ? "Hafiz Mart admin/customer account mein sign in karein."
+            ? "Apne Hafiz Mart account mein sign in karein."
             : "Hafiz Mart par apna account create karein."}
         </p>
 
