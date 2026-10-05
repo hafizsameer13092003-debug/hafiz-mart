@@ -6858,3 +6858,117 @@ footer,
     scroll-behavior: auto !important;
   }
 }
+
+
+/* =========================================================
+   HAFIZ MART — MOBILE VIEWPORT + NO PINCH/ZOOM LOCK
+   Keeps normal one-finger vertical scrolling enabled.
+========================================================= */
+html,
+body,
+#root,
+.app {
+  width: 100% !important;
+  max-width: 100vw !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  overflow-x: hidden !important;
+  overflow-x: clip !important;
+  overscroll-behavior-x: none !important;
+  touch-action: pan-y !important;
+}
+
+html,
+body {
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+  overflow-x: clip !important;
+  touch-action: pan-y !important;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+}
+
+@media (max-width: 900px) {
+  html,
+  body,
+  #root,
+  .app {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    touch-action: pan-y !important;
+  }
+
+  body {
+    overscroll-behavior-x: none !important;
+  }
+
+  .container,
+  .navbar,
+  .nav-inner,
+  .announcement-bar,
+  .announcement-inner,
+  main,
+  section,
+  footer {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .home-page,
+  .home-page * {
+    min-width: 0;
+  }
+
+  .home-promo,
+  .home-newsletter,
+  .home-trust-grid,
+  .home-testimonial-grid,
+  .home-product-grid,
+  .category-grid,
+  .category-grid.large,
+  .cart-layout,
+  .checkout-layout,
+  .product-detail,
+  .admin-shell {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  input,
+  select,
+  textarea,
+  button,
+  a {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 430px) {
+  .container {
+    width: calc(100% - 24px) !important;
+    max-width: calc(100% - 24px) !important;
+  }
+
+  .home-hero,
+  .home-section,
+  .home-promo-section,
+  .home-trust,
+  .home-testimonials,
+  .home-newsletter-section {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: clip !important;
+  }
+}

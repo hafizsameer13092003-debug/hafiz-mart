@@ -5557,6 +5557,54 @@ function MaintenancePage(){
   const {store}=useStore(); const message=store.adminSettings?.storefront?.maintenanceMessage || DEFAULT_ADMIN_SETTINGS.storefront.maintenanceMessage;
   return <main className="maintenance-page"><section className="maintenance-card"><div className="maintenance-icon"><Store size={28}/></div><p className="eyebrow">HAFIZ MART</p><h1>We’ll be back soon</h1><p>{message}</p><span className="maintenance-status"><span/> Store maintenance in progress</span></section></main>;
 }
+function MobileZoomLock(){
+  useEffect(()=>{
+    const viewport=document.querySelector('meta[name="viewport"]') || document.createElement('meta');
+    const content='width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+    viewport.setAttribute('name','viewport');
+    viewport.setAttribute('content',content);
+    if(!viewport.parentNode) document.head.appendChild(viewport);
+
+    const preventMultiTouch=(event)=>{
+      if(event.touches && event.touches.length>1){
+        event.preventDefault();
+      }
+    };
+    const preventGesture=(event)=>{
+      event.preventDefault();
+    };
+    const preventCtrlWheel=(event)=>{
+      if(event.ctrlKey || event.metaKey){
+        event.preventDefault();
+      }
+    };
+    const preventZoomKeys=(event)=>{
+      if(!(event.ctrlKey || event.metaKey)) return;
+      if(['+','=','-','_','0'].includes(event.key)){
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchmove',preventMultiTouch,{passive:false});
+    document.addEventListener('gesturestart',preventGesture,{passive:false});
+    document.addEventListener('gesturechange',preventGesture,{passive:false});
+    document.addEventListener('gestureend',preventGesture,{passive:false});
+    document.addEventListener('wheel',preventCtrlWheel,{passive:false});
+    document.addEventListener('keydown',preventZoomKeys,{passive:false});
+
+    return()=>{
+      document.removeEventListener('touchmove',preventMultiTouch);
+      document.removeEventListener('gesturestart',preventGesture);
+      document.removeEventListener('gesturechange',preventGesture);
+      document.removeEventListener('gestureend',preventGesture);
+      document.removeEventListener('wheel',preventCtrlWheel);
+      document.removeEventListener('keydown',preventZoomKeys);
+    };
+  },[]);
+
+  return null;
+}
+
 function AppRoutes(){
   const {store}=useStore(); const {profile}=useAuth(); const location=useLocation();
   const maintenance=Boolean(store.adminSettings?.storefront?.maintenanceMode); const isAdmin=profile?.role==='admin';
@@ -5566,4 +5614,4 @@ function AppRoutes(){
     <Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/>
   </Routes>}<WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></footer></>;
 }
-export default function App(){ return <AuthProvider><StoreProvider><div className="app"><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider>; }
+export default function App(){ return <AuthProvider><StoreProvider><div className="app"><MobileZoomLock/><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider>; }
