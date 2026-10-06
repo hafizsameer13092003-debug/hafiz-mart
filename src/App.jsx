@@ -2233,6 +2233,7 @@ function Checkout(){
   const appSettings = store.adminSettings || DEFAULT_ADMIN_SETTINGS;
   const shippingSettings = appSettings.shipping || DEFAULT_ADMIN_SETTINGS.shipping;
   const paymentSettings = appSettings.payments || DEFAULT_ADMIN_SETTINGS.payments;
+  const cardPaymentsEnabled = paymentSettings.onlinePaymentsEnabled === true;
   const storefrontSettings = appSettings.storefront || DEFAULT_ADMIN_SETTINGS.storefront;
   const { user } = useAuth();
 
@@ -2581,6 +2582,13 @@ function Checkout(){
       }
 
       if(paymentMethod==='card'){
+
+        if(!cardPaymentsEnabled){
+          setError(
+            'Debit / Credit Card payment gateway abhi configure nahi hai.'
+          );
+          return false;
+        }
 
         if(!card.name.trim()){
           setError(
@@ -3331,7 +3339,8 @@ function Checkout(){
                     paymentMethod==='card'
                       ? 'selected'
                       : ''
-                  }`}
+                  } ${!cardPaymentsEnabled ? 'disabled' : ''}`}
+                  aria-disabled={!cardPaymentsEnabled}
                 >
 
                   <input
@@ -3341,11 +3350,13 @@ function Checkout(){
                     checked={
                       paymentMethod==='card'
                     }
-                    onChange={e=>
+                    disabled={!cardPaymentsEnabled}
+                    onChange={e=>{
+                      setError('');
                       setPaymentMethod(
                         e.target.value
-                      )
-                    }
+                      );
+                    }}
                   />
 
                   <div>
@@ -3355,19 +3366,41 @@ function Checkout(){
                     </strong>
 
                     <span>
-                      Secure card payment.
+                      {cardPaymentsEnabled
+                        ? 'Secure card payment.'
+                        : 'Online card payment gateway abhi connected nahi hai.'
+                      }
                     </span>
 
                   </div>
 
+                  {!cardPaymentsEnabled && (
+                    <small className="payment-gateway-status">
+                      Unavailable
+                    </small>
+                  )}
+
                 </label>
 
+                {!cardPaymentsEnabled && (
+                  <div className="payment-gateway-notice">
+                    <CreditCard size={17}/>
+                    <div>
+                      <strong>Card payment setup required</strong>
+                      <span>
+                        Hafiz Mart mein card payment tabhi process hogi jab
+                        payment gateway configure karke Admin → Settings →
+                        Payments mein Online payments enable ki jaye.
+                      </span>
+                    </div>
+                  </div>
+                )}
 
-                {paymentMethod==='card' && (
+                {paymentMethod==='card' && cardPaymentsEnabled && (
                   <div className="card-payment-box">
 
                     <div className="card-payment-note">
-                      Card details payment gateway ko securely process karne ke liye honge. Card details Hafiz Mart database mein save nahi hongi.
+                      Card details gateway ke secure payment flow mein process honi chahiye. Hafiz Mart database mein raw card number ya CVV save nahi kiya jayega.
                     </div>
 
                     <div className="checkout-form-grid">
@@ -3794,7 +3827,7 @@ function Checkout(){
                   disabled={
                     busy ||
                     !paymentMethod ||
-                    paymentMethod==='card'
+                    (paymentMethod==='card' && !cardPaymentsEnabled)
                   }
                 >
                   {busy
@@ -4030,7 +4063,7 @@ function Account(){
 
           <div className="account-head-actions">
             {profile?.role === 'admin' && <Link className="gold-btn account-admin-dashboard" to="/admin"><LayoutDashboard size={16}/> Admin Dashboard <ArrowRight size={15}/></Link>}
-            <button className="ghost-btn" onClick={async ()=>{await signOut();}}><LogOut size={16}/> Logout</button>
+            <button type="button" className="logout-btn" onClick={async ()=>{await signOut();}}><LogOut size={16}/> Logout</button>
           </div>
         </div>
 
