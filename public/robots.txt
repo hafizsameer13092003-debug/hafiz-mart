@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hafizsameer13092003-debug.github.io/hafiz-mart/sitemap.xml
