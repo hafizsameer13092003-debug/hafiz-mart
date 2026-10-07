@@ -3125,7 +3125,19 @@ function Checkout(){
 
     const receiptItems = cartItems.map(x => ({ productId:x.product.id, name:x.product.name, image:x.product.image||'', quantity:x.qty, unitPrice:Number(x.product.salePrice||x.product.price), lineTotal:Number(x.product.salePrice||x.product.price)*x.qty }));
     const billingLine = billingSame ? 'Billing Address: Same as Shipping' : `Billing Address: ${billingAddress}`;
-    const receiptData = { orderNumber:created.order_number, customerName, phone:form.phone, email:form.email, shippingAddress:fullAddress, billingAddress:billingLine.replace('Billing Address: ','').trim(), paymentMethod:paymentMethod==='cod'?'Cash on Delivery':paymentMethod, items:receiptItems, subtotal:Number(created.subtotal||subtotal), discount:Number(created.discount||0), deliveryFee:Number(created.delivery_fee ?? finalDeliveryFee), total:Number(created.total||total), createdAt:new Date().toISOString() };
+
+    // The order RPC is authoritative for the final total. Some RPC responses may
+    // omit the discount field even though the discount has already been applied
+    // to the returned total. Keep the receipt consistent with that server total
+    // by deriving the applied discount when the explicit field is unavailable/zero.
+    const receiptSubtotal = Number(created.subtotal ?? subtotal);
+    const receiptDeliveryFee = Number(created.delivery_fee ?? finalDeliveryFee);
+    const receiptTotal = Number(created.total ?? total);
+    const explicitDiscount = Number(created.discount ?? created.discount_amount ?? created.coupon_discount ?? 0);
+    const derivedDiscount = Math.max(0, receiptSubtotal + receiptDeliveryFee - receiptTotal);
+    const receiptDiscount = derivedDiscount > 0 ? derivedDiscount : Math.max(0, explicitDiscount);
+
+    const receiptData = { orderNumber:created.order_number, customerName, phone:form.phone, email:form.email, shippingAddress:fullAddress, billingAddress:billingLine.replace('Billing Address: ','').trim(), paymentMethod:paymentMethod==='cod'?'Cash on Delivery':paymentMethod, items:receiptItems, subtotal:receiptSubtotal, discount:receiptDiscount, deliveryFee:receiptDeliveryFee, total:receiptTotal, createdAt:new Date().toISOString() };
     const whatsappLines = receiptItems.map(item => `• ${item.name} x${item.quantity} — Rs. ${item.lineTotal.toLocaleString()}`).join('\n');
     const whatsappText = `Assalam o Alaikum, Hafiz Mart se order confirm karna hai.\n\nOrder: ${receiptData.orderNumber}\nCustomer: ${receiptData.customerName}\nWhatsApp: ${receiptData.phone}\nEmail: ${receiptData.email}\n\nShipping Address:\n${receiptData.shippingAddress}\n\nBilling Address: ${receiptData.billingAddress}\nPayment Method: ${receiptData.paymentMethod}\n\n${whatsappLines}\n\nSubtotal: Rs. ${receiptData.subtotal.toLocaleString()}\nDiscount: Rs. ${receiptData.discount.toLocaleString()}\nDelivery: Rs. ${receiptData.deliveryFee.toLocaleString()}\nTotal: Rs. ${receiptData.total.toLocaleString()}`;
     update({cart:[]});
