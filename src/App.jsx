@@ -415,29 +415,31 @@ function HomeTestimonials() {
   return (
     <section className="home-section home-testimonials">
       <div className="container">
-        <div className="home-section-heading">
-          <div>
+        <div className="home-section-heading home-testimonials-heading">
+          <div className="home-testimonials-heading-copy">
             <p className="eyebrow">CUSTOMER VOICE</p>
             <h2>What Our Customers Say</h2>
           </div>
-          <Link className="text-link" to="/shop">
-            Shop now <ArrowRight size={13}/>
+          <Link className="text-link home-testimonials-cta" to="/shop">
+            Shop now <ArrowRight aria-hidden="true" size={14}/>
           </Link>
         </div>
 
-        <div className="home-testimonial-grid">
+        <div className={`home-testimonial-grid${rows.length === 1 ? " single" : ""}`}>
           {rows.map(review => {
             const rating = Math.max(0, Math.min(5, Math.round(Number(review.rating || 0))));
             return (
               <article className="home-testimonial-card" key={review.id}>
-                <div className="testimonial-stars" aria-label={`${rating} out of 5 stars`}>
+                <div className="testimonial-stars" role="img" aria-label={`${rating} out of 5 stars`}>
                   {"★".repeat(rating)}
                   {"☆".repeat(5 - rating)}
                 </div>
                 {review.title && <h3>{review.title}</h3>}
                 {review.comment && <p>“{review.comment}”</p>}
-                <strong>{review.reviewer_name || "Customer"}</strong>
-                <small>Verified customer review</small>
+                <div className="home-testimonial-meta">
+                  <strong>{review.reviewer_name || "Customer"}</strong>
+                  <small>Verified customer review</small>
+                </div>
               </article>
             );
           })}
@@ -945,8 +947,9 @@ const menuGroups = [
               type="button"
               className="menu-btn"
               onClick={() => setOpen(v => !v)}
-              aria-label="Menu"
+              aria-label={open ? "Close menu" : "Open menu"}
               aria-expanded={open}
+              aria-controls="mobile-navigation"
             >
               {open ? <X size={22} /> : <Menu size={22} />}
             </button>
@@ -958,7 +961,10 @@ const menuGroups = [
         <AnimatePresence>
           {open && (
             <motion.div
+              id="mobile-navigation"
               className="mobile-menu"
+              role="navigation"
+              aria-label="Mobile navigation"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
@@ -1138,7 +1144,7 @@ function ProductCard({ product, onToast }) {
   const price = Number(product.salePrice || product.price || 0);
   const toggleWish = () => update({ wishlist: wished ? store.wishlist.filter(id=>id!==product.id) : [...store.wishlist, product.id] });
   return <motion.article className="product-card" layout whileHover={{ y:-5, scale:1.015 }}>
-    <div className="product-image-wrap"><Link to={`/product/${product.id}`}><img src={product.image || logo} alt={product.name}/></Link><button className={`wish-btn ${wished ? "active" : ""}`} onClick={toggleWish}><Heart size={18} fill={wished ? "currentColor" : "none"}/></button>{product.salePrice && <span className="product-badge">SALE</span>}</div>
+    <div className="product-image-wrap"><Link to={`/product/${product.id}`}><img src={product.image || logo} alt={product.name}/></Link><button type="button" className={`wish-btn ${wished ? "active" : ""}`} onClick={toggleWish} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"}><Heart aria-hidden="true" size={18} fill={wished ? "currentColor" : "none"}/></button>{product.salePrice && <span className="product-badge">SALE</span>}</div>
     <div className="product-info"><p className="product-category">{product.category || "Uncategorized"}</p><Link to={`/product/${product.id}`}><h3>{product.name}</h3></Link><div className="product-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice && <del>Rs. {Number(product.price).toLocaleString()}</del>}</div><button className="add-cart" onClick={()=>{addToCart(product); onToast?.("Product cart mein add ho gaya")}}><ShoppingBag size={15}/> Add to Cart</button></div>
   </motion.article>;
 }
@@ -1156,12 +1162,18 @@ const [newsletterMessage, setNewsletterMessage] = useState("");
   const contentSettings = store.adminSettings?.content || DEFAULT_ADMIN_SETTINGS.content;
   const featuredLimit = Math.max(0, Number(contentSettings.featuredProductsLimit || 8));
 
-  const trendingProducts = activeProducts.slice(0, 8);
-  const newArrivals = activeProducts.slice(8, 16);
-  const featuredProducts = activeProducts.slice(0, featuredLimit);
+  // Keep the homepage sections mutually exclusive while making
+  // New Arrivals truly represent the newest products from Supabase.
+  // Products are already ordered newest-first in StoreProvider.refresh().
+  // A new product therefore appears in New Arrivals immediately after refresh.
+  const newArrivalsLimit = 4;
+  const newArrivals = activeProducts.slice(0, newArrivalsLimit);
+  const productsAfterNewArrivals = activeProducts.slice(newArrivals.length);
+  const trendingProducts = productsAfterNewArrivals.slice(0, 8);
+  const featuredProducts = productsAfterNewArrivals.slice(8, 8 + featuredLimit);
   const heroProduct = activeProducts[0] || null;
 
-const cats = store.categories.slice(0, 8).map(category => {
+const categoryCards = store.categories.map(category => {
   const productCount = store.products.filter(
     product =>
       product.status !== "inactive" &&
@@ -1181,6 +1193,12 @@ const cats = store.categories.slice(0, 8).map(category => {
     available: productCount > 0
   };
 });
+
+const availableCats = categoryCards
+  .filter(category => category.available)
+  .slice(0, 8);
+
+const comingSoonCount = categoryCards.filter(category => !category.available).length;
 
   return (
     <>
@@ -1265,58 +1283,56 @@ const cats = store.categories.slice(0, 8).map(category => {
                 <h2>Shop by Category</h2>
               </div>
 
-              {cats.length > 0 && (
+              {(availableCats.length > 0 || comingSoonCount > 0) && (
                 <Link className="text-link" to="/categories">
                   View All <ArrowRight size={15} />
                 </Link>
               )}
             </div>
-{cats.length ? (
+{availableCats.length ? (
   <div className="home-category-grid">
-    {cats.map((c) => (
-      <div
-        className={`home-category-card ${
-          c.available ? "" : "coming-soon-category"
-        }`}
-        key={c.id}
-      >
+    {availableCats.map((c) => (
+      <div className="home-category-card" key={c.id}>
         <div
-          className={`category-icon ${c.image ? "has-image" : ""}`}
+          className={`category-icon ${c.image ? "has-image" : "category-icon-placeholder"}`}
           style={c.image ? { backgroundImage: `url("${c.image}")` } : undefined}
+          aria-hidden="true"
         >
-          {!c.image && <Tag size={20} />}
+          {!c.image && <span className="category-initial">{c.name?.trim()?.charAt(0)?.toUpperCase() || "H"}</span>}
         </div>
 
         <div>
           <strong>{c.name}</strong>
-
           <span>
-            {c.available
-              ? `${c.productCount} ${
-                  c.productCount === 1 ? "product" : "products"
-                }`
-              : "Coming Soon"}
+            {`${c.productCount} ${c.productCount === 1 ? "product" : "products"}`}
           </span>
         </div>
 
-        {c.available ? (
-          <Link
-            to={`/shop?category=${encodeURIComponent(c.name)}`}
-            aria-label={`View ${c.name}`}
-          >
-            <ArrowRight size={17} />
-          </Link>
-        ) : (
-          <span className="category-coming-soon">
-            Coming Soon
-          </span>
-        )}
+        <Link
+          to={`/shop?category=${encodeURIComponent(c.name)}`}
+          aria-label={`View ${c.name}`}
+        >
+          <ArrowRight aria-hidden="true" size={17} />
+        </Link>
       </div>
     ))}
+
+    {comingSoonCount > 0 && (
+      <div className="home-category-card coming-soon-category" aria-label={`${comingSoonCount} more categories coming soon`}>
+        <div className="category-icon category-icon-placeholder" aria-hidden="true">
+          <span className="category-more-icon">+</span>
+        </div>
+        <div>
+          <strong>More categories</strong>
+          <span>{comingSoonCount} coming soon</span>
+        </div>
+        <span className="category-coming-soon" aria-hidden="true">Coming Soon</span>
+      </div>
+    )}
   </div>
 ) : (
   <div className="home-category-coming-soon">
-    <Tag size={24} />
+    <span className="category-more-icon" aria-hidden="true">+</span>
     <strong>Categories Coming Soon</strong>
     <span>
       New categories will appear here as they are added.
@@ -1338,15 +1354,9 @@ const cats = store.categories.slice(0, 8).map(category => {
               </div>
 
               {trendingProducts.length > 0 && (
-                <div className="account-order-actions">
-  <Link className="text-link" to="/track-order">
-    Track Order <ArrowRight size={15}/>
-  </Link>
-
-  <Link className="text-link" to="/shop">
-    Shop more <ArrowRight size={15}/>
-  </Link>
-</div>
+                <Link className="text-link" to="/shop">
+                  Shop more <ArrowRight size={15}/>
+                </Link>
               )}
             </div>
 
@@ -1547,7 +1557,7 @@ const cats = store.categories.slice(0, 8).map(category => {
 </form>
 
 {newsletterMessage && (
-  <p className="newsletter-message">
+  <p className="newsletter-message" role="status" aria-live="polite">
     {newsletterMessage}
   </p>
 )}
@@ -1600,7 +1610,7 @@ const cats = store.categories.slice(0, 8).map(category => {
 
 
 function StarRating({value=0,size=16}){
-  return <span className="stars" aria-label={`${value} out of 5 stars`}>{[1,2,3,4,5].map(n=><Star key={n} size={size} fill={n<=Math.round(value)?"currentColor":"none"}/>)}</span>;
+  return <span className="stars" role="img" aria-label={`${value} out of 5 stars`}>{[1,2,3,4,5].map(n=><Star key={n} size={size} fill={n<=Math.round(value)?"currentColor":"none"}/>)}</span>;
 }
 
 function ProductReviews({ productId }) {
@@ -2227,13 +2237,13 @@ function ProductDetails() {
   if(!product) return <main className="page container"><EmptyState title="Product Not Found" text="Yeh product available nahi hai." action="Back to Shop" to="/shop"/></main>;
   const gallery=[...(product.images||[])]; if(product.image&&!gallery.includes(product.image))gallery.unshift(product.image); const images=gallery.length?gallery:[logo]; const currentImage=images[Math.min(selectedImage,images.length-1)];
   const price=Number(product.salePrice||product.price||0); const wished=store.wishlist.includes(product.id); const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const waText=`Assalam o Alaikum, mujhe Hafiz Mart se yeh product order karna hai:\n\nProduct: ${product.name}\nSKU: ${product.sku||"N/A"}\nQuantity: ${qty}\nPrice: Rs. ${price.toLocaleString()}\nTotal: Rs. ${(price*qty).toLocaleString()}`;
-  return <main className="page"><div className="container product-detail"><div className="detail-gallery"><div className="detail-image"><img src={currentImage} alt={product.name}/></div>{images.length>1&&<div className="thumbnail-row">{images.map((src,i)=><button key={src+i} className={i===selectedImage?'active':''} onClick={()=>setSelectedImage(i)}><img src={src} alt={`${product.name} ${i+1}`}/></button>)}</div>}</div><div className="detail-copy"><p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1><div className="detail-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice&&<del>Rs. {Number(product.price).toLocaleString()}</del>}</div><p className="detail-description">{product.description||product.shortDescription||"Is product ki detailed description abhi add nahi ki gayi."}</p><div className="stock-line">{Number(product.stock||0)>0?<><Check size={16}/> In stock — {product.stock} available</>:"Out of stock"}</div><div className="detail-actions"><div className="qty"><button onClick={()=>setQty(Math.max(1,qty-1))}><Minus size={15}/></button><strong>{qty}</strong><button onClick={()=>setQty(Math.min(Number(product.stock||1),qty+1))}><Plus size={15}/></button></div><button className="gold-btn" disabled={!Number(product.stock||0)} onClick={()=>{addToCart(product,qty);setToast("Product cart mein add ho gaya")}}><ShoppingBag size={17}/> Add to Cart</button><button className={`icon-btn ${wished?"active":""}`} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart size={19} fill={wished?"currentColor":"none"}/></button></div><a className="whatsapp-order" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a><Toast message={toast} onClose={()=>setToast("")}/></div></div><div className="container"><ProductReviews productId={product.id}/></div></main>;
+  return <main className="page"><div className="container product-detail"><div className="detail-gallery"><div className="detail-image"><img src={currentImage} alt={product.name}/></div>{images.length>1&&<div className="thumbnail-row" aria-label={`${product.name} images`}>{images.map((src,i)=><button type="button" key={src+i} className={i===selectedImage?'active':''} onClick={()=>setSelectedImage(i)} aria-label={`View ${product.name} image ${i+1}`} aria-current={i===selectedImage?'true':undefined}><img src={src} alt="" /></button>)}</div>}</div><div className="detail-copy"><p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1><div className="detail-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice&&<del>Rs. {Number(product.price).toLocaleString()}</del>}</div><p className="detail-description">{product.description||product.shortDescription||"Is product ki detailed description abhi add nahi ki gayi."}</p><div className="stock-line">{Number(product.stock||0)>0?<><Check size={16}/> In stock — {product.stock} available</>:"Out of stock"}</div><div className="detail-actions"><div className="qty" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={()=>setQty(Math.max(1,qty-1))} aria-label={`Decrease ${product.name} quantity`}><Minus aria-hidden="true" size={15}/></button><strong aria-live="polite">{qty}</strong><button type="button" onClick={()=>setQty(Math.min(Number(product.stock||1),qty+1))} aria-label={`Increase ${product.name} quantity`}><Plus aria-hidden="true" size={15}/></button></div><button className="gold-btn" type="button" disabled={!Number(product.stock||0)} onClick={()=>{addToCart(product,qty);setToast("Product cart mein add ho gaya")}}><ShoppingBag aria-hidden="true" size={17}/> Add to Cart</button><button type="button" className={`icon-btn ${wished?"active":""}`} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart aria-hidden="true" size={19} fill={wished?"currentColor":"none"}/></button></div><a className="whatsapp-order" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a><Toast message={toast} onClose={()=>setToast("")}/></div></div><div className="container"><ProductReviews productId={product.id}/></div></main>;
 }
 function Categories() { const {store}=useStore(); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">DISCOVER</p><h1>Categories</h1><p>Explore products by category.</p></div></div>{store.categories.length?<div className="category-grid large">{store.categories.map(c=><Link className="category-card" key={c.id} to={`/shop?category=${encodeURIComponent(c.name)}`}><div><Tag size={22}/></div><strong>{c.name}</strong><span>{store.products.filter(p=>p.categoryId===c.id).length} products</span></Link>)}</div>:<EmptyState title="No Categories Yet" text="Admin panel se apni first category create karein." action="Open Admin" to="/admin/categories" icon={Tag}/>}</div></main>; }
 function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Jab aap kisi product par sale price set karenge to woh yahan show hoga." action="Manage Products" to="/admin/products" icon={Tag}/>}</div></main>; }
 function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Product cards par heart icon press karke items save karein." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
 
-function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt={x.product.name || "Hafiz Mart product"}/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty"><button onClick={()=>changeQty(x.index,-1)}><Minus size={14}/></button><strong>{x.qty}</strong><button onClick={()=>changeQty(x.index,1)}><Plus size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button className="remove-btn" onClick={()=>remove(x.index)}><Trash2 size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
+function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt={x.product.name || "Hafiz Mart product"}/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty" aria-label={`Quantity for ${x.product.name}`}><button type="button" onClick={()=>changeQty(x.index,-1)} aria-label={`Decrease ${x.product.name} quantity`}><Minus aria-hidden="true" size={14}/></button><strong aria-live="polite">{x.qty}</strong><button type="button" onClick={()=>changeQty(x.index,1)} aria-label={`Increase ${x.product.name} quantity`}><Plus aria-hidden="true" size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button type="button" className="remove-btn" aria-label={`Remove ${x.product.name} from cart`} title="Remove from cart" onClick={()=>remove(x.index)}><Trash2 aria-hidden="true" size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
 
 function Shop() {
   const { store } = useStore();
@@ -5479,7 +5489,7 @@ function Admin(){
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN PANEL</p><h1>Dashboard</h1><p>Real Supabase-backed Hafiz Mart control center.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div><div className="stats-grid six">{[[Package,'Products',store.products.length,'Live catalog'],[Tag,'Categories',store.categories.length,'Live categories'],[ShoppingCart,'Orders',stats.orders,'Database orders'],[Users,'Customers',stats.customers,'Registered customers'],[Sparkles,'Active Sales',store.banners.length,'Promotional banners'],[ShoppingBag,'Revenue',`Rs. ${stats.revenue.toLocaleString()}`,'Non-cancelled orders']].map(([I,n,v,small],i)=><motion.div className="stat-card" key={n} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*.04}}><I size={18}/><span>{n}</span><strong>{v}</strong><small>{small}</small></motion.div>)}</div><div className="admin-grid"><div className="panel"><div className="panel-head-row"><div><p className="eyebrow">RECENT ORDERS</p><h2>Latest Activity</h2></div><Link className="text-link" to="/admin/orders">View all <ArrowRight size={15}/></Link></div>{recent.length?<div className="recent-orders">{recent.map(o=><Link to="/admin/orders" className="recent-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{o.customer_name||'Customer'} · {new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{o.status}</em></div></Link>)}</div>:<div className="mini-empty"><ShoppingCart size={25}/><strong>No orders yet</strong><span>Customer checkout complete hone ke baad orders yahan appear honge.</span></div>}</div><div className="panel"><p className="eyebrow">QUICK START</p><h2>Store Setup</h2><div className="check-row"><span>01</span><div><strong>Add products</strong><small>Real catalog items with images and stock.</small></div><Link to="/admin/products"><ChevronRight size={16}/></Link></div><div className="check-row"><span>02</span><div><strong>Manage orders</strong><small>Confirm, pack, ship and deliver customer orders.</small></div><Link to="/admin/orders"><ChevronRight size={16}/></Link></div><div className="check-row"><span>03</span><div><strong>Create a sale</strong><small>Publish promotional banners from admin.</small></div><Link to="/admin/banners"><ChevronRight size={16}/></Link></div></div></div></AdminLayout>;
 }
 
-function AdminProducts(){ const {store,refresh}=useStore(); const remove=async id=>{if(!confirm('Delete this product?'))return; const {error}=await supabase.from('products').delete().eq('id',id); if(error) alert(error.message); else refresh();}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Products</h1><p>{store.products.length} product(s) in your Supabase catalog.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div>{store.products.length?<div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{store.products.map(p=><div className="table-row" key={p.id}><div className="table-product"><img src={p.image||logo} alt={p.name || "Hafiz Mart product"}/><strong>{p.name}</strong><small>{p.sku||"No SKU"}</small></div><span>{store.categories.find(c=>c.id===p.categoryId)?.name||"—"}</span><span>Rs. {Number(p.salePrice||p.price||0).toLocaleString()}</span><span>{p.stock||0}</span><div className="row-actions"><Link to={`/admin/products/${p.id}/edit`}><Pencil size={15}/></Link><button onClick={()=>remove(p.id)}><Trash2 size={15}/></button></div></div>)}</div>:<EmptyState title="No Products Yet" text="Aapka database catalog abhi empty hai. Apna pehla product add karein." action="Add First Product" to="/admin/products/new" icon={Package}/>}</AdminLayout>; }
+function AdminProducts(){ const {store,refresh}=useStore(); const remove=async id=>{if(!confirm('Delete this product?'))return; const {error}=await supabase.from('products').delete().eq('id',id); if(error) alert(error.message); else refresh();}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Products</h1><p>{store.products.length} product(s) in your Supabase catalog.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div>{store.products.length?<div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{store.products.map(p=><div className="table-row" key={p.id}><div className="table-product"><img src={p.image||logo} alt={p.name || "Hafiz Mart product"}/><strong>{p.name}</strong><small>{p.sku||"No SKU"}</small></div><span>{store.categories.find(c=>c.id===p.categoryId)?.name||"—"}</span><span>Rs. {Number(p.salePrice||p.price||0).toLocaleString()}</span><span>{p.stock||0}</span><div className="row-actions"><Link to={`/admin/products/${p.id}/edit`} aria-label={`Edit ${p.name}`} title="Edit product"><Pencil aria-hidden="true" size={15}/></Link><button type="button" onClick={()=>remove(p.id)} aria-label={`Delete ${p.name}`} title="Delete product"><Trash2 aria-hidden="true" size={15}/></button></div></div>)}</div>:<EmptyState title="No Products Yet" text="Aapka database catalog abhi empty hai. Apna pehla product add karein." action="Add First Product" to="/admin/products/new" icon={Package}/>}</AdminLayout>; }
 
 function ProductImageUploader({images, setImages}){
   const [uploading,setUploading]=useState(false);
@@ -5708,8 +5718,10 @@ function AdminCategories() {
               <button
                 type="button"
                 onClick={() => remove(c.id)}
+                aria-label={`Delete category ${c.name}`}
+                title="Delete category"
               >
-                <Trash2 size={16} />
+                <Trash2 aria-hidden="true" size={16} />
               </button>
 
             </div>
@@ -5758,23 +5770,174 @@ function AdminCoupons(){
 }
 
 function AdminOrders(){
-  const [orders,setOrders]=useState([]);const [items,setItems]=useState([]);const [loading,setLoading]=useState(true);const [selected,setSelected]=useState(null);const [filter,setFilter]=useState('all');const [saving,setSaving]=useState(null);const [deleting,setDeleting]=useState(null);
-  const load=async()=>{setLoading(true);const [o,i]=await Promise.all([supabase.from('orders').select('*').order('created_at',{ascending:false}),supabase.from('order_items').select('*')]);if(o.error)alert(o.error.message);else setOrders(o.data||[]);if(i.error)alert(i.error.message);else setItems(i.data||[]);setLoading(false)};useEffect(()=>{load()},[]);
-  const updateStatus=async(id,status)=>{setSaving(id);const {error}=await supabase.from('orders').update({status}).eq('id',id);if(error)alert(error.message);else setOrders(r=>r.map(o=>o.id===id?{...o,status}:o));setSaving(null)};
-  const deleteOrder=async(order)=>{if(!confirm(`Order ${order.order_number||order.id.slice(0,8)} permanently delete karna hai? Ye action undo nahi hoga.`))return;setDeleting(order.id);const {error}=await supabase.rpc('admin_delete_order',{p_order_id:order.id});if(error)alert(error.message);else{setOrders(r=>r.filter(o=>o.id!==order.id));setItems(r=>r.filter(x=>x.order_id!==order.id));setSelected(null)}setDeleting(null)};
-  const visible=filter==='all'?orders:orders.filter(o=>o.status===filter);
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ORDERS</p><h1>Orders</h1><p>{orders.length} real order(s) from Supabase.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['all','pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s==='all'?'All':s.replaceAll('_',' ')}</button>)}</div>{loading?<EmptyState title="Loading orders..." text="Supabase se orders fetch ho rahe hain."/>:visible.length?<div className="order-list">{visible.map(o=>{const oi=items.filter(x=>x.order_id===o.id);return <motion.div className="order-card" key={o.id} layout><div className="order-card-head"><div><span className="order-number">{o.order_number||o.id.slice(0,8)}</span><strong>{o.customer_name||'Customer'}</strong><small>{new Date(o.created_at).toLocaleString()} · {o.phone||'No phone'}</small></div><div className="order-total"><strong>Rs. {Number(o.total||0).toLocaleString()}</strong><select disabled={saving===o.id} value={o.status||'pending'} onChange={e=>updateStatus(o.id,e.target.value)}>{['pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><option key={s} value={s}>{s.replaceAll('_',' ')}</option>)}</select></div></div><button className="order-detail-toggle" onClick={()=>setSelected(selected===o.id?null:o.id)}>{selected===o.id?'Hide details':'View order details'} <ChevronRight size={15} className={selected===o.id?'rotate':''}/></button>{selected===o.id&&<div className="order-details"><div className="order-customer"><div><span>Phone</span><strong>{o.phone||'—'}</strong></div><div><span>Email</span><strong>{o.email||'—'}</strong></div><div><span>Address</span><strong>{o.address||'—'}, {o.city||''}</strong></div></div><div className="order-items">{oi.length?oi.map(x=><div key={x.id}><span>{x.product_name||'Product'} × {x.quantity}</span><strong>Rs. {(Number(x.unit_price||0)*Number(x.quantity||0)).toLocaleString()}</strong></div>):<div><span>Items snapshot</span><strong>See order record</strong></div>}</div><div className="order-breakdown"><span>Subtotal</span><strong>Rs. {Number(o.subtotal||0).toLocaleString()}</strong><span>Discount</span><strong>Rs. {Number(o.discount||0).toLocaleString()}</strong><span>Delivery</span><strong>Rs. {Number(o.delivery_fee||0).toLocaleString()}</strong><span className="grand">Total</span><strong className="grand">Rs. {Number(o.total||0).toLocaleString()}</strong></div><div className="order-admin-actions"><button className="danger-btn" disabled={deleting===o.id} onClick={()=>deleteOrder(o)}><Trash2 size={15}/>{deleting===o.id?'Deleting...':'Delete Order'}</button></div></div>}</motion.div>})}</div>:<EmptyState title="No Orders Yet" text="Abhi koi real customer order nahi hai." action="View Store" to="/" icon={ShoppingCart}/>}</AdminLayout>;
+  const [orders,setOrders]=useState([]);
+  const [items,setItems]=useState([]);
+  const [products,setProducts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [selected,setSelected]=useState(null);
+  const [receiptOrder,setReceiptOrder]=useState(null);
+  const [filter,setFilter]=useState('all');
+  const [search,setSearch]=useState('');
+  const [saving,setSaving]=useState(null);
+  const [deleting,setDeleting]=useState(null);
+
+  const load=async()=>{
+    setLoading(true);
+    const [o,i]=await Promise.all([
+      supabase.from('orders').select('*').order('created_at',{ascending:false}),
+      supabase.from('order_items').select('*')
+    ]);
+    if(o.error) alert(o.error.message); else setOrders(o.data||[]);
+    if(i.error) alert(i.error.message); else setItems(i.data||[]);
+
+    const productIds=[...new Set((i.data||[]).map(item=>item.product_id).filter(Boolean))];
+    if(productIds.length){
+      const {data:p,error:pError}=await supabase.from('products').select('id,name,sku').in('id',productIds);
+      if(pError) alert(pError.message); else setProducts(p||[]);
+    } else setProducts([]);
+    setLoading(false);
+  };
+  useEffect(()=>{load()},[]);
+
+  const updateStatus=async(id,status)=>{
+    setSaving(id);
+    const {error}=await supabase.from('orders').update({status}).eq('id',id);
+    if(error) alert(error.message); else setOrders(r=>r.map(o=>o.id===id?{...o,status}:o));
+    setSaving(null);
+  };
+
+  const deleteOrder=async(order)=>{
+    if(!confirm(`Order ${order.order_number||order.id.slice(0,8)} permanently delete karna hai? Ye action undo nahi hoga.`))return;
+    setDeleting(order.id);
+    const {error}=await supabase.rpc('admin_delete_order',{p_order_id:order.id});
+    if(error) alert(error.message);
+    else{
+      setOrders(r=>r.filter(o=>o.id!==order.id));
+      setItems(r=>r.filter(x=>x.order_id!==order.id));
+      setSelected(null);
+      setReceiptOrder(null);
+    }
+    setDeleting(null);
+  };
+
+  const productMap=useMemo(()=>Object.fromEntries(products.map(p=>[String(p.id),p])),[products]);
+  const itemsForOrder=orderId=>items.filter(x=>x.order_id===orderId);
+  const normalizedSearch=search.trim().toLowerCase();
+  const visible=(filter==='all'?orders:orders.filter(o=>o.status===filter)).filter(o=>{
+    if(!normalizedSearch) return true;
+    const oi=itemsForOrder(o.id);
+    const itemText=oi.map(item=>{
+      const product=productMap[String(item.product_id)];
+      return `${item.product_name||product?.name||''} ${item.sku||product?.sku||''}`;
+    }).join(' ');
+    const haystack=`${o.order_number||''} ${o.customer_name||''} ${o.email||''} ${o.phone||''} ${o.city||''} ${itemText}`.toLowerCase();
+    return haystack.includes(normalizedSearch);
+  });
+
+  return <AdminLayout>
+    <div className="admin-head">
+      <div><p className="eyebrow">ORDERS</p><h1>Orders</h1><p>{orders.length} real order(s) from Supabase.</p></div>
+      <button className="ghost-btn" type="button" onClick={load}><RotateCcw size={15}/> Refresh</button>
+    </div>
+
+    <div className="order-filters">
+      {['all','pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><button type="button" className={filter===s?'active':''} key={s} onClick={()=>{setFilter(s);setSelected(null);setReceiptOrder(null)}}>{s==='all'?'All':s.replaceAll('_',' ')}</button>)}
+    </div>
+
+    <div className="order-search-row">
+      <input
+        className="order-search"
+        value={search}
+        onChange={e=>setSearch(e.target.value)}
+        placeholder="Search order, customer, product or SKU..."
+        aria-label="Search orders by order number, customer, product name or SKU"
+      />
+      {search && <button className="ghost-btn" type="button" onClick={()=>setSearch('')}>Clear</button>}
+    </div>
+
+    {loading?<EmptyState title="Loading orders..." text="Supabase se orders fetch ho rahe hain."/>:visible.length?<div className="order-list">{visible.map(o=>{
+      const oi=itemsForOrder(o.id);
+      const customer={id:o.user_id,full_name:o.customer_name,email:o.email,phone:o.phone};
+      return <motion.div className="order-card" key={o.id} layout>
+        <div className="order-card-head">
+          <div><span className="order-number">{o.order_number||o.id.slice(0,8)}</span><strong>{o.customer_name||'Customer'}</strong><small>{new Date(o.created_at).toLocaleString()} · {o.phone||'No phone'}</small></div>
+          <div className="order-total"><strong>Rs. {Number(o.total||0).toLocaleString()}</strong><select aria-label={`Order status for ${o.order_number||o.id.slice(0,8)}`} disabled={saving===o.id} value={o.status||'pending'} onChange={e=>updateStatus(o.id,e.target.value)}>{['pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><option key={s} value={s}>{s.replaceAll('_',' ')}</option>)}</select></div>
+        </div>
+        <button className="order-detail-toggle" type="button" onClick={()=>{setSelected(selected===o.id?null:o.id);if(selected===o.id)setReceiptOrder(null)}}>{selected===o.id?'Hide details':'View order details'} <ChevronRight size={15} className={selected===o.id?'rotate':''}/></button>
+        {selected===o.id&&<div className="order-details">
+          <div className="order-customer"><div><span>Customer</span><strong>{o.customer_name||'Customer'}</strong></div><div><span>Email</span><strong>{o.email||'—'}</strong></div><div><span>Phone</span><strong>{o.phone||'—'}</strong></div><div><span>Address</span><strong>{o.address||'—'}, {o.city||''}</strong></div><div><span>Payment</span><strong>{o.payment_method||'COD'}</strong></div><div><span>Order Date</span><strong>{new Date(o.created_at).toLocaleString()}</strong></div></div>
+          <div className="order-items">{oi.length?oi.map(x=>{
+            const product=productMap[String(x.product_id)];
+            const sku=x.sku||product?.sku||'No SKU';
+            const name=x.product_name||product?.name||'Product';
+            return <div key={x.id}><span className="order-item-main"><strong>{name}</strong><small>SKU: {sku} · Qty: {Number(x.quantity||0)}</small></span><strong>Rs. {(Number(x.unit_price||0)*Number(x.quantity||0)).toLocaleString()}</strong></div>;
+          }):<div><span>Items snapshot</span><strong>See order record</strong></div>}</div>
+          <div className="order-breakdown"><span>Subtotal</span><strong>Rs. {Number(o.subtotal||0).toLocaleString()}</strong><span>Discount</span><strong>Rs. {Number(o.discount||0).toLocaleString()}</strong><span>Delivery</span><strong>Rs. {Number(o.delivery_fee||0).toLocaleString()}</strong><span className="grand">Total</span><strong className="grand">Rs. {Number(o.total||0).toLocaleString()}</strong></div>
+          <div className="order-admin-actions"><button className="ghost-btn" type="button" onClick={()=>setReceiptOrder(receiptOrder?.id===o.id?null:o)}>{receiptOrder?.id===o.id?'Hide Receipt':'View Receipt'} <FileText size={15}/></button><button className="danger-btn" type="button" disabled={deleting===o.id} onClick={()=>deleteOrder(o)}><Trash2 size={15}/>{deleting===o.id?'Deleting...':'Delete Order'}</button></div>
+          {receiptOrder?.id===o.id&&<AdminCustomerReceipt customer={customer} order={o} items={oi} productMap={productMap} onClose={()=>setReceiptOrder(null)}/>}
+        </div>}
+      </motion.div>})}</div>:<EmptyState title="No Orders Found" text={normalizedSearch?'Search ko order number, customer, product name ya SKU se try karein.':'Abhi koi real customer order nahi hai.'} action="View Store" to="/" icon={ShoppingCart}/>}</AdminLayout>;
+}
+
+function AdminCustomerReceipt({ customer, order, items, productMap={}, onClose }) {
+  const money = value => `Rs. ${Number(value || 0).toLocaleString()}`;
+  const printReceipt = () => {
+    const itemRows = (items || []).map(item => `
+      <tr>
+        <td>${String(item.product_name || productMap[String(item.product_id)]?.name || 'Product').replace(/</g, '&lt;')}</td>
+        <td>${String(item.sku || productMap[String(item.product_id)]?.sku || 'N/A').replace(/</g, '&lt;')}</td>
+        <td>${Number(item.quantity || 0)}</td>
+        <td>${money(item.unit_price)}</td>
+        <td>${money(Number(item.unit_price || 0) * Number(item.quantity || 0))}</td>
+      </tr>
+    `).join('');
+    const safe = value => String(value || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const win = window.open('', '_blank', 'width=820,height=920');
+    if (!win) return;
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Receipt ${safe(order.order_number || order.id.slice(0,8))} — Hafiz Mart</title><style>
+      *{box-sizing:border-box}body{margin:0;background:#f4f1ea;color:#171717;font-family:Arial,Helvetica,sans-serif;padding:32px}
+      .sheet{max-width:760px;margin:auto;background:#fff;border:1px solid #ddd7cb;border-radius:18px;padding:32px}
+      .brand{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:1px solid #e5e0d8;padding-bottom:22px;margin-bottom:22px}
+      h1{margin:0 0 7px;font-size:26px}.muted{color:#666;font-size:12px;line-height:1.5}.order-no{font-weight:700;font-size:13px}
+      .customer{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}.customer div{border:1px solid #ece7df;border-radius:12px;padding:12px}.label{display:block;text-transform:uppercase;font-size:9px;letter-spacing:.12em;color:#8a806f;margin-bottom:6px}.value{font-size:12px;font-weight:600}
+      table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:11px 8px;border-bottom:1px solid #eee;text-align:left}th{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#756c5f}td:nth-child(n+2),th:nth-child(n+2){text-align:right}
+      .totals{margin-top:20px;margin-left:auto;max-width:310px}.row{display:flex;justify-content:space-between;gap:20px;padding:7px 0;font-size:12px}.grand{border-top:1px solid #ddd3c3;margin-top:6px;padding-top:12px;font-size:16px;font-weight:800}.footer{margin-top:26px;padding-top:18px;border-top:1px solid #e5e0d8}.print{margin-top:22px;padding:11px 15px;border:0;border-radius:9px;background:#171717;color:#fff;font-weight:700;cursor:pointer}@media print{body{background:#fff;padding:0}.sheet{border:0;border-radius:0;padding:0}.print{display:none}}
+    </style></head><body><main class="sheet"><div class="brand"><div><h1>Hafiz Mart</h1><div class="muted">Customer order receipt</div></div><div style="text-align:right"><div class="order-no">${safe(order.order_number || order.id.slice(0,8))}</div><div class="muted">${safe(new Date(order.created_at).toLocaleString())}</div></div></div><section class="customer"><div><span class="label">Customer</span><span class="value">${safe(customer.full_name || customer.name || order.customer_name || 'Customer')}</span></div><div><span class="label">Email</span><span class="value">${safe(customer.email || order.email || '—')}</span></div><div><span class="label">Phone</span><span class="value">${safe(customer.phone || order.phone || '—')}</span></div><div><span class="label">Payment</span><span class="value">${safe(order.payment_method || 'COD')}</span></div><div style="grid-column:1/-1"><span class="label">Delivery Address</span><span class="value">${safe(order.address || '—')}${order.city ? `, ${safe(order.city)}` : ''}</span></div></section><table><thead><tr><th>Product</th><th>SKU</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>${itemRows || '<tr><td colspan="5">No item lines available.</td></tr>'}</tbody></table><section class="totals"><div class="row"><span>Subtotal</span><strong>${money(order.subtotal)}</strong></div><div class="row"><span>Discount</span><strong>${money(order.discount)}</strong></div><div class="row"><span>Delivery</span><strong>${money(order.delivery_fee)}</strong></div><div class="row grand"><span>Total</span><strong>${money(order.total)}</strong></div></section><div class="footer"><div class="muted">Status: ${safe(order.status || 'pending')}</div><div class="muted">Customer record: ${safe(customer.email || customer.id)}</div><button class="print" onclick="window.print()">Print / Save as PDF</button></div></main></body></html>`);
+    win.document.close();
+    win.focus();
+  };
+  return <div className="customer-receipt-panel"><div className="customer-receipt-head"><div><p className="eyebrow">ORDER RECEIPT</p><h3>{order.order_number || order.id.slice(0,8)}</h3><span>{new Date(order.created_at).toLocaleString()}</span></div><button className="ghost-btn" type="button" onClick={onClose}>Close</button></div><div className="customer-receipt-summary"><div><span>Customer</span><strong>{customer.full_name || customer.name || order.customer_name || 'Customer'}</strong><small>{customer.email || order.email || '—'}</small></div><div><span>Status</span><strong>{String(order.status || 'pending').replaceAll('_',' ')}</strong><small>{order.payment_method || 'COD'}</small></div><div><span>Total</span><strong>{money(order.total)}</strong><small>{(items || []).length} item line(s)</small></div></div><div className="customer-receipt-items">{(items || []).length ? items.map(item=><div key={item.id}><div><strong>{item.product_name || productMap[String(item.product_id)]?.name || 'Product'}</strong><span>SKU: {item.sku || productMap[String(item.product_id)]?.sku || 'N/A'} · {item.quantity} × {money(item.unit_price)}</span></div><strong>{money(Number(item.unit_price || 0) * Number(item.quantity || 0))}</strong></div>) : <div className="mini-empty">No item lines found for this order.</div>}</div><div className="customer-receipt-totals"><span>Subtotal</span><strong>{money(order.subtotal)}</strong><span>Discount</span><strong>{money(order.discount)}</strong><span>Delivery</span><strong>{money(order.delivery_fee)}</strong><span className="grand">Total</span><strong className="grand">{money(order.total)}</strong></div><button className="gold-btn" type="button" onClick={printReceipt}><FileText size={15}/> Print / Save Receipt</button></div>;
 }
 
 function AdminCustomers(){
   const { profile: currentProfile } = useAuth();
-  const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);const [tab,setTab]=useState('customers');const [search,setSearch]=useState('');const [saving,setSaving]=useState(null);const [expanded,setExpanded]=useState(null);
+  const { store } = useStore();
+  const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);const [tab,setTab]=useState('customers');const [search,setSearch]=useState('');const [saving,setSaving]=useState(null);const [expanded,setExpanded]=useState(null);const [customerOrders,setCustomerOrders]=useState({});const [customerItems,setCustomerItems]=useState({});const [ordersLoading,setOrdersLoading]=useState(null);const [receiptOrder,setReceiptOrder]=useState(null);
   const permissionKeys=['view_dashboard','manage_products','manage_content','manage_marketing','manage_orders','manage_support','manage_users','manage_reviews','view_transactions','view_reports','view_notifications','manage_notifications','manage_settings'];
   const load=async()=>{setLoading(true);const {data,error}=await supabase.from('profiles').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};
   useEffect(()=>{load()},[]);
   const updateUser=async(id,patch)=>{if(id===currentProfile?.id)return;setSaving(id);const {data,error}=await supabase.rpc('admin_update_user',{p_user_id:id,p_patch:patch});if(error)alert(error.message);else setRows(r=>r.map(x=>x.id===id?{...x,...(data||patch)}:x));setSaving(null)};
+  const loadCustomerOrders=async(customer)=>{
+    setOrdersLoading(customer.id);
+    const {data,error}=await supabase.from('orders').select('*').eq('user_id',customer.id).order('created_at',{ascending:false});
+    if(error){alert(error.message);setOrdersLoading(null);return}
+    const orders=data||[];
+    setCustomerOrders(prev=>({...prev,[customer.id]:orders}));
+    const ids=orders.map(o=>o.id);
+    if(ids.length){
+      const {data:itemRows,error:itemError}=await supabase.from('order_items').select('*').in('order_id',ids);
+      if(itemError) alert(itemError.message);
+      else setCustomerItems(prev=>({...prev,[customer.id]:itemRows||[]}));
+    } else setCustomerItems(prev=>({...prev,[customer.id]:[]}));
+    setOrdersLoading(null);
+  };
+  const toggleCustomerOrders=async(customer)=>{
+    const next=expanded===customer.id?null:customer.id;
+    setExpanded(next);setReceiptOrder(null);
+    if(next===customer.id&&!Object.prototype.hasOwnProperty.call(customerOrders,customer.id)) await loadCustomerOrders(customer);
+  };
   const filtered=rows.filter(r=>tab==='customers'?r.role==='customer':r.role==='admin').filter(r=>`${r.full_name||''} ${r.email||''} ${r.phone||''}`.toLowerCase().includes(search.toLowerCase()));
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">USER MANAGEMENT</p><h1>{tab==='customers'?'Customers':'Team & Roles'}</h1><p>Users ko view, verify, block aur permissions ke saath manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="admin-user-toolbar"><div className="order-filters"><button className={tab==='customers'?'active':''} onClick={()=>{setTab('customers');setExpanded(null)}}>Customers</button><button className={tab==='team'?'active':''} onClick={()=>{setTab('team');setExpanded(null)}}>Team & Roles</button></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email or phone..."/></div>{loading?<EmptyState title="Loading users..." text="User profiles fetch ho rahe hain." icon={Users}/>:filtered.length?<div className="admin-user-list">{filtered.map(c=>{const perms=c.permissions||{};return <article className="admin-user-card" key={c.id}><div className="admin-user-main"><div className="admin-user-avatar"><User size={18}/></div><div><strong>{c.full_name||c.name||'Customer'}</strong><span>{c.email||'Email unavailable'}{c.phone?` · ${c.phone}`:''}</span><small>{c.created_at?new Date(c.created_at).toLocaleDateString():''}</small></div><div className="admin-user-statuses"><span className={`status status-${c.account_status||'active'}`}>{c.account_status||'active'}</span>{c.is_verified&&<span className="verified-pill"><UserCheck size={12}/> Verified</span>}</div></div>{expanded===c.id&&<div className="admin-user-editor"><label>Account Status<select disabled={c.id===currentProfile?.id||tab==='team'&&c.team_role==='owner'} value={c.account_status||'active'} onChange={e=>updateUser(c.id,{account_status:e.target.value})}><option value="active">Active</option><option value="blocked">Blocked</option><option value="suspended">Suspended</option></select></label><label className="admin-user-check"><input type="checkbox" disabled={c.id===currentProfile?.id} checked={!!c.is_verified} onChange={e=>updateUser(c.id,{is_verified:e.target.checked})}/><span>Store verification</span></label>{tab==='team'&&<><label>Team Role<select disabled={c.id===currentProfile?.id||c.team_role==='owner'} value={c.team_role||'manager'} onChange={e=>updateUser(c.id,{team_role:e.target.value})}><option value="owner">Owner</option><option value="manager">Manager</option><option value="editor">Content Editor</option><option value="support">Support</option></select></label><div className="permissions-grid"><h4>Permissions</h4>{permissionKeys.map(key=><label key={key}><input type="checkbox" checked={c.team_role==='owner'||!!perms[key]} disabled={c.team_role==='owner'||c.id===currentProfile?.id} onChange={e=>updateUser(c.id,{permissions:{...perms,[key]:e.target.checked}})}/><span>{key.replaceAll('_',' ')}</span></label>)}</div></>}</div>}<div className="admin-user-actions"><button className="ghost-btn" onClick={()=>setExpanded(expanded===c.id?null:c.id)}>{expanded===c.id?'Close':'Manage User'} <ChevronRight size={15}/></button>{c.id!==currentProfile?.id&&tab==='customers'&&<button className={c.account_status==='blocked'?'gold-btn':'danger-btn'} disabled={saving===c.id} onClick={()=>updateUser(c.id,{account_status:c.account_status==='blocked'?'active':'blocked'})}>{c.account_status==='blocked'?<><UserCheck size={15}/> Unblock</>:<><UserX size={15}/> Block</>}</button>}</div></article>})}</div>:<EmptyState title="No users found" text="Search ya tab change karke dobara try karein." icon={Users}/>}</AdminLayout>;
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">USER MANAGEMENT</p><h1>{tab==='customers'?'Customers':'Team & Roles'}</h1><p>Users ko view, verify, block aur permissions ke saath manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="admin-user-toolbar"><div className="order-filters"><button className={tab==='customers'?'active':''} onClick={()=>{setTab('customers');setExpanded(null);setReceiptOrder(null)}}>Customers</button><button className={tab==='team'?'active':''} onClick={()=>{setTab('team');setExpanded(null);setReceiptOrder(null)}}>Team & Roles</button></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email or phone..."/></div>{loading?<EmptyState title="Loading users..." text="User profiles fetch ho rahe hain." icon={Users}/>:filtered.length?<div className="admin-user-list">{filtered.map(c=>{const perms=c.permissions||{};const orders=customerOrders[c.id]||[];const items=customerItems[c.id]||[];const spent=orders.filter(o=>o.status!=='cancelled').reduce((sum,o)=>sum+Number(o.total||0),0);return <article className="admin-user-card" key={c.id}><div className="admin-user-main"><div className="admin-user-avatar"><User size={18}/></div><div><strong>{c.full_name||c.name||'Customer'}</strong><span>{c.email||'Email unavailable'}{c.phone?` · ${c.phone}`:''}</span><small>{c.created_at?new Date(c.created_at).toLocaleDateString():''}</small></div><div className="admin-user-statuses"><span className={`status status-${c.account_status||'active'}`}>{c.account_status||'active'}</span>{c.is_verified&&<span className="verified-pill"><UserCheck size={12}/> Verified</span>}</div></div>{expanded===c.id&&<div className="admin-user-editor"><label>Account Status<select disabled={c.id===currentProfile?.id||tab==='team'&&c.team_role==='owner'} value={c.account_status||'active'} onChange={e=>updateUser(c.id,{account_status:e.target.value})}><option value="active">Active</option><option value="blocked">Blocked</option><option value="suspended">Suspended</option></select></label><label className="admin-user-check"><input type="checkbox" disabled={c.id===currentProfile?.id} checked={!!c.is_verified} onChange={e=>updateUser(c.id,{is_verified:e.target.checked})}/><span>Store verification</span></label>{tab==='team'&&<><label>Team Role<select disabled={c.id===currentProfile?.id||c.team_role==='owner'} value={c.team_role||'manager'} onChange={e=>updateUser(c.id,{team_role:e.target.value})}><option value="owner">Owner</option><option value="manager">Manager</option><option value="editor">Content Editor</option><option value="support">Support</option></select></label><div className="permissions-grid"><h4>Permissions</h4>{permissionKeys.map(key=><label key={key}><input type="checkbox" checked={c.team_role==='owner'||!!perms[key]} disabled={c.team_role==='owner'||c.id===currentProfile?.id} onChange={e=>updateUser(c.id,{permissions:{...perms,[key]:e.target.checked}})}/><span>{key.replaceAll('_',' ')}</span></label>)}</div></>}{tab==='customers'&&<section className="customer-orders-section"><div className="customer-orders-head"><div><p className="eyebrow">CUSTOMER HISTORY</p><h3>Orders & Receipts</h3><p>Is customer ke orders, purchased items aur receipts ek jagah.</p></div><div className="customer-order-stats"><span><strong>{orders.length}</strong> orders</span><span><strong>Rs. {spent.toLocaleString()}</strong> spent</span></div></div>{ordersLoading===c.id?<div className="mini-empty">Customer orders load ho rahe hain...</div>:orders.length?<div className="customer-order-list">{orders.map(order=>{const orderItems=items.filter(i=>i.order_id===order.id);return <div className="customer-order-card" key={order.id}><div className="customer-order-main"><div><strong>{order.order_number||order.id.slice(0,8)}</strong><span>{new Date(order.created_at).toLocaleString()}</span><small>{order.customer_name||c.full_name||'Customer'} · {order.email||c.email||'No email'}</small></div><div><span className={`status status-${order.status||'pending'}`}>{String(order.status||'pending').replaceAll('_',' ')}</span><strong>Rs. {Number(order.total||0).toLocaleString()}</strong></div></div><div className="customer-order-items"><span>{orderItems.length ? orderItems.map(i=>`${i.product_name||store.products.find(p=>String(p.id)===String(i.product_id))?.name||'Product'} · SKU: ${i.sku||store.products.find(p=>String(p.id)===String(i.product_id))?.sku||'N/A'} × ${i.quantity}`).join(' · ') : 'Item snapshot unavailable'}</span><strong>{orderItems.length} item line{orderItems.length===1?'':'s'}</strong></div><div className="customer-order-actions"><button className="ghost-btn" type="button" onClick={()=>setReceiptOrder(receiptOrder?.id===order.id?null:order)}>{receiptOrder?.id===order.id?'Hide Receipt':'View Receipt'} <FileText size={15}/></button></div>{receiptOrder?.id===order.id&&<AdminCustomerReceipt customer={c} order={order} items={orderItems} productMap={Object.fromEntries(store.products.map(p=>[String(p.id),p]))} onClose={()=>setReceiptOrder(null)}/>}</div>})}</div>:<div className="mini-empty">Is customer ke naam par abhi koi linked order nahi hai.</div>}</section>}</div>}<div className="admin-user-actions">{tab==='customers'&&<button className="ghost-btn" type="button" onClick={()=>toggleCustomerOrders(c)}>{expanded===c.id?'Close Customer':'Orders & Receipts'} <ChevronRight size={15} className={expanded===c.id?'rotate':''}/></button>}{tab==='team'&&<button className="ghost-btn" type="button" onClick={()=>setExpanded(expanded===c.id?null:c.id)}>{expanded===c.id?'Close':'Manage User'} <ChevronRight size={15} className={expanded===c.id?'rotate':''}/></button>}{c.id!==currentProfile?.id&&tab==='customers'&&<button className={c.account_status==='blocked'?'gold-btn':'danger-btn'} disabled={saving===c.id} onClick={()=>updateUser(c.id,{account_status:c.account_status==='blocked'?'active':'blocked'})}>{c.account_status==='blocked'?<><UserCheck size={15}/> Unblock</>:<><UserX size={15}/> Block</>}</button>}</div></article>})}</div>:<EmptyState title="No users found" text="Search ya tab change karke dobara try karein." icon={Users}/>}</AdminLayout>;
 }
 
 function AdminComplaints(){
@@ -5866,7 +6029,7 @@ function Complaints(){
   const load=async()=>{if(!user){setLoading(false);return}setLoading(true);const [o,c]=await Promise.all([supabase.from('orders').select('id,order_number,total,status,created_at').eq('user_id',user.id).order('created_at',{ascending:false}),supabase.from('complaints').select('*').eq('user_id',user.id).order('created_at',{ascending:false})]);if(!o.error)setOrders(o.data||[]);if(!c.error)setComplaints(c.data||[]);else setNotice(c.error.message);setLoading(false)};useEffect(()=>{load()},[user]);
   const submit=async e=>{e.preventDefault();if(!user)return;if(!form.subject.trim()||!form.message.trim()){setNotice('Subject aur complaint details dono required hain.');return};const turnstileEnabled=Boolean(String(import.meta.env.VITE_TURNSTILE_SITE_KEY||'').trim());if(turnstileEnabled&&!turnstileToken){setNotice('Spam protection complete karein, phir complaint submit karein.');return}const selectedFiles=Array.from(files||[]);if(selectedFiles.length>5){setNotice('Maximum 5 complaint images upload kar sakte hain.');return}if(selectedFiles.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type)||f.size>5*1024*1024)){setNotice('Sirf JPG, PNG, WEBP images (max 5MB each) upload karein.');return}setBusy(true);setNotice('');if(String(import.meta.env.VITE_TURNSTILE_SITE_KEY||'').trim()){const {data:turnstileResult,error:turnstileError}=await supabase.functions.invoke('verify-turnstile',{body:{token:turnstileToken}});if(turnstileError||!turnstileResult?.success){setNotice('Spam verification failed. Dobara try karein.');setBusy(false);return}}const uploaded=[];for(const file of selectedFiles){const safe=file.name.toLowerCase().replace(/[^a-z0-9.]+/g,'-');const path=`complaints/${user.id}/${crypto.randomUUID()}-${safe}`;const {error:uploadError}=await supabase.storage.from('complaint-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});if(uploadError){setNotice('Complaint image upload nahi ho saki.');setBusy(false);return}const {data}=supabase.storage.from('complaint-images').getPublicUrl(path);if(data?.publicUrl)uploaded.push(data.publicUrl)}const selected=orders.find(o=>o.id===form.orderId);const {error}=await supabase.from('complaints').insert({user_id:user.id,order_id:form.orderId||null,order_number:selected?.order_number||null,type:form.type,subject:form.subject.trim(),message:form.message.trim(),image_urls:uploaded,status:'pending'});if(error)setNotice(error.message);else{setForm({orderId:'',type:'Order Issue',subject:'',message:''});setFiles([]);setTurnstileToken('');navigate('/thank-you?type=complaint')}setBusy(false)};
   if(!user)return <main className="page container"><EmptyState title="Login Required" text="Complaint submit karne ke liye login karein." action="Login" to="/login" icon={MessageSquare}/></main>;
-  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints & Support</h1><p>Issue ho to complaint submit karein aur response yahin dekhein.</p></div></div><div className="complaint-layout"><form className="form-card complaint-form" onSubmit={submit}><div className="panel-head-row"><div><p className="eyebrow">NEW COMPLAINT</p><h2>How can we help?</h2></div><MessageSquare size={20}/></div><label>Related Order<select value={form.orderId} onChange={e=>setForm({...form,orderId:e.target.value})}><option value="">General / No specific order</option>{orders.map(o=><option key={o.id} value={o.id}>{o.order_number} — Rs. {Number(o.total||0).toLocaleString()}</option>)}</select></label><label>Complaint Type<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Order Issue</option><option>Product Issue</option><option>Delivery Issue</option><option>Payment Issue</option><option>Return / Exchange</option><option>Other</option></select></label><label>Subject<input required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})} placeholder="Short summary"/></label><label>Details<textarea required rows="6" value={form.message} onChange={e=>setForm({...form,message:e.target.value})} placeholder="Explain your issue..."/></label><label className="complaint-file-field">Evidence images (optional)<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>setFiles(Array.from(e.target.files||[]).slice(0,5))}/><small>{files.length?`${files.length} image(s) selected.`:'Up to 5 images, 5MB each.'}</small></label><TurnstileWidget onToken={setTurnstileToken}/>{notice&&<p className="review-message">{notice}</p>}<button className="gold-btn" disabled={busy}>{busy?'Submitting...':'Submit Complaint'} <ArrowRight size={16}/></button></form><section className="complaint-history"><div className="section-heading"><div><p className="eyebrow">MY TICKETS</p><h2>Complaint History</h2></div></div>{loading?<div className="mini-empty">Complaints load ho rahi hain...</div>:complaints.length?<div className="complaint-list">{complaints.map(c=><article className="complaint-card" key={c.id}><div className="complaint-card-head"><div><strong>{c.subject}</strong><span>{c.order_number?`Order ${c.order_number}`:'General'} · {new Date(c.created_at).toLocaleString()}</span></div><em className={`status status-${c.status}`}>{String(c.status||'pending').replaceAll('_',' ')}</em></div><p>{c.message}</p>{Array.isArray(c.image_urls)&&c.image_urls.length>0&&<div className="complaint-images">{c.image_urls.map((url,i)=><a key={`${c.id}-${i}`} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Complaint evidence ${i+1}`}/></a>)}</div>}{c.admin_response&&<div className="complaint-response"><span>Admin Response</span><p>{c.admin_response}</p></div>}</article>)}</div>:<div className="mini-empty"><MessageSquare size={24}/><strong>No complaints yet</strong><span>Submitted complaints yahan appear hongi.</span></div>}</section></div></div></main>;
+  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints & Support</h1><p>Issue ho to complaint submit karein aur response yahin dekhein.</p></div></div><div className="complaint-layout"><form className="form-card complaint-form" onSubmit={submit}><div className="panel-head-row"><div><p className="eyebrow">NEW COMPLAINT</p><h2>How can we help?</h2></div><MessageSquare size={20}/></div><label>Related Order<select value={form.orderId} onChange={e=>setForm({...form,orderId:e.target.value})}><option value="">General / No specific order</option>{orders.map(o=><option key={o.id} value={o.id}>{o.order_number} — Rs. {Number(o.total||0).toLocaleString()}</option>)}</select></label><label>Complaint Type<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Order Issue</option><option>Product Issue</option><option>Delivery Issue</option><option>Payment Issue</option><option>Return / Exchange</option><option>Other</option></select></label><label>Subject<input required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})} placeholder="Short summary"/></label><label>Details<textarea required rows="6" value={form.message} onChange={e=>setForm({...form,message:e.target.value})} placeholder="Explain your issue..."/></label><label className="complaint-file-field">Evidence images (optional)<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>setFiles(Array.from(e.target.files||[]).slice(0,5))}/><small>{files.length?`${files.length} image(s) selected.`:'Up to 5 images, 5MB each.'}</small></label><TurnstileWidget onToken={setTurnstileToken}/>{notice&&<p className="review-message" role="status" aria-live="polite">{notice}</p>}<button className="gold-btn" disabled={busy}>{busy?'Submitting...':'Submit Complaint'} <ArrowRight size={16}/></button></form><section className="complaint-history"><div className="section-heading"><div><p className="eyebrow">MY TICKETS</p><h2>Complaint History</h2></div></div>{loading?<div className="mini-empty">Complaints load ho rahi hain...</div>:complaints.length?<div className="complaint-list">{complaints.map(c=><article className="complaint-card" key={c.id}><div className="complaint-card-head"><div><strong>{c.subject}</strong><span>{c.order_number?`Order ${c.order_number}`:'General'} · {new Date(c.created_at).toLocaleString()}</span></div><em className={`status status-${c.status}`}>{String(c.status||'pending').replaceAll('_',' ')}</em></div><p>{c.message}</p>{Array.isArray(c.image_urls)&&c.image_urls.length>0&&<div className="complaint-images">{c.image_urls.map((url,i)=><a key={`${c.id}-${i}`} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Complaint evidence ${i+1}`}/></a>)}</div>}{c.admin_response&&<div className="complaint-response"><span>Admin Response</span><p>{c.admin_response}</p></div>}</article>)}</div>:<div className="mini-empty"><MessageSquare size={24}/><strong>No complaints yet</strong><span>Submitted complaints yahan appear hongi.</span></div>}</section></div></div></main>;
 }
 
 function AdminReviews(){
@@ -5907,7 +6070,7 @@ function AdminSettings(){
     {loading?<div className="settings-loading"><LoaderCircle size={22}/><span>Settings load ho rahi hain...</span></div>:<>
       <div className="settings-panel-heading"><div><p className="eyebrow">SETTINGS / {section.toUpperCase()}</p><h2>{sections.find(x=>x[0]===section)?.[1]}</h2></div></div>
       {section==='general'&&<div className="settings-grid">{field('Store name',current.storeName,v=>setField('general','storeName',v))}{field('Tagline',current.tagline,v=>setField('general','tagline',v))}{field('Support email',current.supportEmail,v=>setField('general','supportEmail',v),'email')}{field('Support phone',current.supportPhone,v=>setField('general','supportPhone',v))}{field('WhatsApp number',current.whatsapp,v=>setField('general','whatsapp',v))}{field('Currency',current.currency,v=>setField('general','currency',v))}{field('Timezone',current.timezone,v=>setField('general','timezone',v))}{field('Facebook URL',current.facebook,v=>setField('general','facebook',v))}{field('Instagram URL',current.instagram,v=>setField('general','instagram',v))}{field('TikTok URL',current.tiktok,v=>setField('general','tiktok',v))}{field('YouTube URL',current.youtube,v=>setField('general','youtube',v))}{area('Store address',current.address,v=>setField('general','address',v))}</div>}
-      {section==='shipping'&&<div className="settings-stack">{toggle('Shipping enabled',current.enabled,v=>setField('shipping','enabled',v))}<div className="settings-grid">{field('Default delivery fee (PKR)',current.defaultRate,v=>setField('shipping','defaultRate',v),'number')}{field('Free delivery threshold (PKR)',current.freeDeliveryThreshold,v=>setField('shipping','freeDeliveryThreshold',v),'number')}{field('Minimum delivery days',current.minDays,v=>setField('shipping','minDays',v),'number')}{field('Maximum delivery days',current.maxDays,v=>setField('shipping','maxDays',v),'number')}</div><div className="settings-subheading"><div><h3>City-wise rates</h3><p>Multan Rs.270; fallback default Rs.300.</p></div></div><div className="settings-city-list">{(current.cityRates||[]).map((row,i)=><div className="settings-city-row" key={i}>{field('City',row.city,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,city:v}:r)}})))}{field('Rate (PKR)',row.rate,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,rate:v}:r)}})),'number')}<button type="button" className="settings-remove" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.filter((_,j)=>j!==i)}}))}><Trash2 size={15}/></button></div>)}</div><button type="button" className="ghost-btn" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:[...(x.shipping.cityRates||[]),{city:'',rate:x.shipping.defaultRate||300}]}}))}><Plus size={15}/> Add city</button></div>}
+      {section==='shipping'&&<div className="settings-stack">{toggle('Shipping enabled',current.enabled,v=>setField('shipping','enabled',v))}<div className="settings-grid">{field('Default delivery fee (PKR)',current.defaultRate,v=>setField('shipping','defaultRate',v),'number')}{field('Free delivery threshold (PKR)',current.freeDeliveryThreshold,v=>setField('shipping','freeDeliveryThreshold',v),'number')}{field('Minimum delivery days',current.minDays,v=>setField('shipping','minDays',v),'number')}{field('Maximum delivery days',current.maxDays,v=>setField('shipping','maxDays',v),'number')}</div><div className="settings-subheading"><div><h3>City-wise rates</h3><p>Multan Rs.270; fallback default Rs.300.</p></div></div><div className="settings-city-list">{(current.cityRates||[]).map((row,i)=><div className="settings-city-row" key={i}>{field('City',row.city,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,city:v}:r)}})))}{field('Rate (PKR)',row.rate,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,rate:v}:r)}})),'number')}<button type="button" className="settings-remove" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.filter((_,j)=>j!==i)}}))} aria-label={`Remove city rate ${row.city || i+1}`} title="Remove city"><Trash2 aria-hidden="true" size={15}/></button></div>)}</div><button type="button" className="ghost-btn" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:[...(x.shipping.cityRates||[]),{city:'',rate:x.shipping.defaultRate||300}]}}))}><Plus size={15}/> Add city</button></div>}
       {section==='storefront'&&<div className="settings-stack">{toggle('Announcement bar',current.announcementEnabled,v=>setField('storefront','announcementEnabled',v))}<div className="settings-grid">{area('Announcement text',current.announcementText,v=>setField('storefront','announcementText',v))}{field('Button text',current.announcementButton,v=>setField('storefront','announcementButton',v))}{field('Button link',current.announcementLink,v=>setField('storefront','announcementLink',v))}<label className="settings-field"><span>Theme</span><select value={current.announcementTheme||'gold'} onChange={e=>setField('storefront','announcementTheme',e.target.value)}><option value="gold">Gold</option><option value="dark">Dark</option><option value="light">Light</option></select></label></div>{toggle('Maintenance mode',current.maintenanceMode,v=>setField('storefront','maintenanceMode',v),'Customer storefront ko maintenance screen dikhayega.')}{area('Maintenance message',current.maintenanceMessage,v=>setField('storefront','maintenanceMessage',v))}</div>}
       {section==='payments'&&<div className="settings-stack">{toggle('Cash on Delivery',current.codEnabled,v=>setField('payments','codEnabled',v))}{toggle('Online payments',current.onlinePaymentsEnabled,v=>setField('payments','onlinePaymentsEnabled',v),'Gateway integration complete hone ke baad enable karein.')}<div className="settings-info-card"><CreditCard size={22}/><div><strong>Payment & Transaction tracking</strong><p>Failed payments, refunds aur commission ko Admin → Transactions se track karein. Real gateway data provider integration par depend karega.</p><span className="settings-status-pill">GATEWAY DEPENDENT</span></div></div></div>}
       {section==='policies'&&<div className="settings-stack"><div className="settings-grid">{field('Cancellation window (hours)',current.cancellationWindowHours,v=>setField('policies','cancellationWindowHours',v),'number')}{field('Return window (days)',current.returnWindowDays,v=>setField('policies','returnWindowDays',v),'number')}</div>{area('Returns & refunds policy',current.returnsPolicy,v=>setField('policies','returnsPolicy',v))}{area('Shipping policy',current.shippingPolicy,v=>setField('policies','shippingPolicy',v))}{area('Privacy policy',current.privacyPolicy,v=>setField('policies','privacyPolicy',v))}{area('Terms & conditions',current.terms,v=>setField('policies','terms',v))}</div>}
@@ -5941,40 +6104,32 @@ function MobileZoomLock(){
     viewport.setAttribute('content',content);
     if(!viewport.parentNode) document.head.appendChild(viewport);
 
-    const preventMultiTouch=(event)=>{
-      if(event.touches && event.touches.length>1){
-        event.preventDefault();
-      }
-    };
-    const preventGesture=(event)=>{
-      event.preventDefault();
-    };
-    const preventCtrlWheel=(event)=>{
-      if(event.ctrlKey || event.metaKey){
-        event.preventDefault();
-      }
-    };
-    const preventZoomKeys=(event)=>{
+    const preventZoomKeys = (event) => {
       if(!(event.ctrlKey || event.metaKey)) return;
-      if(['+','=','-','_','0'].includes(event.key)){
-        event.preventDefault();
-      }
+      if(['+','-','=','0'].includes(event.key)) event.preventDefault();
     };
+    const preventCtrlWheel = (event) => {
+      if(event.ctrlKey || event.metaKey) event.preventDefault();
+    };
+    const preventMultiTouch = (event) => {
+      if(event.touches && event.touches.length > 1) event.preventDefault();
+    };
+    const preventGesture = (event) => event.preventDefault();
 
-    document.addEventListener('touchmove',preventMultiTouch,{passive:false});
-    document.addEventListener('gesturestart',preventGesture,{passive:false});
-    document.addEventListener('gesturechange',preventGesture,{passive:false});
-    document.addEventListener('gestureend',preventGesture,{passive:false});
-    document.addEventListener('wheel',preventCtrlWheel,{passive:false});
-    document.addEventListener('keydown',preventZoomKeys,{passive:false});
+    document.addEventListener('keydown', preventZoomKeys, { passive:false });
+    document.addEventListener('wheel', preventCtrlWheel, { passive:false });
+    document.addEventListener('touchmove', preventMultiTouch, { passive:false });
+    document.addEventListener('gesturestart', preventGesture, { passive:false });
+    document.addEventListener('gesturechange', preventGesture, { passive:false });
+    document.addEventListener('gestureend', preventGesture, { passive:false });
 
-    return()=>{
-      document.removeEventListener('touchmove',preventMultiTouch);
-      document.removeEventListener('gesturestart',preventGesture);
-      document.removeEventListener('gesturechange',preventGesture);
-      document.removeEventListener('gestureend',preventGesture);
-      document.removeEventListener('wheel',preventCtrlWheel);
-      document.removeEventListener('keydown',preventZoomKeys);
+    return () => {
+      document.removeEventListener('keydown', preventZoomKeys);
+      document.removeEventListener('wheel', preventCtrlWheel);
+      document.removeEventListener('touchmove', preventMultiTouch);
+      document.removeEventListener('gesturestart', preventGesture);
+      document.removeEventListener('gesturechange', preventGesture);
+      document.removeEventListener('gestureend', preventGesture);
     };
   },[]);
 
