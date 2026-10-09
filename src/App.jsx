@@ -102,6 +102,85 @@ function mapProduct(p) {
 function mapCategory(c) { return { ...c, image: c.image_url || '', createdAt: c.created_at }; }
 function mapBanner(b) { return { ...b, buttonText: b.button_text || '', buttonLink: b.button_link || '/deals', startDate: b.start_date || '', endDate: b.end_date || '', imageUrl: b.image_url || '', createdAt: b.created_at }; }
 
+function getCategoryDescendantIds(categories, categoryId) {
+  const result = new Set([String(categoryId)]);
+  let frontier = [String(categoryId)];
+  while (frontier.length) {
+    const next = [];
+    for (const parentId of frontier) {
+      categories.forEach(category => {
+        if (category.parent_category_id && String(category.parent_category_id) === parentId && !result.has(String(category.id))) {
+          result.add(String(category.id));
+          next.push(String(category.id));
+        }
+      });
+    }
+    frontier = next;
+  }
+  return [...result];
+}
+
+function getCategoryProductCount(categories, products, categoryId) {
+  const ids = new Set(getCategoryDescendantIds(categories, categoryId));
+  return products.filter(product => product.status !== 'inactive' && ids.has(String(product.categoryId))).length;
+}
+
+function categoryOrder(name = '') {
+  const n = String(name).trim().toLowerCase().replace(/[’']/g, '').replace(/\s+/g, ' ');
+  const preferred = [
+    ['women', 'womens'], ['men', 'mens'], ['fragrances'], ['other'],
+    ['cosmetics'], ['jewelry', 'jewellery'], ['islamic accessories'], ['bags'], ['home decoration']
+  ];
+  const index = preferred.findIndex(aliases => aliases.includes(n));
+  return index < 0 ? 100 : index;
+}
+
+function sortMainCategories(categories = []) {
+  return [...categories].filter(category => !category.parent_category_id).sort((a, b) => {
+    const orderDiff = categoryOrder(a.name) - categoryOrder(b.name);
+    if (orderDiff) return orderDiff;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+}
+
+function getCategoryArtworkInfo(name = '') {
+  const value = String(name).toLowerCase();
+  if (/cosmetic|beauty|makeup|skin care|skincare|lipstick/.test(value)) return { theme: 'cosmetics', Icon: Sparkles };
+  if (/jewel|jewell|ring|necklace|bracelet|earring|watch/.test(value)) return { theme: 'jewelry', Icon: Heart };
+  if (/islam|prayer|quran|tasbih|hijab|faith/.test(value)) return { theme: 'islamic', Icon: Star };
+  if (/bag|purse|wallet|backpack/.test(value)) return { theme: 'bags', Icon: ShoppingBag };
+  if (/home|decor|kitchen|living|furniture/.test(value)) return { theme: 'home', Icon: Store };
+  if (/fragrance|perfume|scent|attar/.test(value)) return { theme: 'fragrance', Icon: Sparkles };
+  if (/women|female|ladies|girl/.test(value)) return { theme: 'women', Icon: Heart };
+  if (/men|male|gents|boy|wear|clothing|fashion/.test(value)) return { theme: 'men', Icon: Package };
+  if (/mobile|tech|car|electronic|accessories/.test(value)) return { theme: 'tech', Icon: Boxes };
+  if (/other|misc|general/.test(value)) return { theme: 'other', Icon: Tag };
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  const palettes = ['custom-rose', 'custom-sage', 'custom-blue', 'custom-sand', 'custom-lilac'];
+  return { theme: palettes[hash % palettes.length], Icon: Tag };
+}
+
+function CategoryArtwork({ category, image = '', compact = false }) {
+  const { theme, Icon } = getCategoryArtworkInfo(category?.name || '');
+  const safeImage = String(image || '').trim();
+  const artworkStyle = safeImage
+    ? { backgroundImage: `linear-gradient(135deg, rgba(17,17,17,.04), rgba(17,17,17,.28)), url(${JSON.stringify(safeImage)})` }
+    : undefined;
+  const initial = String(category?.name || 'H').trim().charAt(0).toUpperCase() || 'H';
+  return (
+    <div
+      className={`category-artwork category-artwork-${theme}${safeImage ? ' has-image' : ''}${compact ? ' compact' : ''}`}
+      style={artworkStyle}
+      aria-hidden="true"
+    >
+      <span className="category-artwork-orbit" />
+      <span className="category-artwork-initial">{initial}</span>
+      <Icon className="category-artwork-icon" size={compact ? 25 : 58} strokeWidth={1.15} />
+    </div>
+  );
+}
+
 const StoreContext = createContext(null);
 function StoreProvider({ children }) {
   const [store, setStore] = useState({ ...emptyStore, ...readCart(), adminSettings: DEFAULT_ADMIN_SETTINGS });
@@ -489,43 +568,279 @@ function FAQPage() {
 }
 
 const DEFAULT_PRIVACY_POLICY = [
-  ["Information we collect", "Hafiz Mart may collect the information needed to create accounts, process orders, provide delivery, handle support requests and improve the shopping experience. This may include your name, contact details, delivery information, order details and information you submit in reviews or complaints."],
-  ["How information is used", "Information is used to operate the storefront, process and track orders, provide customer support, manage reviews and send service-related notifications. Marketing messages are only used where enabled by the store and applicable law."],
-  ["Payments", "Payment details should be handled by the active payment provider. Hafiz Mart should not store raw card numbers or CVV values in the storefront database."],
-  ["Local storage and cookies", "The storefront may use browser local storage for cart and wishlist continuity. Third-party services such as analytics or payment providers may use their own technologies when those integrations are enabled."],
-  ["Reviews and support uploads", "Photos and text submitted in reviews or complaints may be stored in Hafiz Mart's configured storage service so that the support or review workflow can operate."],
-  ["Your choices", "You can contact Hafiz Mart through the published support channels to ask about your information, account or order history, subject to applicable legal requirements."],
-  ["Policy updates", "This policy may be updated as the store, services or legal requirements change. The latest published version will appear on this page."],
+  {
+    id: "overview",
+    number: "01",
+    navLabel: "Overview",
+    title: "Privacy is part of your shopping experience",
+    lead: "This notice explains what information Hafiz Mart may collect, why it is needed, how it is used, and the choices available to you when you browse our store or place an order.",
+    paragraphs: [
+      "This policy applies to the Hafiz Mart website, customer account, shopping and checkout features, product reviews, newsletter sign-up, and customer-support workflows. It should be read together with any shipping, returns, refund and terms pages that apply to your purchase.",
+      "We aim to request information that is relevant to running the store, completing your order, communicating with you, protecting the service and meeting applicable legal obligations. Please do not submit information that is not needed for your request."
+    ]
+  },
+  {
+    id: "information",
+    number: "02",
+    navLabel: "Information we collect",
+    title: "Information you share and information created through use",
+    lead: "The type of information depends on which Hafiz Mart features you use. You can browse product pages without creating a customer account, but placing an order or using certain account features requires more information.",
+    items: [
+      { title: "Account and profile details", text: "Details such as your name, email address, phone number, account identifier and profile information that you provide or maintain when registering, signing in or updating your profile. Authentication is provided through the store's configured Supabase service." },
+      { title: "Order, billing and delivery details", text: "Items purchased, product names or SKUs, quantities, order number, order status, subtotal, discounts, delivery charges, selected payment method, recipient details, phone number and shipping or billing address that you submit at checkout." },
+      { title: "Reviews and customer support", text: "Ratings, review text, images, complaint type, subject, message, optional order reference and images you choose to attach to a support request. Please check photos for addresses, identity documents or other personal details before uploading." },
+      { title: "Newsletter subscription", text: "If you subscribe to the newsletter, the email address you submit is recorded so the store can manage the subscription and related updates." },
+      { title: "Shopping preferences and browser storage", text: "Your cart and wishlist may be saved in your browser so they can remain available when you return. The sign-in service may also maintain an authentication session on your device." },
+      { title: "Technical and service information", text: "The website, its hosting platform or service providers may process routine technical information required to deliver, secure and troubleshoot the service, such as connection, browser or device details and service logs, depending on the provider's configuration." }
+    ]
+  },
+  {
+    id: "use",
+    number: "03",
+    navLabel: "How we use it",
+    title: "Information is used for clear business purposes",
+    items: [
+      { title: "Run your account and the store", text: "Create and authenticate accounts, remember your session, display saved cart or wishlist items, and maintain your profile and order history." },
+      { title: "Process and deliver purchases", text: "Confirm orders, calculate totals and delivery charges, prepare receipts, coordinate delivery, track order status and handle cancellation, return, refund or other order-related requests." },
+      { title: "Provide support and keep the store reliable", text: "Reply to questions and complaints, review customer-submitted content, manage service notifications, investigate suspicious activity, prevent misuse and improve store operations." },
+      { title: "Send requested updates", text: "Use the details you provide to communicate about an order, account, complaint or other request. Newsletter or promotional use is associated with your newsletter subscription and any preferences you communicate to us." },
+      { title: "Meet legal and operational needs", text: "Keep appropriate business records, respond to valid legal requests, enforce store terms, resolve disputes and protect customers, the store and the public where necessary." }
+    ]
+  },
+  {
+    id: "orders-delivery",
+    number: "04",
+    navLabel: "Orders & delivery",
+    title: "What happens to order information",
+    paragraphs: [
+      "When you place an order, the store needs the contact and address details required to confirm the purchase and get it to the intended recipient. Relevant order information may be made available to authorised store staff and, where a delivery service is used, the courier or delivery partner responsible for fulfilling the order.",
+      "If you choose an order or contact option that opens WhatsApp, the prepared message may include the details relevant to that request, such as your name, phone or email, order number, products, totals and delivery address. The message is not sent until you choose to send it. WhatsApp then processes the message under its own terms and privacy practices; review the draft before sending it.",
+      "Please make sure the contact and delivery details you provide are accurate and that you have permission to provide another person's details when placing an order for them."
+    ]
+  },
+  {
+    id: "reviews-uploads",
+    number: "05",
+    navLabel: "Reviews & uploads",
+    title: "Content you choose to publish or submit",
+    paragraphs: [
+      "Product reviews may appear on public product pages so other shoppers can read customer feedback. A review may display the name or display identifier associated with your submission, your rating, written feedback and any image you attach. Avoid including private contact details or sensitive information in public reviews.",
+      "Images submitted with reviews or complaints are stored by the configured file-storage service. How a file can be accessed depends in part on the store's storage and access configuration. Do not upload passwords, payment-card details, identity documents or information about another person unless it is genuinely required and you are authorised to share it.",
+      "If you need a review or an uploaded image corrected or removed, contact the store through the support details below. Some copies may remain in operational backups or records for a limited period where retention is necessary."
+    ]
+  },
+  {
+    id: "storage-cookies",
+    number: "06",
+    navLabel: "Browser storage",
+    title: "Essential storage, sessions and cookies",
+    paragraphs: [
+      "Hafiz Mart uses browser storage for basic shopping continuity, including saving cart and wishlist information on your device. The configured authentication service may also store or maintain the session needed to keep you signed in. These functions help the site remember choices you made and provide account features.",
+      "You can clear site data or change your browser settings. Clearing stored data may remove a locally saved cart or wishlist, sign you out, or affect other website functions. The current storefront code does not itself establish that third-party advertising pixels or an analytics platform are active; if optional tracking technologies are added later, this notice should be updated to describe them and any choices that apply."
+    ]
+  },
+  {
+    id: "marketing",
+    number: "07",
+    navLabel: "Marketing choices",
+    title: "Newsletter and promotional communications",
+    paragraphs: [
+      "If you enter your email address in the newsletter form, it is recorded as a subscription. You can ask Hafiz Mart to stop newsletter communications or remove your subscription by contacting support. We may still send essential messages about an order, account security or a support request where they are needed to provide the service.",
+      "The channel and delivery of any email or other notification depend on which communication services are actually configured by the store. We do not promise that a message will be sent through a channel that has not been enabled."
+    ]
+  },
+  {
+    id: "sharing",
+    number: "08",
+    navLabel: "When data is shared",
+    title: "Sharing only where the store needs it",
+    paragraphs: [
+      "Hafiz Mart does not offer personal information for sale as a product. Information may be disclosed to the following categories of recipients only where reasonably needed for the purposes described in this policy, when you request it, or where the law permits or requires it:",
+    ],
+    items: [
+      { title: "Store technology providers", text: "Services that host or deliver the website and provide configured account authentication, database or file storage. The current application uses Supabase for these backend functions." },
+      { title: "Delivery and fulfilment providers", text: "A courier, delivery partner or other service involved in getting an order to you, where such a provider is used for your order." },
+      { title: "Services you choose to use", text: "For example, WhatsApp when you open and send a prepared message from the site, subject to the information in that message and the third party's own terms." },
+      { title: "Payment providers", text: "If a third-party online payment service is enabled and integrated, information needed to process the transaction may be handled by that provider under its own terms. Available payment methods are shown at checkout." },
+      { title: "Legal, safety and business matters", text: "Competent authorities or professional advisers where required by law, to establish or defend legal claims, investigate fraud, protect safety or enforce store terms. A business transfer may also require a controlled transfer of relevant records, subject to appropriate protections." }
+    ]
+  },
+  {
+    id: "payments-security",
+    number: "09",
+    navLabel: "Payments & security",
+    title: "Payment information and safeguards",
+    paragraphs: [
+      "The checkout records your selected payment method and the transaction details needed to manage an order. The standard storefront order form is not intended to collect a full payment-card number, card security code (CVV), PIN or one-time password. Do not send these secrets to Hafiz Mart through ordinary email, chat or WhatsApp.",
+      "Where an external payment gateway is enabled, review that provider's payment and privacy terms before submitting payment information. The provider may process data independently for payment authorisation, fraud prevention and regulatory purposes.",
+      "We use the technical and organisational controls available to the store and its providers to help protect information. No website, transmission method or storage system can be guaranteed to be completely secure, so keep your login details private, use a device you trust and tell us promptly if you suspect unauthorised access to your account."
+    ]
+  },
+  {
+    id: "retention",
+    number: "10",
+    navLabel: "Data retention",
+    title: "How long information is kept",
+    paragraphs: [
+      "We keep personal information for as long as it is reasonably needed to provide the requested service, maintain an account and its order history, respond to support requests, manage reviews and subscriptions, meet applicable record-keeping requirements, resolve disputes or protect the store from misuse.",
+      "The appropriate period depends on the type of information and why it was collected. When information is no longer needed, it may be deleted, anonymised or otherwise handled in line with the available systems and applicable requirements. Cart and wishlist information saved only in your browser can generally be removed by clearing this site's browser storage."
+    ]
+  },
+  {
+    id: "your-rights",
+    number: "11",
+    navLabel: "Your choices & rights",
+    title: "You remain in control of your information",
+    items: [
+      { title: "Access and correction", text: "You can review account information available in your account and ask us to correct information that is inaccurate or incomplete." },
+      { title: "Removal and account requests", text: "You may ask us to delete or restrict information where appropriate. Some information may need to be retained for a completed transaction, legal requirement, security purpose or dispute." },
+      { title: "Newsletter preferences", text: "You may request to unsubscribe from newsletter or promotional communications. Service messages relating to an existing order or account may still be necessary." },
+      { title: "Reviews and support content", text: "You can contact support to request a review or uploaded item be corrected or removed, subject to reasonable verification and any required record retention." },
+      { title: "How to make a request", text: "Use the support channels shown on this page or the site's Support page. We may ask for sufficient information to verify that the request concerns your account before taking action." }
+    ]
+  },
+  {
+    id: "children",
+    number: "12",
+    navLabel: "Children's privacy",
+    title: "Protecting younger users",
+    paragraphs: [
+      "Hafiz Mart is a general shopping service and is not intended to encourage children to submit personal information independently. If you are below the age at which you can legally make an online purchase in your location, use the store with the involvement of a parent or legal guardian.",
+      "If a parent or guardian believes a child has provided personal information inappropriately, please contact us so we can review the request and take appropriate steps where possible and legally required."
+    ]
+  },
+  {
+    id: "third-party-links",
+    number: "13",
+    navLabel: "Third-party services",
+    title: "External websites and provider policies",
+    paragraphs: [
+      "The store may link to, or allow you to use, services operated by other organisations, including WhatsApp, hosting and infrastructure providers, delivery services and any payment service enabled in the future. Their websites, apps and services are governed by their own terms and privacy notices.",
+      "Third-party providers may process information in locations outside your city or country, depending on their systems and configuration. Their handling of information is subject to their own policies and applicable requirements. Hafiz Mart cannot control the privacy practices of a service that it does not operate, so please review the relevant provider's notice when you use it."
+    ]
+  },
+  {
+    id: "changes",
+    number: "14",
+    navLabel: "Policy updates",
+    title: "Updates to this notice",
+    paragraphs: [
+      "We may update this policy when store features, service providers, business processes or applicable requirements change. The current version will be published on this page with its latest-update date. Please review this page periodically, especially when you use a new feature.",
+      "A material change should be communicated through an appropriate store channel where required. Continuing to use the store does not remove any rights that cannot legally be waived."
+    ]
+  },
+  {
+    id: "contact",
+    number: "15",
+    navLabel: "Contact us",
+    title: "Questions, requests or privacy concerns?",
+    paragraphs: [
+      "For a privacy question, account-data request, correction, newsletter removal or concern about a review or support upload, contact Hafiz Mart using the verified store contact details below. Please do not include passwords, card details, PINs or one-time passcodes in your message."
+    ]
+  }
 ];
 
 function PrivacyPolicyPage() {
   const { store } = useStore();
   const configured = String(store.adminSettings?.policies?.privacyPolicy || "").trim();
+  const general = store.adminSettings?.general || {};
+  const contactMethods = [
+    general.supportEmail && { label: "Email support", value: general.supportEmail, href: `mailto:${general.supportEmail}` },
+    general.supportPhone && { label: "Call support", value: general.supportPhone, href: `tel:${String(general.supportPhone).replace(/[^+\d]/g, "")}` },
+    general.whatsapp && { label: "WhatsApp support", value: general.whatsapp, href: `https://wa.me/${String(general.whatsapp).replace(/\D/g, "")}` },
+    general.address && { label: "Store address", value: general.address, href: "" },
+  ].filter(Boolean);
+  const sections = configured
+    ? [{ id: "store-policy", number: "", navLabel: "Published policy", title: "Store privacy policy" }, { id: "contact", number: "", navLabel: "Contact us", title: "Questions or privacy concerns?" }]
+    : DEFAULT_PRIVACY_POLICY;
 
   return (
-    <main className="page">
-      <div className="container policy-page">
-        <div className="page-head">
-          <div>
-            <p className="eyebrow">LEGAL</p>
-            <h1>Privacy Policy</h1>
-            <p>How Hafiz Mart handles customer information and storefront data.</p>
+    <main className="page hm-privacy-page">
+      <div className="container hm-privacy-shell">
+        <header className="hm-privacy-hero">
+          <div className="hm-privacy-hero-meta">
+            <span className="hm-privacy-kicker"><ShieldCheck size={15} aria-hidden="true" /> PRIVACY CENTRE</span>
+            <span className="hm-privacy-updated">Last updated: 9 October 2026</span>
           </div>
-        </div>
+          <h1>Privacy Policy</h1>
+          <p className="hm-privacy-hero-copy">Your trust matters. Understand what information is used when you shop with Hafiz Mart, how it helps us serve your order, and how you can make a privacy request.</p>
+          <div className="hm-privacy-highlights">
+            <div><span className="hm-privacy-highlight-number">01</span><div><strong>Clear purpose</strong><small>Information supports accounts, orders and customer care.</small></div></div>
+            <div><span className="hm-privacy-highlight-number">02</span><div><strong>Relevant sharing</strong><small>Service partners receive details only when needed for their role.</small></div></div>
+            <div><span className="hm-privacy-highlight-number">03</span><div><strong>Your choices</strong><small>You can ask us to update or review your information.</small></div></div>
+          </div>
+        </header>
 
-        <article className="policy-card">
-          {configured
-            ? configured.split(/\n{2,}/).map((block, index) => <p key={index}>{block}</p>)
-            : DEFAULT_PRIVACY_POLICY.map(([heading, text]) => (
-                <section key={heading}>
-                  <h2>{heading}</h2>
-                  <p>{text}</p>
-                </section>
+        <div className="hm-privacy-layout">
+          <aside className="hm-privacy-toc" aria-label="Privacy policy contents">
+            <p className="hm-privacy-toc-title">ON THIS PAGE</p>
+            <nav>
+              {sections.map(section => (
+                <a key={section.id} href={`#hm-privacy-${section.id}`}>
+                  {section.number && <span>{section.number}</span>}
+                  <span>{section.navLabel}</span>
+                </a>
               ))}
-          <p className="policy-note">
-            This page is a general storefront policy summary and should be reviewed by the store owner for local legal requirements before launch.
-          </p>
-        </article>
+            </nav>
+            <div className="hm-privacy-toc-help">
+              <ShieldCheck size={18} aria-hidden="true" />
+              <p><strong>Need help?</strong><span>Contact us to ask a question or make a privacy request.</span></p>
+              <Link to="/complaints">Contact support <ArrowRight size={13} aria-hidden="true" /></Link>
+            </div>
+          </aside>
+
+          <article className="hm-privacy-document">
+            {configured ? (
+              <section className="hm-privacy-section" id="hm-privacy-store-policy">
+                <div className="hm-privacy-section-heading"><span className="hm-privacy-section-number">PUBLISHED</span><div><h2>Store privacy policy</h2><p>Policy published by the store administrator.</p></div></div>
+                <div className="hm-privacy-prose">
+                  {configured.split(/\n{2,}/).map((block, index) => <p key={index}>{block}</p>)}
+                </div>
+              </section>
+            ) : DEFAULT_PRIVACY_POLICY.map(section => (
+              <section className="hm-privacy-section" id={`hm-privacy-${section.id}`} key={section.id}>
+                <div className="hm-privacy-section-heading">
+                  <span className="hm-privacy-section-number">{section.number}</span>
+                  <div><h2>{section.title}</h2>{section.lead && <p>{section.lead}</p>}</div>
+                </div>
+                <div className="hm-privacy-prose">
+                  {section.paragraphs?.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+                  {section.items?.length > 0 && (
+                    <div className="hm-privacy-detail-list">
+                      {section.items.map(item => (
+                        <div className="hm-privacy-detail" key={item.title}>
+                          <span className="hm-privacy-detail-mark" aria-hidden="true">✓</span>
+                          <div><h3>{item.title}</h3><p>{item.text}</p></div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {section.id === "contact" && (
+                    <div className="hm-privacy-contact-grid">
+                      {contactMethods.map(method => (
+                        <div className="hm-privacy-contact-card" key={method.label}>
+                          <span>{method.label}</span>
+                          {method.href ? <a href={method.href} target={method.href.startsWith("https://") ? "_blank" : undefined} rel={method.href.startsWith("https://") ? "noreferrer" : undefined}>{method.value}</a> : <strong>{method.value}</strong>}
+                        </div>
+                      ))}
+                      {!contactMethods.length && <div className="hm-privacy-contact-empty"><strong>Contact Hafiz Mart Support</strong><p>Open the Support page on this website to submit your request. Store contact details can be configured by the administrator.</p><Link to="/complaints">Go to Support <ArrowRight size={14} aria-hidden="true" /></Link></div>}
+                    </div>
+                  )}
+                </div>
+              </section>
+            ))}
+            {configured && (
+              <section className="hm-privacy-section" id="hm-privacy-contact">
+                <div className="hm-privacy-section-heading"><span className="hm-privacy-section-number">HELP</span><div><h2>Questions or privacy concerns?</h2><p>Use the verified contact options below to request access, correction, removal or help with your subscription.</p></div></div>
+                <div className="hm-privacy-contact-grid">
+                  {contactMethods.map(method => <div className="hm-privacy-contact-card" key={method.label}><span>{method.label}</span>{method.href ? <a href={method.href} target={method.href.startsWith("https://") ? "_blank" : undefined} rel={method.href.startsWith("https://") ? "noreferrer" : undefined}>{method.value}</a> : <strong>{method.value}</strong>}</div>)}
+                  {!contactMethods.length && <div className="hm-privacy-contact-empty"><strong>Contact Hafiz Mart Support</strong><p>Open the Support page on this website to submit your request. Store contact details can be configured by the administrator.</p><Link to="/complaints">Go to Support <ArrowRight size={14} aria-hidden="true" /></Link></div>}
+                </div>
+              </section>
+            )}
+            <div className="hm-privacy-disclaimer"><ShieldCheck size={19} aria-hidden="true"/><p><strong>A note about this policy</strong><span>This is a store-specific privacy notice based on the current storefront features. The store owner should verify actual provider settings, retention practices, contact information and applicable local legal requirements before treating it as final legal advice.</span></p></div>
+          </article>
+        </div>
       </div>
     </main>
   );
@@ -625,212 +940,29 @@ function Navbar() {
 
   const closeMenu = () => setOpen(false);
 
-  const slugify = (value = "") =>
-  value
-    .toLowerCase()
-    .trim()
-    .replace(/['’]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-const getMenuCategory = (label, categorySlug) => {
-  const category = store.categories.find(
-    c => slugify(c.name || "") === categorySlug
-  );
-
-  const productCount = category
-    ? store.products.filter(
-        product =>
-          product.status !== "inactive" &&
-          product.categoryId === category.id
-      ).length
-    : 0;
-
-  return {
-    label,
-    categorySlug,
-    productCount,
-    available: Boolean(category && productCount > 0),
-    path: category
-      ? `/shop?category=${encodeURIComponent(category.name)}`
-      : "#"
-  };
-};
-const getFixedMenuCategory = (label, categorySlug) => {
-  const category = store.categories.find(
-    c => slugify(c.name || "") === categorySlug
-  );
-
-  const productCount = category
-    ? store.products.filter(
-        product =>
-          product.status !== "inactive" &&
-          product.categoryId === category.id
-      ).length
-    : 0;
-
-  return {
-    label,
-    categorySlug,
-    productCount,
-    available: Boolean(category && productCount > 0),
-    fixed: true,
-    path: category
-      ? `/shop?category=${encodeURIComponent(category.name)}`
-      : "#"
-  };
-};
-
-const getDynamicCategories = (section) => {
-  return store.categories
-    .filter(c => (c.nav_section || "other") === section)
-    .map(c => {
-      const productCount = store.products.filter(
-        product =>
-          product.status !== "inactive" &&
-          product.categoryId === c.id
-      ).length;
-
-      return {
-        label: c.name,
-        categorySlug: slugify(c.name),
-        productCount,
-        available: productCount > 0,
-        fixed: false,
-        path: `/shop?category=${encodeURIComponent(c.name)}`
-      };
-    });
-};
-
-const mergeMenuItems = (fixedItems, section) => {
-  const dynamicItems = getDynamicCategories(section);
-
-  const fixedNames = new Set(
-    fixedItems.map(item => item.label.toLowerCase())
-  );
-
-  const extraItems = dynamicItems.filter(
-    item => !fixedNames.has(item.label.toLowerCase())
-  );
-
-  return [
-    ...fixedItems,
-    ...extraItems
-  ];
-};
-
-const menuGroups = [
-  {
-    title: "Women's",
-
-    items: mergeMenuItems(
-      [
-        getFixedMenuCategory(
-          "Women's New Arrivals",
-          "womens-new-arrivals"
-        ),
-
-        getFixedMenuCategory(
-          "Women's Trending",
-          "womens-trending"
-        ),
-
-        getFixedMenuCategory(
-          "Women's Modern Wear",
-          "womens-modern-wear"
-        ),
-
-        getFixedMenuCategory(
-          "Women's Accessories",
-          "womens-accessories"
-        )
-      ],
-      "women"
-    )
-  },
-
-  {
-    title: "Men's",
-
-    items: mergeMenuItems(
-      [
-        getFixedMenuCategory(
-          "Men's New Arrivals",
-          "mens-new-arrivals"
-        ),
-
-        getFixedMenuCategory(
-          "Men's Trending",
-          "mens-trending"
-        ),
-
-        getFixedMenuCategory(
-          "Men's Modern Wear",
-          "mens-modern-wear"
-        ),
-
-        getFixedMenuCategory(
-          "Men's Accessories",
-          "mens-accessories"
-        )
-      ],
-      "men"
-    )
-  },
-
-  {
-    title: "Fragrances",
-
-    items: mergeMenuItems(
-      [
-        getFixedMenuCategory(
-          "Men's Fragrances",
-          "mens-fragrances"
-        ),
-
-        getFixedMenuCategory(
-          "Women's Fragrances",
-          "womens-fragrances"
-        ),
-
-        getFixedMenuCategory(
-          "Unisex Fragrances",
-          "unisex-fragrances"
-        )
-      ],
-      "fragrances"
-    )
-  },
-
-  {
-    title: "Other",
-
-    items: mergeMenuItems(
-      [
-        getFixedMenuCategory(
-          "Mobile Accessories",
-          "mobile-accessories"
-        ),
-
-        getFixedMenuCategory(
-          "Car Accessories",
-          "car-accessories"
-        ),
-
-        getFixedMenuCategory(
-          "Home Accessories",
-          "home-accessories"
-        ),
-
-        getFixedMenuCategory(
-          "Kitchen Wear Products",
-          "kitchen-wear-products"
-        )
-      ],
-      "other"
-    )
-  }
-];
+  const menuGroups = sortMainCategories(store.categories).map(root => {
+    const children = store.categories
+      .filter(category => String(category.parent_category_id || '') === String(root.id))
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    const rootPath = `/shop?category=${encodeURIComponent(root.name)}`;
+    const rootCount = getCategoryProductCount(store.categories, store.products, root.id);
+    return {
+      id: root.id,
+      title: root.name,
+      path: rootPath,
+      productCount: rootCount,
+      items: children.map(category => {
+        const productCount = getCategoryProductCount(store.categories, store.products, category.id);
+        return {
+          id: category.id,
+          label: category.name,
+          productCount,
+          available: productCount > 0,
+          path: `/shop?category=${encodeURIComponent(category.name)}`
+        };
+      })
+    };
+  });
 
 
   return (
@@ -865,28 +997,18 @@ const menuGroups = [
 
               <div className="nav-dropdown-menu">
                 {menuGroups.map((group) => (
-                  <div className="nav-dropdown-column" key={group.title}>
-                    <strong>{group.title}</strong>
-
-                  {group.items.map((item) => (
-  item.available ? (
-    <Link
-      key={item.label}
-      to={item.path}
-      onClick={closeMenu}
-    >
-      {item.label}
-    </Link>
-  ) : (
-    <span
-      key={item.label}
-      className="category-menu-coming-soon"
-    >
-      {item.label}
-      <small>Coming Soon</small>
-    </span>
-  )
-))}  
+                  <div className="nav-dropdown-column" key={group.id}>
+                    <Link className="nav-category-heading" to={group.path} onClick={closeMenu}>
+                      <strong>{group.title}</strong>
+                      {group.productCount === 0 && group.items.length === 0 && <small>Coming Soon</small>}
+                    </Link>
+                    {group.items.length > 0 ? group.items.map(item => (
+                      item.available ? (
+                        <Link key={item.id} to={item.path} onClick={closeMenu}>{item.label}</Link>
+                      ) : (
+                        <span key={item.id} className="category-menu-coming-soon">{item.label}<small>Coming Soon</small></span>
+                      )
+                    )) : <span className="category-menu-hint">Explore this collection</span>}
                   </div>
                 ))}
               </div>
@@ -988,101 +1110,19 @@ const menuGroups = [
                   {user ? "My Account" : "Login / Sign Up"}
                 </Link>
 
-                <div className="mobile-menu-section">
-                  <strong>Women's</strong>
-
-                  {menuGroups[0].items.map((item) => (
-  item.available ? (
-    <Link
-      key={item.label}
-      to={item.path}
-      onClick={closeMenu}
-    >
-      {item.label}
-    </Link>
-  ) : (
-    <span
-      key={item.label}
-      className="category-menu-coming-soon"
-    >
-      {item.label}
-      <small>Coming Soon</small>
-    </span>
-  )
-))}
-                </div>
-
-                <div className="mobile-menu-section">
-                  <strong>Men's</strong>
-
-                 {menuGroups[1].items.map((item) => (
-  item.available ? (
-    <Link
-      key={item.label}
-      to={item.path}
-      onClick={closeMenu}
-    >
-      {item.label}
-    </Link>
-  ) : (
-    <span
-      key={item.label}
-      className="category-menu-coming-soon"
-    >
-      {item.label}
-      <small>Coming Soon</small>
-    </span>
-  )
-))}
-                </div>
-
-                <div className="mobile-menu-section">
-                  <strong>Fragrances</strong>
-
-                {menuGroups[2].items.map((item) => (
-  item.available ? (
-    <Link
-      key={item.label}
-      to={item.path}
-      onClick={closeMenu}
-    >
-      {item.label}
-    </Link>
-  ) : (
-    <span
-      key={item.label}
-      className="category-menu-coming-soon"
-    >
-      {item.label}
-      <small>Coming Soon</small>
-    </span>
-  )
-))}  
-                </div>
-
-                <div className="mobile-menu-section">
-                  <strong>Other</strong>
-
-                  {menuGroups[3].items.map((item) => (
-  item.available ? (
-    <Link
-      key={item.label}
-      to={item.path}
-      onClick={closeMenu}
-    >
-      {item.label}
-    </Link>
-  ) : (
-    <span
-      key={item.label}
-      className="category-menu-coming-soon"
-    >
-      {item.label}
-      <small>Coming Soon</small>
-    </span>
-  )
-))}
-                </div>
+                {menuGroups.map(group => (
+                  <div className="mobile-menu-section" key={group.id}>
+                    <Link className="mobile-main-category" to={group.path} onClick={closeMenu}>
+                      {group.title}
+                      {group.productCount === 0 && group.items.length === 0 && <small>Coming Soon</small>}
+                    </Link>
+                    {group.items.map(item => item.available ? (
+                      <Link key={item.id} to={item.path} onClick={closeMenu}>{item.label}</Link>
+                    ) : (
+                      <span key={item.id} className="category-menu-coming-soon">{item.label}<small>Coming Soon</small></span>
+                    ))}
+                  </div>
+                ))}
 
                 <Link to="/deals" onClick={closeMenu}>
                   Deals
@@ -1173,32 +1213,22 @@ const [newsletterMessage, setNewsletterMessage] = useState("");
   const featuredProducts = productsAfterNewArrivals.slice(8, 8 + featuredLimit);
   const heroProduct = activeProducts[0] || null;
 
-const categoryCards = store.categories.map(category => {
-  const productCount = store.products.filter(
-    product =>
-      product.status !== "inactive" &&
-      product.categoryId === category.id
-  ).length;
-
-  const image =
-    category.image ||
-    activeProducts.find(product => product.categoryId === category.id)?.image ||
-    "";
-
+const mainCategories = sortMainCategories(store.categories);
+const categoryCards = mainCategories.map(category => {
+  const descendants = new Set(getCategoryDescendantIds(store.categories, category.id));
+  const productCount = getCategoryProductCount(store.categories, activeProducts, category.id);
+  const childCategories = store.categories.filter(child => String(child.parent_category_id || '') === String(category.id));
+  const firstChildImage = childCategories.find(child => child.image)?.image || '';
+  const productImage = activeProducts.find(product => descendants.has(String(product.categoryId)) && product.image)?.image || '';
   return {
-    id: category.id,
-    name: category.name,
-    image,
+    ...category,
+    image: category.image || firstChildImage || productImage || '',
     productCount,
-    available: productCount > 0
+    childCount: childCategories.length
   };
 });
 
-const availableCats = categoryCards
-  .filter(category => category.available)
-  .slice(0, 8);
-
-const comingSoonCount = categoryCards.filter(category => !category.available).length;
+const availableCats = categoryCards;
 
   return (
     <>
@@ -1283,7 +1313,7 @@ const comingSoonCount = categoryCards.filter(category => !category.available).le
                 <h2>Shop by Category</h2>
               </div>
 
-              {(availableCats.length > 0 || comingSoonCount > 0) && (
+              {(availableCats.length > 0) && (
                 <Link className="text-link" to="/categories">
                   View All <ArrowRight size={15} />
                 </Link>
@@ -1291,44 +1321,28 @@ const comingSoonCount = categoryCards.filter(category => !category.available).le
             </div>
 {availableCats.length ? (
   <div className="home-category-grid">
-    {availableCats.map((c) => (
-      <div className="home-category-card" key={c.id}>
-        <div
-          className={`category-icon ${c.image ? "has-image" : "category-icon-placeholder"}`}
-          style={c.image ? { backgroundImage: `url("${c.image}")` } : undefined}
-          aria-hidden="true"
-        >
-          {!c.image && <span className="category-initial">{c.name?.trim()?.charAt(0)?.toUpperCase() || "H"}</span>}
-        </div>
-
-        <div>
+    {availableCats.map((c, index) => (
+      <Link
+        className="home-category-card"
+        key={c.id}
+        to={`/shop?category=${encodeURIComponent(c.name)}`}
+        aria-label={`View ${c.name} category`}
+      >
+        <CategoryArtwork category={c} image={c.image} />
+        <div className="home-category-copy">
+          <span className="category-card-kicker">COLLECTION {String(index + 1).padStart(2, "0")}</span>
           <strong>{c.name}</strong>
           <span>
-            {`${c.productCount} ${c.productCount === 1 ? "product" : "products"}`}
+            {c.productCount > 0
+              ? `${c.productCount} ${c.productCount === 1 ? "product" : "products"}`
+              : c.childCount > 0
+                ? `${c.childCount} ${c.childCount === 1 ? "collection" : "collections"}`
+                : "Coming soon"}
           </span>
         </div>
-
-        <Link
-          to={`/shop?category=${encodeURIComponent(c.name)}`}
-          aria-label={`View ${c.name}`}
-        >
-          <ArrowRight aria-hidden="true" size={17} />
-        </Link>
-      </div>
+        <span className="category-card-arrow"><ArrowRight aria-hidden="true" size={17} /></span>
+      </Link>
     ))}
-
-    {comingSoonCount > 0 && (
-      <div className="home-category-card coming-soon-category" aria-label={`${comingSoonCount} more categories coming soon`}>
-        <div className="category-icon category-icon-placeholder" aria-hidden="true">
-          <span className="category-more-icon">+</span>
-        </div>
-        <div>
-          <strong>More categories</strong>
-          <span>{comingSoonCount} coming soon</span>
-        </div>
-        <span className="category-coming-soon" aria-hidden="true">Coming Soon</span>
-      </div>
-    )}
   </div>
 ) : (
   <div className="home-category-coming-soon">
@@ -1342,6 +1356,36 @@ const comingSoonCount = categoryCards.filter(category => !category.available).le
 
           </div>
         </section>}
+
+        {/* NEW ARRIVALS */}
+        {newArrivals.length > 0 && (
+          <section className="home-section">
+            <div className="container">
+
+              <div className="home-section-heading">
+                <div>
+                  <p className="eyebrow">JUST IN</p>
+                  <h2>New Arrivals</h2>
+                </div>
+
+                <Link className="text-link" to="/shop">
+                  View All <ArrowRight size={15} />
+                </Link>
+              </div>
+
+              <div className="home-product-grid">
+                {newArrivals.map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onToast={setToast}
+                  />
+                ))}
+              </div>
+
+            </div>
+          </section>
+        )}
 
         {/* TRENDING */}
         <section className="home-section home-section-dark">
@@ -1372,10 +1416,8 @@ const comingSoonCount = categoryCards.filter(category => !category.available).le
               </div>
             ) : (
               <EmptyState
-                title="No Products Yet"
-                text="Add products from the admin panel."
-                action="Open Admin"
-                to="/admin"
+                title="More Products Coming Soon"
+                text="As the catalog grows, additional products will appear in Popular Products."
               />
             )}
 
@@ -1411,36 +1453,6 @@ const comingSoonCount = categoryCards.filter(category => !category.available).le
 
           </div>
         </section>}
-
-        {/* NEW ARRIVALS */}
-        {newArrivals.length > 0 && (
-          <section className="home-section">
-            <div className="container">
-
-              <div className="home-section-heading">
-                <div>
-                  <p className="eyebrow">JUST IN</p>
-                  <h2>New Arrivals</h2>
-                </div>
-
-                <Link className="text-link" to="/shop">
-                  View All <ArrowRight size={15} />
-                </Link>
-              </div>
-
-              <div className="home-product-grid">
-                {newArrivals.map(product => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onToast={setToast}
-                  />
-                ))}
-              </div>
-
-            </div>
-          </section>
-        )}
 
         {/* FEATURED */}
         {featuredProducts.length > 0 && (
@@ -2239,8 +2251,44 @@ function ProductDetails() {
   const price=Number(product.salePrice||product.price||0); const wished=store.wishlist.includes(product.id); const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const waText=`Assalam o Alaikum, mujhe Hafiz Mart se yeh product order karna hai:\n\nProduct: ${product.name}\nSKU: ${product.sku||"N/A"}\nQuantity: ${qty}\nPrice: Rs. ${price.toLocaleString()}\nTotal: Rs. ${(price*qty).toLocaleString()}`;
   return <main className="page"><div className="container product-detail"><div className="detail-gallery"><div className="detail-image"><img src={currentImage} alt={product.name}/></div>{images.length>1&&<div className="thumbnail-row" aria-label={`${product.name} images`}>{images.map((src,i)=><button type="button" key={src+i} className={i===selectedImage?'active':''} onClick={()=>setSelectedImage(i)} aria-label={`View ${product.name} image ${i+1}`} aria-current={i===selectedImage?'true':undefined}><img src={src} alt="" /></button>)}</div>}</div><div className="detail-copy"><p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1><div className="detail-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice&&<del>Rs. {Number(product.price).toLocaleString()}</del>}</div><p className="detail-description">{product.description||product.shortDescription||"Is product ki detailed description abhi add nahi ki gayi."}</p><div className="stock-line">{Number(product.stock||0)>0?<><Check size={16}/> In stock — {product.stock} available</>:"Out of stock"}</div><div className="detail-actions"><div className="qty" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={()=>setQty(Math.max(1,qty-1))} aria-label={`Decrease ${product.name} quantity`}><Minus aria-hidden="true" size={15}/></button><strong aria-live="polite">{qty}</strong><button type="button" onClick={()=>setQty(Math.min(Number(product.stock||1),qty+1))} aria-label={`Increase ${product.name} quantity`}><Plus aria-hidden="true" size={15}/></button></div><button className="gold-btn" type="button" disabled={!Number(product.stock||0)} onClick={()=>{addToCart(product,qty);setToast("Product cart mein add ho gaya")}}><ShoppingBag aria-hidden="true" size={17}/> Add to Cart</button><button type="button" className={`icon-btn ${wished?"active":""}`} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart aria-hidden="true" size={19} fill={wished?"currentColor":"none"}/></button></div><a className="whatsapp-order" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a><Toast message={toast} onClose={()=>setToast("")}/></div></div><div className="container"><ProductReviews productId={product.id}/></div></main>;
 }
-function Categories() { const {store}=useStore(); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">DISCOVER</p><h1>Categories</h1><p>Explore products by category.</p></div></div>{store.categories.length?<div className="category-grid large">{store.categories.map(c=><Link className="category-card" key={c.id} to={`/shop?category=${encodeURIComponent(c.name)}`}><div><Tag size={22}/></div><strong>{c.name}</strong><span>{store.products.filter(p=>p.categoryId===c.id).length} products</span></Link>)}</div>:<EmptyState title="No Categories Yet" text="Admin panel se apni first category create karein." action="Open Admin" to="/admin/categories" icon={Tag}/>}</div></main>; }
-function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Jab aap kisi product par sale price set karenge to woh yahan show hoga." action="Manage Products" to="/admin/products" icon={Tag}/>}</div></main>; }
+function Categories() {
+  const { store } = useStore();
+  const mainCategories = sortMainCategories(store.categories);
+  return (
+    <main className="page">
+      <div className="container">
+        <div className="page-head">
+          <div><p className="eyebrow">DISCOVER</p><h1>Categories</h1><p>Explore Hafiz Mart collections and their subcategories.</p></div>
+        </div>
+        {mainCategories.length ? (
+          <div className="category-grid large category-directory-grid">
+            {mainCategories.map(category => {
+              const children = store.categories.filter(child => String(child.parent_category_id || '') === String(category.id));
+              const count = getCategoryProductCount(store.categories, store.products, category.id);
+              const descendants = new Set(getCategoryDescendantIds(store.categories, category.id));
+              const image = category.image || children.find(child => child.image)?.image || store.products.find(product => descendants.has(String(product.categoryId)) && product.image)?.image || '';
+              return (
+                <Link className="category-directory-card" key={category.id} to={`/shop?category=${encodeURIComponent(category.name)}`}>
+                  <CategoryArtwork category={category} image={image} />
+                  <div className="category-directory-copy">
+                    <span className="category-directory-kicker">COLLECTION</span>
+                    <h2>{category.name}</h2>
+                    <p>{count > 0 ? `${count} ${count === 1 ? 'product' : 'products'} available` : children.length ? `${children.length} subcategories` : 'Coming soon'}</p>
+                    {children.length > 0 && <div className="category-directory-subcats">{children.slice(0, 3).map(child => <span key={child.id}>{child.name}</span>)}{children.length > 3 && <span>+{children.length - 3} more</span>}</div>}
+                    <span className="category-directory-arrow"><ArrowRight size={17} /></span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState title="Categories Coming Soon" text="New collections will appear here as they are added." icon={Tag} />
+        )}
+      </div>
+    </main>
+  );
+}
+function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Fresh offers will appear here when products have an active sale price." icon={Tag}/>}</div></main>; }
 function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Product cards par heart icon press karke items save karein." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
 
 function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt={x.product.name || "Hafiz Mart product"}/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty" aria-label={`Quantity for ${x.product.name}`}><button type="button" onClick={()=>changeQty(x.index,-1)} aria-label={`Decrease ${x.product.name} quantity`}><Minus aria-hidden="true" size={14}/></button><strong aria-live="polite">{x.qty}</strong><button type="button" onClick={()=>changeQty(x.index,1)} aria-label={`Increase ${x.product.name} quantity`}><Plus aria-hidden="true" size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button type="button" className="remove-btn" aria-label={`Remove ${x.product.name} from cart`} title="Remove from cart" onClick={()=>remove(x.index)}><Trash2 aria-hidden="true" size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
@@ -2254,10 +2302,9 @@ function Shop() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("newest");
 
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
   const [saleOnly, setSaleOnly] = useState(false);
   const [inStock, setInStock] = useState(false);
+  const [freeDeliveryOnly, setFreeDeliveryOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   /*
@@ -2274,6 +2321,10 @@ function Shop() {
 
   const category = params.get("category") || "";
   const urlSearch = params.get("search") || "";
+  const selectedCategory = store.categories.find(item => item.name === category);
+  const selectedCategoryIds = selectedCategory
+    ? new Set(getCategoryDescendantIds(store.categories, selectedCategory.id))
+    : null;
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -2329,17 +2380,18 @@ function Shop() {
   const reset = () => {
     setQuery("");
     setSort("newest");
-    setMinPrice("");
-    setMaxPrice("");
     setSaleOnly(false);
     setInStock(false);
+    setFreeDeliveryOnly(false);
 
     navigate("/shop");
   };
 
+  const freeDeliveryThreshold = Number(store.adminSettings?.shipping?.freeDeliveryThreshold ?? 10000);
+
   let products = store.products
     .filter((p) => p.status !== "inactive")
-    .filter((p) => !category || p.category === category)
+    .filter((p) => !category || (selectedCategoryIds ? selectedCategoryIds.has(String(p.categoryId)) : p.category === category))
     .filter(
       (p) =>
         !query ||
@@ -2349,18 +2401,9 @@ function Shop() {
           .toLowerCase()
           .includes(query.toLowerCase())
     )
-    .filter(
-      (p) =>
-        !minPrice ||
-        Number(p.salePrice || p.price) >= Number(minPrice)
-    )
-    .filter(
-      (p) =>
-        !maxPrice ||
-        Number(p.salePrice || p.price) <= Number(maxPrice)
-    )
     .filter((p) => !saleOnly || Boolean(p.salePrice))
-    .filter((p) => !inStock || Number(p.stock || 0) > 0);
+    .filter((p) => !inStock || Number(p.stock || 0) > 0)
+    .filter((p) => !freeDeliveryOnly || Boolean(p.free_delivery || p.freeDelivery) || Number(p.salePrice || p.price || 0) >= freeDeliveryThreshold);
 
   products = [...products].sort((a, b) =>
     sort === "price-low"
@@ -2371,6 +2414,8 @@ function Shop() {
         Number(a.salePrice || a.price)
       : sort === "name"
       ? a.name.localeCompare(b.name)
+      : sort === "name-desc"
+      ? b.name.localeCompare(a.name)
       : new Date(b.createdAt) - new Date(a.createdAt)
   );
 
@@ -2425,22 +2470,6 @@ function Shop() {
             ))}
           </select>
 
-          <select
-            value={sort}
-            onChange={(e) =>
-              setSort(e.target.value)
-            }
-          >
-            <option value="newest">Newest</option>
-            <option value="name">Name A–Z</option>
-            <option value="price-low">
-              Price: Low to High
-            </option>
-            <option value="price-high">
-              Price: High to Low
-            </option>
-          </select>
-
           <button
             className="filter-btn filter-toggle"
             onClick={() =>
@@ -2471,55 +2500,58 @@ function Shop() {
               }}
             >
 
-              <label>
-                Min Price
-
-                <input
-                  type="number"
-                  min="0"
-                  value={minPrice}
-                  onChange={(e) =>
-                    setMinPrice(e.target.value)
-                  }
-                  placeholder="Rs. 0"
-                />
+              <label className="price-sort-filter">
+                Sort Products
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  aria-label="Sort products by price or newest"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="price-low">Price: Low to High</option>
+                  <option value="price-high">Price: High to Low</option>
+                  <option value="name">Name A–Z</option>
+                  <option value="name-desc">Name Z–A</option>
+                </select>
               </label>
 
-              <label>
-                Max Price
+              <div className="shop-filter-toggle-group" role="group" aria-label="Additional product filters">
+                <label className={`check-filter check-filter-card${saleOnly ? " is-active" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={saleOnly}
+                    onChange={(e) => setSaleOnly(e.target.checked)}
+                  />
+                  <span className="check-filter-card-copy">
+                    <strong>Sale only</strong>
+                    <small>Show discounted products</small>
+                  </span>
+                </label>
 
-                <input
-                  type="number"
-                  min="0"
-                  value={maxPrice}
-                  onChange={(e) =>
-                    setMaxPrice(e.target.value)
-                  }
-                  placeholder="No limit"
-                />
-              </label>
+                <label className={`check-filter check-filter-card${inStock ? " is-active" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={inStock}
+                    onChange={(e) => setInStock(e.target.checked)}
+                  />
+                  <span className="check-filter-card-copy">
+                    <strong>In stock only</strong>
+                    <small>Hide unavailable products</small>
+                  </span>
+                </label>
 
-              <label className="check-filter">
-                <input
-                  type="checkbox"
-                  checked={saleOnly}
-                  onChange={(e) =>
-                    setSaleOnly(e.target.checked)
-                  }
-                />
-                Sale only
-              </label>
-
-              <label className="check-filter">
-                <input
-                  type="checkbox"
-                  checked={inStock}
-                  onChange={(e) =>
-                    setInStock(e.target.checked)
-                  }
-                />
-                In stock only
-              </label>
+                <label className={`check-filter check-filter-card${freeDeliveryOnly ? " is-active" : ""}`} title={`Shows products whose single-item price qualifies for the current free delivery threshold of Rs. ${freeDeliveryThreshold.toLocaleString()}.`}>
+                  <input
+                    type="checkbox"
+                    checked={freeDeliveryOnly}
+                    onChange={(e) => setFreeDeliveryOnly(e.target.checked)}
+                  />
+                  <span className="check-filter-card-copy">
+                    <strong>Free delivery</strong>
+                    <small>Eligible at current store threshold</small>
+                  </span>
+                </label>
+              </div>
 
               <button
                 className="text-link"
@@ -5526,224 +5558,104 @@ function ProductImageUploader({images, setImages}){
   </div>;
 }
 
-function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore(); const editing=Boolean(id); const existing=store.products.find(p=>p.id===id); const [form,setForm]=useState({name:'',sku:'',categoryId:'',brand:'',shortDescription:'',description:'',price:'',salePrice:'',stock:'',status:'active'}); const [images,setImages]=useState([]); const [busy,setBusy]=useState(false); const navigate=useNavigate(); useEffect(()=>{if(existing){let gallery=Array.isArray(existing.images)?existing.images:[];if(existing.image&&!gallery.includes(existing.image))gallery=[existing.image,...gallery];setForm({name:existing.name||'',sku:existing.sku||'',categoryId:existing.categoryId||'',brand:existing.brand||'',shortDescription:existing.shortDescription||'',description:existing.description||'',price:existing.price||'',salePrice:existing.salePrice||'',stock:existing.stock||0,status:existing.status||'active'});setImages(gallery)}},[existing]); const submit=async e=>{e.preventDefault();setBusy(true); const cleanImages=images.filter(Boolean); const slug=(form.name||'product').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+(id||crypto.randomUUID().slice(0,8)); const payload={name:form.name,slug,sku:form.sku||null,category_id:form.categoryId||null,brand:form.brand||null,short_description:form.shortDescription||null,description:form.description||null,price:Number(form.price||0),sale_price:form.salePrice?Number(form.salePrice):null,stock_quantity:Number(form.stock||0),main_image:cleanImages[0]||null,images:cleanImages,status:form.status}; const result=editing?await supabase.from('products').update(payload).eq('id',id).select().single():await supabase.from('products').insert(payload).select().single(); if(result.error) alert(result.error.message); else {await refresh();navigate('/admin/products');} setBusy(false);}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data ab directly Supabase database mein save hogi.</p></div></div><form className="admin-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
+function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore(); const editing=Boolean(id); const existing=store.products.find(p=>p.id===id); const [form,setForm]=useState({name:'',sku:'',categoryId:'',brand:'',shortDescription:'',description:'',price:'',salePrice:'',stock:'',status:'active'}); const [images,setImages]=useState([]); const [busy,setBusy]=useState(false); const navigate=useNavigate(); useEffect(()=>{if(existing){let gallery=Array.isArray(existing.images)?existing.images:[];if(existing.image&&!gallery.includes(existing.image))gallery=[existing.image,...gallery];setForm({name:existing.name||'',sku:existing.sku||'',categoryId:existing.categoryId||'',brand:existing.brand||'',shortDescription:existing.shortDescription||'',description:existing.description||'',price:existing.price||'',salePrice:existing.salePrice||'',stock:existing.stock||0,status:existing.status||'active'});setImages(gallery)}},[existing]); const submit=async e=>{e.preventDefault();setBusy(true); const cleanImages=images.filter(Boolean); const slug=(form.name||'product').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+(id||crypto.randomUUID().slice(0,8)); const payload={name:form.name,slug,sku:form.sku||null,category_id:form.categoryId||null,brand:form.brand||null,short_description:form.shortDescription||null,description:form.description||null,price:Number(form.price||0),sale_price:form.salePrice?Number(form.salePrice):null,stock_quantity:Number(form.stock||0),main_image:cleanImages[0]||null,images:cleanImages,status:form.status}; const result=editing?await supabase.from('products').update(payload).eq('id',id).select().single():await supabase.from('products').insert(payload).select().single(); if(result.error) alert(result.error.message); else {await refresh();navigate('/admin/products');} setBusy(false);}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data ab directly Supabase database mein save hogi.</p></div></div><form className="admin-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=>{const parent=store.categories.find(item=>String(item.id)===String(c.parent_category_id||''));return <option key={c.id} value={c.id}>{parent?`${parent.name} / ${c.name}`:`${c.name} — Main category`}</option>})}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
 
 function AdminCategories() {
   const { store, refresh } = useStore();
-
-  const [name, setName] = useState("");
-  const [section, setSection] = useState("other");
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState('main');
+  const [parentId, setParentId] = useState('');
   const [busy, setBusy] = useState(false);
+  const mainCategories = sortMainCategories(store.categories);
+  const slugify = (value = '') => value.toLowerCase().trim().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-  const slugify = (value = "") =>
-    value
-      .toLowerCase()
-      .trim()
-      .replace(/['’]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-  const sectionLabel = {
-    women: "Women's",
-    men: "Men's",
-    fragrances: "Fragrances",
-    other: "Other"
+  const legacySectionFor = value => {
+    const normalized = String(value || '').toLowerCase();
+    if (/women|ladies/.test(normalized)) return 'women';
+    if (/men|gents/.test(normalized)) return 'men';
+    if (/fragrance|perfume|attar|scent/.test(normalized)) return 'fragrances';
+    return 'other';
   };
 
-  const add = async (e) => {
+  const add = async e => {
     e.preventDefault();
-
     const cleanName = name.trim();
-
-    if (!cleanName) {
-      alert("Category name enter karein.");
-      return;
-    }
-
     const slug = slugify(cleanName);
-
-    if (!slug) {
-      alert("Valid category name enter karein.");
-      return;
-    }
-
-    const existing = store.categories.find(
-      c =>
-        slugify(c.name || "") === slug ||
-        String(c.slug || "").toLowerCase() === slug
-    );
-
-    if (existing) {
-      alert(
-        `Ye category already exist karti hai: "${existing.name}"`
-      );
-      return;
-    }
-
+    if (!cleanName || !slug) { alert('Valid category name enter karein.'); return; }
+    if (kind === 'subcategory' && !parentId) { alert('Subcategory ke liye parent/main category select karein.'); return; }
+    const duplicate = store.categories.find(c => slugify(c.name || '') === slug || String(c.slug || '').toLowerCase() === slug);
+    if (duplicate) { alert(`Ye category already exist karti hai: "${duplicate.name}"`); return; }
+    const parent = kind === 'subcategory' ? mainCategories.find(c => String(c.id) === String(parentId)) : null;
+    if (kind === 'subcategory' && !parent) { alert('Valid main category select karein.'); return; }
     setBusy(true);
-
-    const { error } = await supabase
-      .from("categories")
-      .insert({
-        name: cleanName,
-        slug,
-        nav_section: section
-      });
-
+    const payload = {
+      name: cleanName,
+      slug,
+      nav_section: parent?.nav_section || legacySectionFor(cleanName),
+      parent_category_id: parent?.id || null
+    };
+    const { error } = await supabase.from('categories').insert(payload);
     if (error) {
-      console.error("Category create error:", error);
-
-      alert(
-        `Category create nahi ho saki.\n\n${error.message}`
-      );
-
+      console.error('Category create error:', error);
+      alert(`Category create nahi ho saki.\n\n${error.message}\n\nAgar parent_category_id missing ho to supplied category migration SQL pehle run karein.`);
       setBusy(false);
       return;
     }
-
-    setName("");
-    setSection("other");
-
+    setName('');
+    setKind('main');
+    setParentId('');
     await refresh();
-
     setBusy(false);
   };
 
-  const remove = async (id) => {
-    if (!confirm("Delete this category?")) return;
-
-    const { error } = await supabase
-      .from("categories")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
+  const remove = async category => {
+    const children = store.categories.filter(c => String(c.parent_category_id || '') === String(category.id));
+    if (children.length) { alert('Is main category ki subcategories pehle move ya delete karein. Parent ko abhi delete nahi kiya ja sakta.'); return; }
+    const productCount = store.products.filter(p => String(p.categoryId) === String(category.id)).length;
+    if (productCount) { alert(`Is category se ${productCount} product(s) linked hain. Pehle products ko doosri category mein move karein.`); return; }
+    if (!confirm(`"${category.name}" delete karni hai?`)) return;
+    const { error } = await supabase.from('categories').delete().eq('id', category.id);
+    if (error) { alert(error.message); return; }
     await refresh();
   };
 
+  const getOwnProductCount = id => store.products.filter(p => String(p.categoryId) === String(id) && p.status !== 'inactive').length;
+  const rowsByParent = mainCategories.map(parent => ({ parent, children: store.categories.filter(c => String(c.parent_category_id || '') === String(parent.id)).sort((a,b) => String(a.name||'').localeCompare(String(b.name||''))) }));
+
   return (
     <AdminLayout>
-
       <div className="admin-head">
-        <div>
-          <p className="eyebrow">CATALOG</p>
-          <h1>Categories</h1>
-          <p>
-            Create categories and choose where they appear in the store navigation.
-          </p>
-        </div>
+        <div><p className="eyebrow">CATALOG</p><h1>Categories</h1><p>Main categories aur unke andar subcategories create karein. Store navigation, category cards aur product filters automatically update honge.</p></div>
       </div>
-
-      <form
-        className="inline-form"
-        onSubmit={add}
-      >
-
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="New category name"
-          disabled={busy}
-        />
-
-        <select
-          value={section}
-          onChange={e => setSection(e.target.value)}
-          disabled={busy}
-        >
-          <option value="women">
-            Women's
-          </option>
-
-          <option value="men">
-            Men's
-          </option>
-
-          <option value="fragrances">
-            Fragrances
-          </option>
-
-          <option value="other">
-            Other
-          </option>
-        </select>
-
-        <button
-          className="gold-btn"
-          type="submit"
-          disabled={busy}
-        >
-          <Plus size={17} />
-
-          {busy
-            ? "Creating..."
-            : "Add Category"}
-        </button>
-
-      </form>
-
-      {store.categories.length ? (
-
-        <div className="simple-list">
-
-          {store.categories.map(c => (
-
-            <div key={c.id}>
-
-              <div>
-                <Tag size={17} />
-
-                <strong>
-                  {c.name}
-                </strong>
-
-                <span>
-                  {sectionLabel[c.nav_section] || "Other"}
-                </span>
-
-                <span>
-                  {
-                    store.products.filter(
-                      p => p.categoryId === c.id
-                    ).length
-                  } products
-                </span>
-
-              </div>
-
-              <button
-                type="button"
-                onClick={() => remove(c.id)}
-                aria-label={`Delete category ${c.name}`}
-                title="Delete category"
-              >
-                <Trash2 aria-hidden="true" size={16} />
-              </button>
-
-            </div>
-
-          ))}
-
+      <form className="admin-form category-manager-form" onSubmit={add}>
+        <div className="form-grid">
+          <label>Category Name*<input required value={name} onChange={e=>setName(e.target.value)} placeholder={kind === 'main' ? 'e.g. Cosmetics' : 'e.g. Makeup Brushes'} disabled={busy}/></label>
+          <label>Category Type<select value={kind} onChange={e=>{setKind(e.target.value);setParentId('')}} disabled={busy}><option value="main">Main category</option><option value="subcategory">Subcategory</option></select></label>
+          {kind === 'subcategory' && <label>Parent / Main Category<select required value={parentId} onChange={e=>setParentId(e.target.value)} disabled={busy}><option value="">Select main category</option>{mainCategories.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label>}
         </div>
-
-      ) : (
-
-        <EmptyState
-          title="No Categories Yet"
-          text="First category create karne ke liye upar form use karein."
-          icon={Tag}
-        />
-
-      )}
-
+        {kind === 'subcategory' && <p className="category-form-hint">Yeh category selected main category ke neeche navigation aur category directory mein automatically appear hogi.</p>}
+        <div className="form-actions"><button type="submit" className="gold-btn" disabled={busy}><Plus size={17}/>{busy ? 'Creating...' : kind === 'main' ? 'Create Main Category' : 'Create Subcategory'}</button></div>
+      </form>
+      {rowsByParent.length ? (
+        <div className="category-admin-tree">
+          {rowsByParent.map(({parent, children}) => {
+            const productCount = getCategoryProductCount(store.categories, store.products, parent.id);
+            return (
+              <section className="category-admin-group" key={parent.id}>
+                <div className="category-admin-group-head">
+                  <CategoryArtwork category={parent} image={parent.image} compact />
+                  <div><span className="category-type-label">MAIN CATEGORY</span><strong>{parent.name}</strong><small>{productCount} product(s) · {children.length} subcategory(ies)</small></div>
+                  <button type="button" className="category-delete-btn" onClick={()=>remove(parent)} aria-label={`Delete main category ${parent.name}`} title="Delete main category"><Trash2 size={15}/></button>
+                </div>
+                {children.length ? <div className="category-admin-children">{children.map(child=><div className="category-admin-child" key={child.id}><div><span className="category-child-marker">↳</span><div><strong>{child.name}</strong><small>{getOwnProductCount(child.id)} product(s)</small></div></div><button type="button" className="category-delete-btn" onClick={()=>remove(child)} aria-label={`Delete subcategory ${child.name}`} title="Delete subcategory"><Trash2 size={15}/></button></div>)}</div> : <p className="category-admin-nochildren">No subcategories yet. Use the form above to add the first one.</p>}
+              </section>
+            );
+          })}
+        </div>
+      ) : <EmptyState title="No Categories Yet" text="Upar se apni first main category create karein." icon={Tag}/>}
     </AdminLayout>
   );
 }
-
 function BannerImageUploader({value,setValue}){
   const [busy,setBusy]=useState(false); const [error,setError]=useState('');
   const upload=async file=>{ if(!file)return; setBusy(true);setError(''); const ext=(file.name.split('.').pop()||'jpg').toLowerCase(); const path=`banners/${crypto.randomUUID()}.${ext}`; const {error}=await supabase.storage.from('banner-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'}); if(error){setError(error.message);setBusy(false);return;} const {data}=supabase.storage.from('banner-images').getPublicUrl(path);setValue(data.publicUrl);setBusy(false); };
@@ -6033,12 +5945,13 @@ function Complaints(){
 }
 
 function AdminReviews(){
+  const { store } = useStore();
   const [rows,setRows]=useState([]); const [loading,setLoading]=useState(true); const [filter,setFilter]=useState('pending');
   const load=async()=>{setLoading(true);const {data,error}=await supabase.from('reviews').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};
   useEffect(()=>{load()},[]);
   const moderate=async(id,status)=>{const {error}=await supabase.from('reviews').update({status,updated_at:new Date().toISOString()}).eq('id',id);if(error)alert(error.message);else setRows(r=>r.map(x=>x.id===id?{...x,status}:x))};
   const visible=filter==='all'?rows:rows.filter(r=>r.status===filter);
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER VOICE</p><h1>Reviews</h1><p>Customer reviews ko approve, reject aur manage karein.</p></div><button className="ghost-btn" onClick={load}>Refresh</button></div><div className="order-filters">{['pending','approved','rejected','all'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s}</button>)}</div>{loading?<EmptyState title="Loading reviews..." text="Reviews fetch ho rahi hain." icon={Star}/>:visible.length?<div className="admin-review-list">{visible.map(r=><article className="admin-review-card" key={r.id}><div className="review-card-head"><div><strong>{r.reviewer_name||'Customer'}</strong><span>{new Date(r.created_at).toLocaleString()}</span></div><StarRating value={r.rating}/></div><small>Product ID: {r.product_id}</small>{r.title&&<h3>{r.title}</h3>}{r.comment&&<p>{r.comment}</p>}<div className="row-actions"><span className={`status status-${r.status}`}>{r.status}</span>{r.status!=='approved'&&<button onClick={()=>moderate(r.id,'approved')}><Check size={15}/> Approve</button>}{r.status!=='rejected'&&<button onClick={()=>moderate(r.id,'rejected')}><X size={15}/> Reject</button>}</div></article>)}</div>:<EmptyState title={`No ${filter} reviews`} text="Is moderation queue mein abhi koi review nahi hai." icon={Star}/>}</AdminLayout>;
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER VOICE</p><h1>Reviews</h1><p>Customer reviews ko approve, reject aur manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['pending','approved','rejected','all'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s.charAt(0).toUpperCase()+s.slice(1)}</button>)}</div>{loading?<EmptyState title="Loading reviews..." text="Reviews fetch ho rahi hain." icon={Star}/>:visible.length?<div className="admin-review-list">{visible.map(r=>{const reviewedProduct=store.products.find(p=>String(p.id)===String(r.product_id));return <article className="admin-review-card" key={r.id}><div className="review-card-head"><div><strong className="reviewer-display-name">{r.reviewer_name||'Customer'}</strong><span>{new Date(r.created_at).toLocaleString()}</span></div><StarRating value={r.rating}/></div><small className="review-product-ref">Product: <strong>{reviewedProduct?.name || 'Product unavailable'}</strong>{reviewedProduct?.sku ? ` · SKU ${reviewedProduct.sku}` : ''}</small>{r.title&&<h3>{r.title}</h3>}{r.comment&&<p>{r.comment}</p>}<div className="row-actions"><span className={`status review-status-pill status-${r.status}`}>{String(r.status||'pending').replace(/^./,value=>value.toUpperCase())}</span>{r.status!=='approved'&&<button type="button" className="review-approve-btn" onClick={()=>moderate(r.id,'approved')}><Check size={15}/> Approve</button>}{r.status!=='rejected'&&<button type="button" className="review-reject-btn" onClick={()=>moderate(r.id,'rejected')}><X size={15}/> Reject</button>}</div></article>})}</div>:<EmptyState title={`No ${filter} reviews`} text="Is moderation queue mein abhi koi review nahi hai." icon={Star}/>}</AdminLayout>;
 }
 
 function AdminSettings(){
