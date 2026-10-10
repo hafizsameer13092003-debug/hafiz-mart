@@ -315,10 +315,32 @@ function sanitiseStoreContent(record) {
   return Object.fromEntries(Object.entries(record || {}).map(([key, value]) => [key, typeof value === "string" ? replaceLegacyStorePhoneText(value) : value]));
 }
 
+function getEffectiveProductPrice(...candidates) {
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined || String(candidate).trim() === '') continue;
+    const amount = Number(candidate);
+    if (Number.isFinite(amount) && amount >= 0) return amount;
+  }
+  return 0;
+}
+
 function mapProduct(p) {
   const clean = sanitiseStoreContent(p);
   return { ...clean, salePrice: clean.sale_price ?? '', image: clean.main_image || '', images: Array.isArray(clean.images) ? clean.images : [], stock: clean.stock_quantity ?? 0, categoryId: clean.category_id, shortDescription: clean.short_description || '', description: clean.description || '', createdAt: clean.created_at, productType: clean.product_type || 'general', variants: Array.isArray(clean.variants) ? clean.variants : [], attributes: clean.attributes && typeof clean.attributes === 'object' ? clean.attributes : {}, returnPolicy: clean.return_policy || '', warrantyInfo: clean.warranty_info || '', sizeGuide: clean.size_guide || '', highlights: Array.isArray(clean.highlights) ? clean.highlights : [], videoUrl: clean.video_url || '' };
 }
+function getCategoryPathNames(categories = [], categoryId) {
+  const byId = new Map((categories || []).map(category => [String(category.id), category]));
+  const path = [];
+  let current = byId.get(String(categoryId));
+  const seen = new Set();
+  while (current && !seen.has(String(current.id))) {
+    seen.add(String(current.id));
+    path.unshift(current);
+    current = current.parent_category_id ? byId.get(String(current.parent_category_id)) : null;
+  }
+  return path;
+}
+
 function mapCategory(c) { const clean = sanitiseStoreContent(c); return { ...clean, image: clean.image_url || '', createdAt: clean.created_at }; }
 function mapBanner(b) { const clean = sanitiseStoreContent(b); return { ...clean, buttonText: clean.button_text || '', buttonLink: clean.button_link || '/deals', startDate: clean.start_date || '', endDate: clean.end_date || '', imageUrl: clean.image_url || '', createdAt: clean.created_at }; }
 
@@ -432,7 +454,7 @@ function StoreProvider({ children }) {
     const variantKey = variant ? JSON.stringify([variant.color || '', variant.size || '', variant.style || '', variant.fit || '']) : '';
     const existing = store.cart.find(x => x.productId === product.id && (x.variantKey || '') === variantKey);
     const nextQty = Math.min(maxStock, Math.max(1, (existing?.qty || 0) + qty));
-    const unitPrice = Number(variant?.salePrice ?? variant?.sale_price ?? variant?.price ?? product.salePrice ?? product.price ?? 0);
+    const unitPrice = getEffectiveProductPrice(variant?.salePrice, variant?.sale_price, variant?.price, product.salePrice, product.price);
     const cart = existing ? store.cart.map(x => x.productId === product.id && (x.variantKey || '') === variantKey ? { ...x, qty: nextQty, unitPrice, variant } : x) : [...store.cart, { productId: product.id, qty: Math.min(maxStock, Math.max(1, qty)), variantKey, variant: variant || null, unitPrice }];
     update({ cart });
   };
@@ -440,10 +462,16 @@ function StoreProvider({ children }) {
     const base = store.products.find(p => String(p.id) === String(line.productId));
     if (!base) return null;
     const variant = line.variant || null;
-    const product = variant ? { ...base, price: line.unitPrice ?? variant.price ?? base.price, salePrice: '', stock: variant.stock ?? variant.stock_quantity ?? base.stock, selectedVariant: variant } : base;
-    return { ...line, index, product, unitPrice: Number(line.unitPrice ?? product.salePrice ?? product.price ?? 0) };
+    const savedPrice = Number(line.unitPrice);
+    const unitPrice = Number.isFinite(savedPrice) && savedPrice > 0
+      ? savedPrice
+      : getEffectiveProductPrice(variant?.salePrice, variant?.sale_price, variant?.price, base.salePrice, base.price);
+    const product = variant
+      ? { ...base, price: unitPrice, salePrice: '', stock: variant.stock ?? variant.stock_quantity ?? base.stock, selectedVariant: variant }
+      : base;
+    return { ...line, index, product, unitPrice };
   }).filter(Boolean), [store.cart, store.products]);
-  const subtotal = cartItems.reduce((sum, x) => sum + (Number(x.unitPrice ?? x.product.salePrice ?? x.product.price) * x.qty), 0);
+  const subtotal = cartItems.reduce((sum, x) => sum + (getEffectiveProductPrice(x.unitPrice, x.product.salePrice, x.product.price) * x.qty), 0);
   const value = { store, update, addToCart, cartItems, subtotal, refresh, loading };
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -1723,7 +1751,7 @@ const availableCats = categoryCards.slice(0, 3);
       <div className="home-category-copy">
         <span className="category-card-kicker">EXPLORE EVERYTHING</span>
         <strong>View All Categories</strong>
-        <span className="home-category-all-caption">Browse Every Collection and Subcategory</span>
+        <span className="home-category-all-caption">Browse every collection and subcategory</span>
       </div>
       <span className="category-card-arrow"><ArrowRight aria-hidden="true" size={17}/></span>
     </Link>
@@ -2553,11 +2581,11 @@ function ProductReviews({ productId }) {
 
             {!user && (
               <Link
-                className="text-link"
+                className="review-login-btn"
                 to="/login"
               >
-                Login
-                <ArrowRight size={14} />
+                Sign in to review
+                <ArrowRight size={15} />
               </Link>
             )}
 
@@ -2581,6 +2609,7 @@ function ProductDetails() {
   const { id } = useParams();
   const { store, addToCart, update } = useStore();
   const product = store.products.find(p => String(p.id) === String(id));
+  const categoryTrail = product ? getCategoryPathNames(store.categories, product.categoryId) : [];
   const [qty, setQty] = useState(1);
   const [toast, setToast] = useState("");
   const [selectedImage, setSelectedImage] = useState(0);
@@ -2597,11 +2626,9 @@ function ProductDetails() {
   variants.forEach(v => { if (v.image && !gallery.includes(v.image)) gallery.push(v.image); });
   const images = gallery.length ? gallery : [logo];
   const currentImage = selectedVariant?.image || images[Math.min(selectedImage, images.length - 1)];
-  const price = Number(selectedVariant?.salePrice ?? selectedVariant?.sale_price ?? selectedVariant?.price ?? product.salePrice ?? product.price ?? 0);
+  const price = getEffectiveProductPrice(selectedVariant?.salePrice, selectedVariant?.sale_price, selectedVariant?.price, product.salePrice, product.price);
   const stock = Number(selectedVariant?.stock ?? selectedVariant?.stock_quantity ?? product.stock ?? 0);
   const wished = store.wishlist.includes(product.id);
-  const waNumber = getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER);
-  const waText = `Hello Hafiz Mart, I would like to enquire about this product.\\n\\nProduct: ${product.name}\\nSKU: ${product.sku || "N/A"}\\nVariant: ${[selectedVariant?.color, selectedVariant?.size].filter(Boolean).join(" / ") || "Standard"}\\nQuantity: ${qty}\\nPrice: Rs. ${price.toLocaleString()}\\nTotal: Rs. ${(price * qty).toLocaleString()}\\nLink: ${window.location.href}`;
   const selectVariant = (next) => {
     setSelectedVariant(next);
     if (next?.image) {
@@ -2611,7 +2638,7 @@ function ProductDetails() {
     setQty(1);
   };
   return <main className="page">
-    <div className="container hm-product-breadcrumb"><Link to="/">Home</Link><ChevronRight size={14}/><Link to="/shop">Shop</Link><ChevronRight size={14}/><span>{product.name}</span></div>
+    <div className="container hm-product-breadcrumb"><Link to="/">Home</Link><ChevronRight size={14}/><Link to="/shop">Shop</Link>{categoryTrail.map(category=><React.Fragment key={category.id}><ChevronRight size={14}/><Link to={`/categories?category=${encodeURIComponent(category.name)}`}>{category.name}</Link></React.Fragment>)}<ChevronRight size={14}/><span>{product.name}</span></div>
     <div className="container product-detail">
       <div className="detail-gallery">
         <div className="detail-image hm-zoom-image" onClick={() => setZoomOpen(true)} role="button" tabIndex={0} onKeyDown={e => {if(e.key==='Enter'||e.key===' '){e.preventDefault();setZoomOpen(true);}}} aria-label="Open product image zoom">
@@ -2623,17 +2650,17 @@ function ProductDetails() {
       </div>
       <div className="detail-copy">
         <p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1>
-        <div className="hm-seller-inline"><span><strong>Sold by Hafiz Mart</strong><small>Official Store Seller</small></span><a className="whatsapp-order" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer"><MessageCircle size={15}/> Chat Now</a></div>
         <p className="detail-description">{product.description||product.shortDescription||"Detailed product information will be added soon."}</p>
         {colors.length>0&&<div className="hm-option-group"><strong>Color</strong><div className="hm-option-list">{colors.map(color=><button key={color} type="button" className={`hm-option-chip ${(selectedVariant?.color===color)?'active':''}`} onClick={()=>{const candidate=variants.find(v=>v.color===color&&(!selectedVariant?.size||v.size===selectedVariant.size))||variants.find(v=>v.color===color);selectVariant(candidate);}}>{color}</button>)}</div></div>}
         {sizes.length>0&&<div className="hm-option-group"><strong>Size</strong><div className="hm-option-list">{sizes.map(size=><button key={size} type="button" className={`hm-option-chip ${selectedVariant?.size===size?'active':''}`} onClick={()=>{const candidate=variants.find(v=>v.size===size&&(!selectedVariant?.color||v.color===selectedVariant.color))||variants.find(v=>v.size===size);selectVariant(candidate);}}>{size}</button>)}</div></div>}
         {product.attributes && Object.keys(product.attributes).length>0&&<div className="hm-spec-grid">{Object.entries(product.attributes).map(([key,value])=><div key={key}><span>{key.replace(/[_-]/g,' ')}</span><strong>{Array.isArray(value)?value.join(', '):String(value)}</strong></div>)}</div>}
         {product.highlights?.length>0&&<div className="hm-highlights"><strong>Highlights</strong><ul>{product.highlights.map((item,i)=><li key={`${item}-${i}`}>{item}</li>)}</ul></div>}
-        <section className="hm-product-purchase-summary" aria-label="Purchase and product policies">
-          <div className="stock-line">{stock>0?<><Check size={16}/> In stock — {stock} available</>:"Out of stock"}</div>
-          <div className="detail-actions"><div className="qty" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity"><Minus size={15}/></button><strong aria-live="polite">{qty}</strong><button type="button" onClick={()=>setQty(Math.min(Math.max(1,stock),qty+1))} aria-label="Increase quantity"><Plus size={15}/></button></div><button className="gold-btn" type="button" disabled={!stock} onClick={()=>{addToCart(product,qty,selectedVariant);setToast("Product added to cart");}}><ShoppingBag size={17}/> Add to Cart</button><button type="button" className={`icon-btn ${wished?"active":""}`} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart size={19} fill={wished?"currentColor":"none"}/></button></div>
-          <div className="hm-policy-grid"><div><strong>Returns</strong><span>{product.returnPolicy==='change_of_mind'?'Change of Mind':product.returnPolicy==='easy_returns'?'Easy Returns':product.returnPolicy==='no_returns'?'Returns not available':'See store return policy'}</span></div><div><strong>Warranty</strong><span>{product.warrantyInfo||'Not specified'}</span></div></div>
-        </section>
+        <div className="hm-policy-grid">
+          <div><strong>Returns &amp; Store Policy</strong><span>{product.returnPolicy==='change_of_mind'?'Change of Mind':product.returnPolicy==='easy_returns'?'Easy Returns':product.returnPolicy==='no_returns'?'Returns not available':'See store return policy'}</span></div>
+          {product.warrantyInfo && <div><strong>Warranty</strong><span>{product.warrantyInfo}</span></div>}
+        </div>
+        <div className="stock-line">{stock>0?<><Check size={16}/> In stock — {stock} available</>:"Out of stock"}</div>
+        <div className="detail-actions"><div className="qty" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity"><Minus size={15}/></button><strong aria-live="polite">{qty}</strong><button type="button" onClick={()=>setQty(Math.min(Math.max(1,stock),qty+1))} aria-label="Increase quantity"><Plus size={15}/></button></div><button className="gold-btn" type="button" disabled={!stock} onClick={()=>{addToCart(product,qty,selectedVariant);setToast("Product added to cart");}}><ShoppingBag size={17}/> Add to Cart</button><button type="button" className={`icon-btn ${wished?"active":""}`} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart size={19} fill={wished?"currentColor":"none"}/></button></div>
         {product.sizeGuide&&<details className="hm-size-guide"><summary>Size Guide</summary><p>{product.sizeGuide}</p></details>}
         <Toast message={toast} onClose={()=>setToast("")}/>
       </div>
@@ -2695,7 +2722,7 @@ function Categories() {
 function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Fresh offers will appear here when products have an active sale price." icon={Tag}/>}</div></main>; }
 function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Save items by selecting the heart icon on product cards." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
 
-function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER); const changeQty=(index,delta)=>{const cart=[...store.cart]; const line=cart[index]; const lineStock=Number(line.variant?.stock ?? line.variant?.stock_quantity ?? cartItems.find(item=>item.index===index)?.product.stock ?? 999999); cart[index]={...line,qty:Math.min(Math.max(1,lineStock),Math.max(1,line.qty+delta))};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Hello, I would like to place an order with Hafiz Mart.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.unitPrice ?? x.product.salePrice ?? x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page cart-page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt={x.product.name || "Hafiz Mart product"}/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>{[x.variant?.color,x.variant?.size,x.variant?.fit,x.variant?.style].filter(Boolean).join(" / ") ? `${[x.variant?.color,x.variant?.size,x.variant?.fit,x.variant?.style].filter(Boolean).join(" / ")} · ` : ""}Rs. {Number(x.unitPrice ?? x.product.salePrice ?? x.product.price).toLocaleString()}</span></div><div className="qty" aria-label={`Quantity for ${x.product.name}`}><button type="button" onClick={()=>changeQty(x.index,-1)} aria-label={`Decrease ${x.product.name} quantity`}><Minus aria-hidden="true" size={14}/></button><strong aria-live="polite">{x.qty}</strong><button type="button" onClick={()=>changeQty(x.index,1)} aria-label={`Increase ${x.product.name} quantity`}><Plus aria-hidden="true" size={14}/></button></div><strong className="line-total">Rs. {(Number(x.unitPrice ?? x.product.salePrice ?? x.product.price)*x.qty).toLocaleString()}</strong><button type="button" className="remove-btn" aria-label={`Remove ${x.product.name} from cart`} title="Remove from cart" onClick={()=>remove(x.index)}><Trash2 aria-hidden="true" size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Add products from the shop to review your order summary here." action="Start Shopping" to="/shop"/>}</div></main>; }
+function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER); const changeQty=(index,delta)=>{const cart=[...store.cart]; const line=cart[index]; const lineStock=Number(line.variant?.stock ?? line.variant?.stock_quantity ?? cartItems.find(item=>item.index===index)?.product.stock ?? 999999); cart[index]={...line,qty:Math.min(Math.max(1,lineStock),Math.max(1,line.qty+delta))};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Hello, I would like to place an order with Hafiz Mart.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.unitPrice ?? x.product.salePrice ?? x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt={x.product.name || "Hafiz Mart product"}/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>{[x.variant?.color,x.variant?.size,x.variant?.fit,x.variant?.style].filter(Boolean).join(" / ") || "Standard"} · Rs. {Number(x.unitPrice ?? x.product.salePrice ?? x.product.price).toLocaleString()}</span></div><div className="qty" aria-label={`Quantity for ${x.product.name}`}><button type="button" onClick={()=>changeQty(x.index,-1)} aria-label={`Decrease ${x.product.name} quantity`}><Minus aria-hidden="true" size={14}/></button><strong aria-live="polite">{x.qty}</strong><button type="button" onClick={()=>changeQty(x.index,1)} aria-label={`Increase ${x.product.name} quantity`}><Plus aria-hidden="true" size={14}/></button></div><strong className="line-total">Rs. {(Number(x.unitPrice ?? x.product.salePrice ?? x.product.price)*x.qty).toLocaleString()}</strong><button type="button" className="remove-btn" aria-label={`Remove ${x.product.name} from cart`} title="Remove from cart" onClick={()=>remove(x.index)}><Trash2 aria-hidden="true" size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Add products from the shop to review your order summary here." action="Start Shopping" to="/shop"/>}</div></main>; }
 
 function Shop() {
   const { store } = useStore();
@@ -5613,6 +5640,12 @@ function Login() {
               onChange={(e) =>
                 setPassword(e.target.value)
               }
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !busy) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
               required
               minLength={6}
             />
@@ -6043,7 +6076,7 @@ function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore()
     await refresh();navigate('/admin/products');
   } catch(error) { alert(getFriendlyErrorMessage(error,'Product could not be saved. Please try again.')); }
   finally { setBusy(false); }
- }; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data is saved directly to the Supabase database.</p></div></div><form className="admin-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=>{const parent=store.categories.find(item=>String(item.id)===String(c.parent_category_id||''));return <option key={c.id} value={c.id}>{parent?`${parent.name} / ${c.name}`:`${c.name} — Main category`}</option>})}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Product Type<select value={form.productType} onChange={e=>setForm({...form,productType:e.target.value})}><option value="general">General</option><option value="shirt">Shirt / T-shirt</option><option value="stitched_suit">Stitched Suit</option><option value="unstitched_suit">Unstitched Suit</option><option value="trousers">Pants / Trousers</option><option value="accessory">Accessory</option></select></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><div className="span-2 hm-product-type-hint"><strong>{({shirt:"Shirt / T-shirt",stitched_suit:"Stitched Suit",unstitched_suit:"Unstitched Suit",trousers:"Pants / Trousers",accessory:"Accessory",general:"General"})[form.productType] || "Product"} setup</strong><p>Use custom variant entries for color, size, fit, material, pattern, pieces, fabric length, price, stock and image. Each variant can have its own price and stock.</p></div><label className="span-2">Variants JSON (color, size, price, stock, image)<textarea rows="6" value={form.variantsText} onChange={e=>setForm({...form,variantsText:e.target.value})} placeholder='[{"color":"Black","size":"M","price":1200,"stock":5,"image":"https://..."}]'/></label><label className="span-2">Specifications / Attributes JSON<textarea rows="4" value={form.attributesText} onChange={e=>setForm({...form,attributesText:e.target.value})} placeholder='{"material":"Cotton","fit":"Regular","pattern":"Plain"}'/></label><label className="span-2">Product Highlights JSON array<textarea rows="3" value={form.highlightsText} onChange={e=>setForm({...form,highlightsText:e.target.value})} placeholder='["Soft fabric","Everyday wear"]'/></label><label>Size Guide<textarea rows="3" value={form.sizeGuide} onChange={e=>setForm({...form,sizeGuide:e.target.value})}/></label><label>Return Policy<select value={form.returnPolicy} onChange={e=>setForm({...form,returnPolicy:e.target.value})}><option value="">Use store policy</option><option value="change_of_mind">Change of Mind</option><option value="easy_returns">Easy Returns</option><option value="no_returns">No Returns</option></select></label><label>Warranty Information<input value={form.warrantyInfo} onChange={e=>setForm({...form,warrantyInfo:e.target.value})} placeholder="Warranty available / Not available"/></label><label>Product Video URL<input value={form.videoUrl} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="https://..."/></label><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
+ }; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data is saved directly to the Supabase database.</p></div></div><form className="admin-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=><option key={c.id} value={c.id}>{getCategoryPathNames(store.categories,c.id).map(item=>item.name).join(' / ')}</option>)}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Product Type<select value={form.productType} onChange={e=>setForm({...form,productType:e.target.value})}><option value="general">General</option><option value="shirt">Shirt / T-shirt</option><option value="stitched_suit">Stitched Suit</option><option value="unstitched_suit">Unstitched Suit</option><option value="trousers">Pants / Trousers</option><option value="accessory">Accessory</option></select></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><div className="span-2 hm-product-type-hint"><strong>{({shirt:"Shirt / T-shirt",stitched_suit:"Stitched Suit",unstitched_suit:"Unstitched Suit",trousers:"Pants / Trousers",accessory:"Accessory",general:"General"})[form.productType] || "Product"} setup</strong><p>Use custom variant entries for color, size, fit, material, pattern, pieces, fabric length, price, stock and image. Each variant can have its own price and stock.</p></div><label className="span-2">Variants JSON (color, size, price, stock, image)<textarea rows="6" value={form.variantsText} onChange={e=>setForm({...form,variantsText:e.target.value})} placeholder='[{"color":"Black","size":"M","price":1200,"stock":5,"image":"https://..."}]'/></label><label className="span-2">Specifications / Attributes JSON<textarea rows="4" value={form.attributesText} onChange={e=>setForm({...form,attributesText:e.target.value})} placeholder='{"material":"Cotton","fit":"Regular","pattern":"Plain"}'/></label><label className="span-2">Product Highlights JSON array<textarea rows="3" value={form.highlightsText} onChange={e=>setForm({...form,highlightsText:e.target.value})} placeholder='["Soft fabric","Everyday wear"]'/></label><label>Size Guide<textarea rows="3" value={form.sizeGuide} onChange={e=>setForm({...form,sizeGuide:e.target.value})}/></label><label>Return Policy<select value={form.returnPolicy} onChange={e=>setForm({...form,returnPolicy:e.target.value})}><option value="">Use store policy</option><option value="change_of_mind">Change of Mind</option><option value="easy_returns">Easy Returns</option><option value="no_returns">No Returns</option></select></label><label>Warranty Information<input value={form.warrantyInfo} onChange={e=>setForm({...form,warrantyInfo:e.target.value})} placeholder="Warranty available / Not available"/></label><label>Product Video URL<input value={form.videoUrl} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="https://..."/></label><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
 
 function AdminCategories() {
   const { store, refresh } = useStore();
@@ -6051,100 +6084,104 @@ function AdminCategories() {
   const [kind, setKind] = useState('main');
   const [parentId, setParentId] = useState('');
   const [busy, setBusy] = useState(false);
-  const mainCategories = sortMainCategories(store.categories);
+  const categories = store.categories || [];
+  const mainCategories = sortMainCategories(categories);
   const slugify = (value = '') => value.toLowerCase().trim().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-
-  const legacySectionFor = value => {
-    const normalized = String(value || '').toLowerCase();
-    if (/women|ladies/.test(normalized)) return 'women';
-    if (/men|gents/.test(normalized)) return 'men';
-    if (/fragrance|perfume|attar|scent/.test(normalized)) return 'fragrances';
-    return 'other';
+  const categoryDepth = (category, seen = new Set()) => {
+    if (!category || !category.parent_category_id || seen.has(String(category.id))) return 0;
+    seen.add(String(category.id));
+    const parent = categories.find(c => String(c.id) === String(category.parent_category_id));
+    return parent ? 1 + categoryDepth(parent, seen) : 0;
   };
-
+  const getParentOptions = () => kind === 'subcategory'
+    ? categories.filter(c => categoryDepth(c) === 0)
+    : kind === 'grandchild'
+      ? categories.filter(c => categoryDepth(c) === 1)
+      : [];
+  const parentOptions = getParentOptions();
+  const categoryPath = category => {
+    const parts = [category.name];
+    let parentId = category.parent_category_id;
+    const seen = new Set([String(category.id)]);
+    while (parentId && !seen.has(String(parentId))) {
+      seen.add(String(parentId));
+      const parent = categories.find(c => String(c.id) === String(parentId));
+      if (!parent) break;
+      parts.unshift(parent.name);
+      parentId = parent.parent_category_id;
+    }
+    return parts.join(' › ');
+  };
   const add = async e => {
     e.preventDefault();
     const cleanName = name.trim();
     const slug = slugify(cleanName);
     if (!cleanName || !slug) { alert('Valid category name enter karein.'); return; }
-    if (kind === 'subcategory' && !parentId) { alert('Subcategory ke liye parent/main category select karein.'); return; }
-    const duplicate = store.categories.find(c => slugify(c.name || '') === slug || String(c.slug || '').toLowerCase() === slug);
+    if (kind !== 'main' && !parentId) { alert('Is category ke liye parent select karein.'); return; }
+    const duplicate = categories.find(c => slugify(c.name || '') === slug || String(c.slug || '').toLowerCase() === slug);
     if (duplicate) { alert(`Ye category already exist karti hai: "${duplicate.name}"`); return; }
-    const parent = kind === 'subcategory' ? mainCategories.find(c => String(c.id) === String(parentId)) : null;
-    if (kind === 'subcategory' && !parent) { alert('Valid main category select karein.'); return; }
+    const parent = kind === 'main' ? null : categories.find(c => String(c.id) === String(parentId));
+    if (kind !== 'main' && (!parent || (kind === 'subcategory' && categoryDepth(parent) !== 0) || (kind === 'grandchild' && categoryDepth(parent) !== 1))) {
+      alert('Selected parent valid nahi hai.'); return;
+    }
     setBusy(true);
     const payload = {
       name: cleanName,
       slug,
-      nav_section: parent?.nav_section || legacySectionFor(cleanName),
+      nav_section: parent?.nav_section || ( /women|ladies/i.test(cleanName) ? 'women' : /men|gents/i.test(cleanName) ? 'men' : /fragrance|perfume|attar|scent/i.test(cleanName) ? 'fragrances' : 'other'),
       parent_category_id: parent?.id || null
     };
     const { error } = await supabase.from('categories').insert(payload);
     if (error) {
       logSafeError('Category create error:', error);
-      alert(getFriendlyErrorMessage(error, 'Category create nahi ho saki. Schema migration pending ho to pehle relevant category migration apply karein.'));
+      alert(getFriendlyErrorMessage(error, 'Category create nahi ho saki. Existing categories table schema ko check karein.'));
       setBusy(false);
       return;
     }
-    setName('');
-    setKind('main');
-    setParentId('');
+    setName(''); setKind('main'); setParentId('');
     await refresh();
     setBusy(false);
   };
-
   const remove = async category => {
-    const children = store.categories.filter(c => String(c.parent_category_id || '') === String(category.id));
-    if (children.length) { alert('Is main category ki subcategories pehle move ya delete karein. Parent ko abhi delete nahi kiya ja sakta.'); return; }
-    const productCount = store.products.filter(p => String(p.categoryId) === String(category.id)).length;
-    if (productCount) { alert(`Is category se ${productCount} product(s)  are linked. Move products to another category first.`); return; }
-    if (!confirm(`"${category.name}" Do you want to delete this category?`)) return;
+    const children = categories.filter(c => String(c.parent_category_id || '') === String(category.id));
+    if (children.length) { alert('Pehle is category ke neeche wali subcategories delete karein.'); return; }
+    const productCount = categories.length && store.products.filter(p => String(p.categoryId) === String(category.id)).length;
+    if (productCount) { alert(`Is category se ${productCount} product(s) linked hain. Pehle products ki category change karein.`); return; }
+    if (!confirm(`"${category.name}" delete karni hai?`)) return;
     const { error } = await supabase.from('categories').delete().eq('id', category.id);
     if (error) { alert(getFriendlyErrorMessage(error)); return; }
     await refresh();
   };
-
   const getOwnProductCount = id => store.products.filter(p => String(p.categoryId) === String(id) && p.status !== 'inactive').length;
-  const rowsByParent = mainCategories.map(parent => ({ parent, children: store.categories.filter(c => String(c.parent_category_id || '') === String(parent.id)).sort((a,b) => String(a.name||'').localeCompare(String(b.name||''))) }));
-
-  return (
-    <AdminLayout>
-      <div className="admin-head">
-        <div><p className="eyebrow">CATALOG</p><h1>Categories</h1><p>Main categories aur unke andar subcategories create karein. Store navigation, category cards aur product filters automatically update honge.</p></div>
+  const renderNode = (category, depth = 0) => {
+    const children = categories.filter(c => String(c.parent_category_id || '') === String(category.id)).sort((a,b) => String(a.name || '').localeCompare(String(b.name || '')));
+    return <div className={`category-admin-node depth-${Math.min(depth, 2)}`} key={category.id}>
+      <div className="category-admin-child">
+        <div><span className="category-child-marker">{depth ? '↳' : '•'}</span><div><span className="category-type-label">{depth === 0 ? 'MAIN CATEGORY' : depth === 1 ? 'SUBCATEGORY' : 'SUBCATEGORY OF SUBCATEGORY'}</span><strong>{category.name}</strong><small>{categoryPath(category)} · {getOwnProductCount(category.id)} product(s)</small></div></div>
+        <button type="button" className="category-delete-btn" onClick={() => remove(category)} aria-label={`Delete category ${category.name}`} title="Delete category"><Trash2 size={15}/></button>
       </div>
-      <form className="admin-form category-manager-form" onSubmit={add}>
-        <div className="form-grid">
-          <label>Category Name*<input required value={name} onChange={e=>setName(e.target.value)} placeholder={kind === 'main' ? 'e.g. Cosmetics' : 'e.g. Makeup Brushes'} disabled={busy}/></label>
-          <label>Category Type<select value={kind} onChange={e=>{setKind(e.target.value);setParentId('')}} disabled={busy}><option value="main">Main category</option><option value="subcategory">Subcategory</option></select></label>
-          {kind === 'subcategory' && <label>Parent / Main Category<select required value={parentId} onChange={e=>setParentId(e.target.value)} disabled={busy}><option value="">Select main category</option>{mainCategories.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label>}
-        </div>
-        {kind === 'subcategory' && <p className="category-form-hint">Yeh category selected main category ke neeche navigation aur category directory mein automatically appear hogi.</p>}
-        <div className="form-actions"><button type="submit" className="gold-btn" disabled={busy}><Plus size={17}/>{busy ? 'Creating...' : kind === 'main' ? 'Create Main Category' : 'Create Subcategory'}</button></div>
-      </form>
-      {rowsByParent.length ? (
-        <div className="category-admin-tree">
-          {rowsByParent.map(({parent, children}) => {
-            const productCount = getCategoryProductCount(store.categories, store.products, parent.id);
-            return (
-              <section className="category-admin-group" key={parent.id}>
-                <div className="category-admin-group-head">
-                  <CategoryArtwork category={parent} image={parent.image} compact />
-                  <div><span className="category-type-label">MAIN CATEGORY</span><strong>{parent.name}</strong><small>{productCount} product(s) · {children.length} subcategory(ies)</small></div>
-                  <button type="button" className="category-delete-btn" onClick={()=>remove(parent)} aria-label={`Delete main category ${parent.name}`} title="Delete main category"><Trash2 size={15}/></button>
-                </div>
-                {children.length ? <div className="category-admin-children">{children.map(child=><div className="category-admin-child" key={child.id}><div><span className="category-child-marker">↳</span><div><strong>{child.name}</strong><small>{getOwnProductCount(child.id)} product(s)</small></div></div><button type="button" className="category-delete-btn" onClick={()=>remove(child)} aria-label={`Delete subcategory ${child.name}`} title="Delete subcategory"><Trash2 size={15}/></button></div>)}</div> : <p className="category-admin-nochildren">No subcategories yet. Use the form above to add the first one.</p>}
-              </section>
-            );
-          })}
-        </div>
-      ) : <EmptyState title="No Categories Yet" text="Create your first main category to get started." icon={Tag}/>}
-    </AdminLayout>
-  );
+      {children.length > 0 && <div className="category-admin-children">{children.map(child => renderNode(child, depth + 1))}</div>}
+    </div>;
+  };
+  return <AdminLayout>
+    <div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Categories</h1><p>Main Category, Subcategory aur Subcategory of Subcategory manage karein. Existing category records aur parent links preserve rahenge.</p></div></div>
+    <form className="admin-form category-manager-form" onSubmit={add}>
+      <div className="form-grid">
+        <label>Category Name*<input required value={name} onChange={e=>setName(e.target.value)} placeholder={kind === 'main' ? 'e.g. Cosmetics' : kind === 'grandchild' ? 'e.g. Lipsticks' : 'e.g. Makeup Brushes'} disabled={busy}/></label>
+        <label>Category Type<select value={kind} onChange={e=>{setKind(e.target.value);setParentId('');}} disabled={busy}><option value="main">Main Category</option><option value="subcategory">Subcategory</option><option value="grandchild">Subcategory of Subcategory</option></select></label>
+        {kind !== 'main' && <label>{kind === 'grandchild' ? 'Parent Subcategory' : 'Parent / Main Category'}<select required value={parentId} onChange={e=>setParentId(e.target.value)} disabled={busy}><option value="">Select parent category</option>{parentOptions.map(c=><option value={c.id} key={c.id}>{categoryPath(c)}</option>)}</select></label>}
+      </div>
+      {kind !== 'main' && <p className="category-form-hint">Nayi category selected parent ke neeche save hogi. Purani categories delete ya reset nahi hongi.</p>}
+      <div className="form-actions"><button type="submit" className="gold-btn" disabled={busy}><Plus size={17}/>{busy ? 'Creating...' : kind === 'main' ? 'Create Main Category' : kind === 'grandchild' ? 'Create Subcategory of Subcategory' : 'Create Subcategory'}</button></div>
+    </form>
+    {mainCategories.length ? <div className="category-admin-tree">{mainCategories.map(category => <section className="category-admin-group" key={category.id}>{renderNode(category, 0)}</section>)}</div> : <EmptyState title="No Categories Yet" text="Create your first main category to get started." icon={Tag}/>}
+  </AdminLayout>;
 }
+
 function BannerImageUploader({value,setValue}){
   const [busy,setBusy]=useState(false); const [error,setError]=useState('');
   const upload=async file=>{ if(!file)return; const validationError=await validateUploadedImage(file,{maxBytes:MAX_IMAGE_UPLOAD_BYTES}); if(validationError){setError(validationError);return;} setBusy(true);setError(''); try { const ext=({ 'image/jpeg':'jpg','image/png':'png','image/webp':'webp' })[file.type]; const path=`banners/${crypto.randomUUID()}.${ext}`; const {error}=await supabase.storage.from('banner-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'}); if(error) throw error; const {data}=supabase.storage.from('banner-images').getPublicUrl(path); if(!data?.publicUrl) throw new Error('URL unavailable'); setValue(data.publicUrl); } catch(error) { setError(getFriendlyErrorMessage(error,'Banner upload nahi ho saki. Dobara try karein.')); } finally { setBusy(false); } };
-  return <div className="image-uploader span-2"><div className="upload-head"><div><strong>Banner Image</strong><small>Optional promotional image. JPG, PNG or WEBP, max 5MB.</small></div><label className="gold-btn upload-btn"><Upload size={16}/>{busy?'Uploading...':'Upload Image'}<input hidden type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{upload(e.target.files?.[0]);e.target.value='';}}/></label></div>{error&&<p className="upload-error">{error}</p>}{value?<div className="banner-image-preview"><img src={value} alt="Banner preview"/><button type="button" className="remove-btn" onClick={()=>setValue('')}><Trash2 size={15}/></button></div>:<div className="upload-empty"><ImageIcon size={24}/><span>No banner image selected.</span></div>}</div>;
+  return <div className="image-uploader span-2 banner-image-uploader"><div className="upload-head"><div><strong>Banner Image</strong><small>Optional promotional image. JPG, PNG or WEBP, max 5MB.</small></div><label className="gold-btn upload-btn"><Upload size={16}/>{busy?'Uploading...':'Upload Image'}<input hidden type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{upload(e.target.files?.[0]);e.target.value='';}}/></label></div>{error&&<p className="upload-error">{error}</p>}{value?<div className="banner-image-preview"><img src={value} alt="Banner preview"/><button type="button" className="remove-btn" onClick={()=>setValue('')}><Trash2 size={15}/></button></div>:<div className="upload-empty"><ImageIcon size={24}/><span>No banner image selected.</span></div>}</div>;
 }
 
 function AdminBanners(){ const {store,refresh}=useStore(); const blank={title:'',subtitle:'',buttonText:'Shop Now',buttonLink:'/deals',startDate:'',endDate:'',status:'active',imageUrl:''}; const [form,setForm]=useState(blank); const [editing,setEditing]=useState(null);
