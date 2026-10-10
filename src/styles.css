@@ -8777,3 +8777,556 @@ body,
   .hm-privacy-contact-grid { grid-template-columns: 1fr; }
   .hm-privacy-updated { font-size: 9px; }
 }
+
+/* ================================================================
+   FINAL TYPOGRAPHY + PRIVACY POLICY SPACING FIX
+   - neutralise excessive negative tracking that made letters appear joined
+   - disable discretionary ligatures in interface copy for clearer glyphs
+   - separate Publisher and Store policy cards and headings unmistakably
+   ================================================================ */
+html {
+  text-rendering: auto !important;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  font-kerning: normal;
+  font-variant-ligatures: none;
+}
+
+/* These display headings previously used strong negative letter-spacing values. */
+.home-hero-copy h1,
+.home-section-heading h2,
+.home-promo h2,
+.hero h1,
+.account-login-panel h1,
+.page-head h1,
+.section-heading h2,
+.sale-hero-copy h2,
+.admin-head h1,
+.checkout-modern .checkout-header h1,
+.home-page .home-promo h2,
+.home-testimonials-heading-copy h2,
+.category-directory-copy h2,
+.hm-privacy-hero h1,
+.hm-privacy-section-heading h2 {
+  letter-spacing: normal !important;
+  font-kerning: normal !important;
+  font-variant-ligatures: none !important;
+  word-spacing: normal !important;
+  text-rendering: auto !important;
+}
+
+/* Keep normal copy readable without forcing words or adjacent characters together. */
+.hm-privacy-page,
+.hm-privacy-page * {
+  font-kerning: normal;
+  font-variant-ligatures: none;
+}
+.hm-privacy-hero h1 {
+  max-width: 100%;
+  line-height: 1.12 !important;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
+}
+.hm-privacy-section-heading {
+  grid-template-columns: minmax(82px, auto) minmax(0, 1fr) !important;
+  column-gap: 18px !important;
+  row-gap: 10px !important;
+  align-items: start !important;
+}
+.hm-privacy-section-heading > div {
+  min-width: 0 !important;
+}
+.hm-privacy-section-number {
+  width: auto !important;
+  min-width: 76px;
+  min-height: 38px;
+  padding: 7px 10px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.25 !important;
+  letter-spacing: .035em !important;
+  overflow-wrap: normal;
+}
+.hm-privacy-section-heading h2 {
+  margin: 0 0 10px !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  font-size: clamp(21px, 2vw, 26px) !important;
+  line-height: 1.32 !important;
+  font-weight: 700 !important;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  hyphens: manual;
+}
+.hm-privacy-section-heading p {
+  margin-top: 0 !important;
+  line-height: 1.7 !important;
+}
+.hm-privacy-document {
+  gap: 18px !important;
+}
+.hm-privacy-section {
+  min-width: 0;
+  border-radius: 12px;
+  padding: clamp(22px, 3vw, 32px) !important;
+}
+.hm-privacy-section-configured {
+  border-top: 3px solid #b18a3a !important;
+  box-shadow: 0 12px 30px rgba(36, 28, 14, .045) !important;
+}
+.hm-privacy-section-configured.is-publisher-policy {
+  background: #fffefa !important;
+}
+.hm-privacy-section-configured.is-store-policy {
+  background: #ffffff !important;
+}
+.hm-privacy-section-configured + .hm-privacy-section-configured {
+  margin-top: 2px;
+}
+.hm-privacy-configured-prose {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.hm-privacy-configured-prose > p {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.9 !important;
+  margin-bottom: 16px !important;
+}
+.hm-privacy-configured-prose > p:last-child {
+  margin-bottom: 0 !important;
+}
+.hm-privacy-empty-copy {
+  padding: 12px 14px;
+  border-left: 3px solid #d7ae49;
+  background: #faf7f0;
+  color: #716755 !important;
+}
+.hm-privacy-toc nav a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  letter-spacing: normal !important;
+  line-height: 1.55 !important;
+}
+.hm-privacy-toc nav a span:last-child {
+  min-width: 0;
+}
+.hm-privacy-prose > p,
+.hm-privacy-detail p,
+.hm-privacy-detail h3,
+.hm-privacy-section-heading p,
+.hm-privacy-contact-card > a,
+.hm-privacy-contact-card > strong {
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  font-kerning: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+@media (max-width: 600px) {
+  .hm-privacy-section-heading {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .hm-privacy-section-number {
+    justify-self: start;
+    min-width: 95px;
+  }
+  .hm-privacy-section-heading h2 {
+    font-size: 22px !important;
+    line-height: 1.35 !important;
+  }
+  .hm-privacy-section {
+    padding: 20px 16px !important;
+  }
+}
+
+
+
+/* ================================================================
+   ACCOUNT ORDER HISTORY + PRIVACY NAV ROUTE SAFETY FIX
+   - force readable contrast for order totals on dark cards
+   - show payment method when stored on an order
+   - ensure account order summary remains legible on desktop and mobile
+   ================================================================ */
+.account-orders {
+  width: 100%;
+  max-width: 850px;
+}
+.account-order {
+  color: #f5f0e5 !important;
+  background: #111111 !important;
+  border-color: #34302a !important;
+}
+.account-order > div:first-child strong {
+  color: #e7c46d !important;
+}
+.account-order > div:first-child span {
+  color: #aaa397 !important;
+}
+.account-order-summary {
+  min-width: 145px;
+  align-items: flex-end !important;
+  gap: 6px !important;
+}
+.account-order-total-label {
+  color: #b8b0a2 !important;
+  font-size: 9px !important;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.account-order .account-order-total {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #665329;
+  border-radius: 8px;
+  background: #292316 !important;
+  color: #ffe7a5 !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-align: right;
+}
+.account-order-payment {
+  max-width: 190px;
+  color: #d2ccc0 !important;
+  font-size: 10px !important;
+  line-height: 1.45;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.account-order .status {
+  color: #e8c46e !important;
+  font-size: 10px !important;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.account-order .status-cancelled {
+  color: #ff9a9a !important;
+}
+.account-order .status-delivered {
+  color: #93dfb3 !important;
+}
+.account-order .status-shipped,
+.account-order .status-out_for_delivery {
+  color: #a8d8ff !important;
+}
+@media (max-width: 520px) {
+  .account-order {
+    gap: 12px !important;
+    padding: 14px !important;
+  }
+  .account-order-summary {
+    min-width: 128px;
+  }
+  .account-order .account-order-total {
+    font-size: 12px !important;
+    padding: 6px 8px;
+  }
+  .account-order-payment {
+    max-width: 150px;
+  }
+}
+
+/* Keep privacy section anchors comfortably visible below the site header. */
+.hm-privacy-section[id] {
+  scroll-margin-top: 112px !important;
+}
+.hm-privacy-toc nav a:focus-visible {
+  outline: 2px solid #b18a3a !important;
+  outline-offset: 3px;
+  border-radius: 5px;
+}
+
+
+/* Contact Us route: real support content instead of a missing-route page. */
+.hm-contact-page {
+  padding-top: 42px !important;
+  padding-bottom: 76px !important;
+  background: #f7f5f0;
+}
+.hm-contact-shell {
+  max-width: 1040px;
+}
+.hm-contact-hero {
+  margin-bottom: 24px;
+  padding: clamp(24px, 4vw, 42px);
+  border: 1px solid #e5dece;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #171713 0%, #252117 100%);
+  color: #f8f2e3;
+}
+.hm-contact-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #e4c270;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.hm-contact-hero h1 {
+  margin: 15px 0 10px !important;
+  color: #fffaf0 !important;
+  font-size: clamp(32px, 4vw, 46px) !important;
+  line-height: 1.15 !important;
+  letter-spacing: normal !important;
+}
+.hm-contact-hero p {
+  max-width: 680px;
+  margin: 0 !important;
+  color: #d1c9b8 !important;
+  font-size: 13px !important;
+  line-height: 1.8 !important;
+}
+.hm-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+.hm-contact-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 21px;
+  border: 1px solid #e4ded2;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(30, 25, 16, .035);
+}
+.hm-contact-card-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e8d8b4;
+  border-radius: 10px;
+  background: #f8f2e5;
+  color: #896925;
+}
+.hm-contact-card h2 {
+  margin: 1px 0 6px !important;
+  color: #28241d !important;
+  font-size: 15px !important;
+  letter-spacing: normal !important;
+}
+.hm-contact-card p {
+  margin: 0 !important;
+  color: #746d61 !important;
+  font-size: 11px !important;
+  line-height: 1.7 !important;
+}
+.hm-contact-card > a,
+.hm-contact-card > strong {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  flex-wrap: wrap;
+  gap: 7px;
+  max-width: 100%;
+  margin-top: 2px;
+  color: #8a6727 !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.6 !important;
+  overflow-wrap: anywhere;
+}
+.hm-contact-card > a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.hm-contact-next-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid #e4ded2;
+  border-radius: 13px;
+  background: #eeeadf;
+}
+.hm-contact-next-steps h2 {
+  margin: 0 0 6px !important;
+  color: #29251e !important;
+  font-size: 16px !important;
+}
+.hm-contact-next-steps p {
+  margin: 0 !important;
+  color: #70685a !important;
+  font-size: 11px !important;
+  line-height: 1.7 !important;
+}
+.hm-contact-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.hm-contact-actions .ghost-btn {
+  background: #fff !important;
+  color: #29251e !important;
+  border-color: #d8cfbe !important;
+}
+@media (max-width: 650px) {
+  .hm-contact-page { padding-top: 26px !important; }
+  .hm-contact-grid { grid-template-columns: 1fr; }
+  .hm-contact-next-steps { align-items: stretch; flex-direction: column; }
+  .hm-contact-actions { justify-content: flex-start; }
+}
+
+
+/* ================================================================
+   ROUTE-SAFE PRIVACY NAVIGATION + ERROR HANDLING UI
+   ================================================================ */
+.hm-privacy-toc nav a {
+  cursor: pointer;
+  text-decoration: none;
+}
+.hm-privacy-section[id] {
+  scroll-margin-top: 112px !important;
+}
+.hm-account-feedback {
+  margin: 12px 0 0 !important;
+  padding: 11px 13px;
+  border: 1px solid #d9d0bd;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.hm-account-feedback.is-success {
+  background: #f3f7f1;
+  border-color: #c9ddc4;
+  color: #285b31 !important;
+}
+.hm-account-feedback.is-error,
+.hm-inline-error {
+  background: #fff4f2;
+  border: 1px solid #e9b6ae;
+  color: #7a2d25;
+}
+.hm-account-feedback.is-error { color: #7a2d25 !important; }
+.hm-inline-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 17px;
+  border-radius: 10px;
+}
+.hm-inline-error p { margin: 0; color: #7a2d25; font-size: 12px; line-height: 1.65; }
+.hm-inline-error button,
+.hm-global-error-notice button,
+.hm-app-error-page button {
+  appearance: none;
+  border: 1px solid #b18a3a;
+  border-radius: 7px;
+  background: #211e17;
+  color: #fff3d1;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hm-inline-error button:hover,
+.hm-global-error-notice button:hover,
+.hm-app-error-page button:hover { background: #3a3020; }
+.hm-global-error-notice {
+  position: fixed;
+  z-index: 99999;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 24px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 15px;
+  border: 1px solid #9e3e34;
+  border-radius: 10px;
+  background: #fff4f2;
+  color: #76251f;
+  box-shadow: 0 12px 40px rgba(0,0,0,.2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.hm-global-error-notice span { min-width: 0; }
+.hm-global-error-notice button { flex: 0 0 auto; background: #76251f; border-color: #76251f; }
+.hm-app-error-page {
+  display: grid;
+  min-height: 70vh;
+  place-items: center;
+  padding: 28px;
+  background: #f6f3eb;
+  color: #24211c;
+}
+.hm-app-error-page section {
+  width: min(600px, 100%);
+  padding: clamp(22px, 5vw, 42px);
+  border: 1px solid #e2d8c4;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(24, 20, 12, .08);
+}
+.hm-app-error-page h1 { margin: 0 0 12px; color: #24211c; font-size: clamp(24px,4vw,34px); letter-spacing: normal; }
+.hm-app-error-page p { margin: 0 0 20px; color: #635d52; font-size: 14px; line-height: 1.8; }
+@media (max-width: 520px) {
+  .hm-global-error-notice { align-items: flex-start; padding: 11px; }
+  .hm-global-error-notice button { padding: 8px; }
+}
+
+
+/* Security release: MFA enrollment, image-signed-url feedback and accessible failures */
+.hm-security-card {
+  width: min(880px, 100%);
+  margin: 0 auto 32px;
+  padding: clamp(20px, 3vw, 30px);
+  border: 1px solid #ded3bd;
+  border-radius: 14px;
+  background: #fffdf8;
+  color: #29251e;
+  box-shadow: 0 12px 35px rgba(31, 26, 17, .06);
+}
+.hm-security-card p { color: #5d564b; line-height: 1.75; font-size: 13px; }
+.hm-security-status { display: flex; align-items: center; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid #e7dfd0; color: #806123; }
+.hm-security-status div { display: grid; gap: 5px; }
+.hm-security-status strong { color: #29251e; font-size: 16px; }
+.hm-security-status span { color: #746a59; font-size: 12px; }
+.hm-mfa-qr { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; padding: 18px 0; }
+.hm-mfa-qr img { width: min(220px, 100%); border: 1px solid #e1d8c7; border-radius: 8px; background: white; }
+.hm-mfa-qr div { display: grid; gap: 9px; min-width: 0; }
+.hm-mfa-qr code { overflow-wrap: anywhere; padding: 10px; border-radius: 6px; background: #f0eadf; color: #29251e; }
+.hm-mfa-qr small, .hm-security-note { color: #766d5d; font-size: 11px; line-height: 1.7; }
+.hm-mfa-verify { display: grid; gap: 14px; width: min(420px, 100%); margin-top: 20px; }
+.hm-mfa-verify label { display: grid; gap: 7px; color: #453d30; font-size: 12px; font-weight: 700; }
+.hm-mfa-verify input { min-height: 44px; padding: 10px 12px; border: 1px solid #cabda6; border-radius: 7px; background: white; color: #24211c; font: inherit; letter-spacing: .2em; }
+.hm-security-note { padding-top: 16px; border-top: 1px solid #e7dfd0; }
+.hm-account-feedback { overflow-wrap: anywhere; }
+.complaint-images img { max-width: 100%; object-fit: cover; }
+button:disabled { cursor: not-allowed; opacity: .65; }
+:focus-visible { outline: 3px solid #bd9548; outline-offset: 3px; }
+@media (max-width: 560px) { .hm-security-card { padding: 18px; } .hm-mfa-qr { align-items: flex-start; flex-direction: column; } }

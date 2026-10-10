@@ -5,6 +5,66 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib_supabase";
 
 const logo = `${import.meta.env.BASE_URL}logo/hafiz-mart-logo.png`;
+
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error, info) {
+    console.error('[Hafiz Mart] UI rendering error:', error?.name || 'Error');
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="hm-app-error-page" role="alert">
+          <section>
+            <h1>Something went wrong</h1>
+            <p>Hafiz Mart could not display this screen. Reload the page and try again. If the issue continues, contact support.</p>
+            <button type="button" onClick={() => window.location.reload()}>Reload website</button>
+          </section>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function GlobalErrorNotice() {
+  const [notice, setNotice] = useState('');
+  useEffect(() => {
+    const onUnhandledRejection = (event) => {
+      console.error('[Hafiz Mart] Unhandled async error:', event.reason?.name || 'Unhandled rejection');
+      setNotice('Something went wrong while completing that action. Please retry. If it continues, contact support.');
+    };
+    const onWindowError = (event) => {
+      // Resource-load errors do not always have event.error; avoid treating a missing image as a JS crash.
+      if (!event.error) return;
+      console.error('[Hafiz Mart] Unhandled runtime error:', event.error?.name || 'Runtime error');
+      setNotice('A page error occurred. Please retry; if the issue continues, reload the website.');
+    };
+    const onAppError = (event) => {
+      const message = String(event?.detail?.message || '').trim();
+      if (message) setNotice(message);
+    };
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    window.addEventListener('error', onWindowError);
+    window.addEventListener('hafiz:app-error', onAppError);
+    return () => {
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
+      window.removeEventListener('error', onWindowError);
+      window.removeEventListener('hafiz:app-error', onAppError);
+    };
+  }, []);
+  if (!notice) return null;
+  return (
+    <div className="hm-global-error-notice" role="alert" aria-live="assertive">
+      <span>{notice}</span>
+      <button type="button" onClick={() => setNotice('')} aria-label="Dismiss error notice">Dismiss</button>
+    </div>
+  );
+}
 const AuthContext = createContext(null);
 function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
@@ -12,34 +72,187 @@ function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (user) => {
-    if (!user) { setProfile(null); return; }
-    const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-    setProfile(data || null);
+    if (!user) { setProfile(null); return null; }
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      if (error) throw error;
+      setProfile(data || null);
+      return data || null;
+    } catch (error) {
+      logSafeError('[Hafiz Mart] Profile load failed:', error);
+      setProfile(null);
+      reportAppErrorNotice('Your account profile could not be loaded. Check your connection and try again.');
+      return null;
+    }
   };
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(async ({ data }) => {
+    const initialiseSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (!mounted) return;
+        setSession(data.session || null);
+        await loadProfile(data.session?.user || null);
+      } catch (error) {
+        logSafeError('[Hafiz Mart] Session initialisation failed:', error);
+        if (mounted) { setSession(null); setProfile(null); }
+        reportAppErrorNotice('We could not restore your sign-in session. Please sign in again.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    void initialiseSession();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
-      setSession(data.session);
-      await loadProfile(data.session?.user || null);
-      if (mounted) setLoading(false);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      setSession(nextSession);
-      await loadProfile(nextSession?.user || null);
-      setLoading(false);
+      setSession(nextSession || null);
+      void loadProfile(nextSession?.user || null).finally(() => {
+        if (mounted) setLoading(false);
+      });
     });
     return () => { mounted = false; listener.subscription.unsubscribe(); };
   }, []);
 
-  const signOut = () => supabase.auth.signOut();
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      logSafeError('[Hafiz Mart] Sign out failed:', error);
+      reportAppErrorNotice('Sign out did not complete. Please try again.');
+      return { error };
+    }
+  };
   return <AuthContext.Provider value={{ session, user: session?.user || null, profile, loading, signOut, refreshProfile: () => loadProfile(session?.user || null) }}>{children}</AuthContext.Provider>;
 }
 const useAuth = () => useContext(AuthContext);
 
+function reportAppErrorNotice(message) {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  try {
+    window.dispatchEvent(new CustomEvent('hafiz:app-error', { detail: { message } }));
+  } catch (error) {
+    logSafeError('[Hafiz Mart] Could not publish app error notice:', error);
+  }
+}
+
+function logSafeError(label, error) {
+  const tag = String(error?.code || error?.name || 'Request failed').replace(/[^a-z0-9_-]/gi, '').slice(0, 48) || 'Request failed';
+  console.error(label, tag);
+}
+
+function getFriendlyErrorMessage(error, fallback = 'Ye kaam abhi complete nahi ho saka. Please dobara try karein.') {
+  const code = String(error?.code || '');
+  const message = String(error?.message || error || '').toLowerCase();
+  if (code === '23505' || message.includes('duplicate key') || message.includes('already exists')) {
+    return 'Ye information pehle se maujood hai. Details check karke dobara try karein.';
+  }
+  if (code === '42501' || message.includes('row-level security') || message.includes('permission denied')) {
+    return 'Is action ki permission nahi mili. Apna account/session check karein ya support se rabta karein.';
+  }
+  if (message.includes('failed to fetch') || message.includes('network') || message.includes('fetch')) {
+    return 'Internet ya server connection mein masla hai. Connection check karke dobara try karein.';
+  }
+  if (message.includes('jwt') || message.includes('session expired') || message.includes('not authenticated')) {
+    return 'Aapka login session expire ho sakta hai. Dobara sign in karke try karein.';
+  }
+  return fallback;
+}
+
 const emptyStore = { products: [], categories: [], banners: [], cart: [], wishlist: [] };
 const STORE_KEY = "hafiz-mart-cart";
+const STORE_SUPPORT_PHONE_LOCAL = "03398620712";
+const STORE_WHATSAPP_NUMBER_INTL = "923398620712";
+const LEGACY_STORE_PHONE_PREFIX = "031";
+const LEGACY_STORE_PHONE_SUFFIX = "420712";
+
+function normaliseLocalPhone(value) {
+  let digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("92")) digits = `0${digits.slice(2)}`;
+  return digits;
+}
+
+function isLegacyStorePhone(value) {
+  const local = normaliseLocalPhone(value);
+  return local.length === 11 && local.startsWith(LEGACY_STORE_PHONE_PREFIX) && local.endsWith(LEGACY_STORE_PHONE_SUFFIX);
+}
+
+function displayStorePhone(value) {
+  const phone = String(value ?? "").trim();
+  if (!phone) return "";
+  return isLegacyStorePhone(phone) ? STORE_SUPPORT_PHONE_LOCAL : phone;
+}
+
+function getStoreWhatsAppNumber(value) {
+  let digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits || isLegacyStorePhone(digits)) return STORE_WHATSAPP_NUMBER_INTL;
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("0")) return `92${digits.slice(1)}`;
+  return digits;
+}
+
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+async function validateUploadedImage(file, { allowGif = false, maxBytes = MAX_IMAGE_UPLOAD_BYTES } = {}) {
+  if (!file) return 'Please select an image file.';
+  const allowed = allowGif
+    ? ALLOWED_IMAGE_MIME_TYPES
+    : new Set(['image/jpeg', 'image/png', 'image/webp']);
+  if (!allowed.has(file.type)) return 'Sirf JPG, PNG ya WEBP images upload karein.';
+  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > maxBytes) return 'Image empty hai ya 5MB limit se bari hai.';
+  // Check magic bytes as well as the browser-provided MIME type (client checks are not server security).
+  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const starts = (...values) => values.every((value, index) => bytes[index] === value);
+  const ascii = (from, to) => String.fromCharCode(...bytes.slice(from, to));
+  const signatureType = starts(0xff, 0xd8, 0xff) ? 'image/jpeg'
+    : starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) ? 'image/png'
+    : ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP' ? 'image/webp'
+    : ['GIF87a', 'GIF89a'].includes(ascii(0, 6)) ? 'image/gif' : '';
+  if (!signatureType || signatureType !== file.type || (!allowGif && signatureType === 'image/gif')) {
+    return 'File ka actual format valid image se match nahi karta.';
+  }
+  return '';
+}
+
+function getComplaintObjectPath(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const raw = value.trim();
+  if (/^complaints\/[a-zA-Z0-9-]+\//.test(raw)) return raw;
+  try {
+    const url = new URL(raw, window.location.origin);
+    const match = url.pathname.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/complaint-images\/(.+)$/);
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch { return null; }
+}
+
+async function addSignedComplaintImageUrls(rows) {
+  return Promise.all((rows || []).map(async row => {
+    const rawImages = Array.isArray(row.image_urls) ? row.image_urls : [];
+    const paths = rawImages.map(getComplaintObjectPath);
+    const signed = await Promise.all(paths.map(async path => {
+      if (!path) return null;
+      try {
+        const { data, error } = await supabase.storage.from('complaint-images').createSignedUrl(path, 10 * 60);
+        return error ? null : (data?.signedUrl || null);
+      } catch { return null; }
+    }));
+    return { ...row, image_display_urls: signed };
+  }));
+}
+
+function isSafeHttpUrl(value) {
+  try { const url = new URL(String(value || '').trim()); return url.protocol === 'https:' || url.protocol === 'http:'; }
+  catch { return false; }
+}
+
+function replaceLegacyStorePhoneText(value) {
+  if (typeof value !== "string") return value;
+  return value.replace(/(?:\+?92[\s().-]*)?0?313[\s().-]*342[\s().-]*0712/g, STORE_SUPPORT_PHONE_LOCAL);
+}
 
 const DEFAULT_ADMIN_SETTINGS = {
   general: { storeName: 'Hafiz Mart', tagline: 'Everything You Need, Delivered', supportEmail: '', supportPhone: '', whatsapp: '', address: '', currency: 'PKR', timezone: 'Asia/Karachi', facebook: '', instagram: '', tiktok: '' },
@@ -60,7 +273,7 @@ function mergeAdminSettings(base, incoming) {
   Object.keys(incoming).forEach(key => {
     const v = incoming[key];
     if (v && typeof v === 'object' && !Array.isArray(v) && base[key] && typeof base[key] === 'object' && !Array.isArray(base[key])) out[key] = mergeAdminSettings(base[key], v);
-    else if (v !== undefined && v !== null) out[key] = v;
+    else if (v !== undefined && v !== null) out[key] = typeof v === 'string' ? replaceLegacyStorePhoneText(v) : v;
   });
   return out;
 }
@@ -69,6 +282,7 @@ function userHasPermission(profile, permission) {
   if (!profile || profile.role !== 'admin') return false;
   const teamRole = profile.team_role || 'owner';
   if (teamRole === 'owner') return true;
+  if (permission === 'view_transactions' && profile.permissions?.manage_transactions) return true;
   return Boolean(profile.permissions && profile.permissions[permission]);
 }
 
@@ -96,11 +310,16 @@ function readCart() {
   try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{"cart":[],"wishlist":[]}'); } catch { return { cart: [], wishlist: [] }; }
 }
 
-function mapProduct(p) {
-  return { ...p, salePrice: p.sale_price ?? '', image: p.main_image || '', images: Array.isArray(p.images) ? p.images : [], stock: p.stock_quantity ?? 0, categoryId: p.category_id, shortDescription: p.short_description || '', description: p.description || '', createdAt: p.created_at };
+function sanitiseStoreContent(record) {
+  return Object.fromEntries(Object.entries(record || {}).map(([key, value]) => [key, typeof value === "string" ? replaceLegacyStorePhoneText(value) : value]));
 }
-function mapCategory(c) { return { ...c, image: c.image_url || '', createdAt: c.created_at }; }
-function mapBanner(b) { return { ...b, buttonText: b.button_text || '', buttonLink: b.button_link || '/deals', startDate: b.start_date || '', endDate: b.end_date || '', imageUrl: b.image_url || '', createdAt: b.created_at }; }
+
+function mapProduct(p) {
+  const clean = sanitiseStoreContent(p);
+  return { ...clean, salePrice: clean.sale_price ?? '', image: clean.main_image || '', images: Array.isArray(clean.images) ? clean.images : [], stock: clean.stock_quantity ?? 0, categoryId: clean.category_id, shortDescription: clean.short_description || '', description: clean.description || '', createdAt: clean.created_at };
+}
+function mapCategory(c) { const clean = sanitiseStoreContent(c); return { ...clean, image: clean.image_url || '', createdAt: clean.created_at }; }
+function mapBanner(b) { const clean = sanitiseStoreContent(b); return { ...clean, buttonText: clean.button_text || '', buttonLink: clean.button_link || '/deals', startDate: clean.start_date || '', endDate: clean.end_date || '', imageUrl: clean.image_url || '', createdAt: clean.created_at }; }
 
 function getCategoryDescendantIds(categories, categoryId) {
   const result = new Set([String(categoryId)]);
@@ -196,9 +415,9 @@ function StoreProvider({ children }) {
       supabase.from('admin_store_settings').select('settings').eq('id', 'default').maybeSingle()
     ]);
     if (!productsRes.error && !categoriesRes.error && !bannersRes.error) {
-      const mappedCategories = (categoriesRes.data || []).map(mapCategory); const catMap = new Map(mappedCategories.map(c => [c.id, c.name])); const mappedProducts = (productsRes.data || []).map(p => ({ ...mapProduct(p), category: catMap.get(p.category_id) || '' })); const adminSettings = settingsRes.error ? DEFAULT_ADMIN_SETTINGS : mergeAdminSettings(DEFAULT_ADMIN_SETTINGS, settingsRes.data?.settings || {}); setStore(s => ({ ...s, products: mappedProducts, categories: mappedCategories, banners: (bannersRes.data || []).map(mapBanner), adminSettings })); if (settingsRes.error) console.error('Admin settings load error', settingsRes.error);
+      const mappedCategories = (categoriesRes.data || []).map(mapCategory); const catMap = new Map(mappedCategories.map(c => [c.id, c.name])); const mappedProducts = (productsRes.data || []).map(p => ({ ...mapProduct(p), category: catMap.get(p.category_id) || '' })); const adminSettings = settingsRes.error ? DEFAULT_ADMIN_SETTINGS : mergeAdminSettings(DEFAULT_ADMIN_SETTINGS, settingsRes.data?.settings || {}); setStore(s => ({ ...s, products: mappedProducts, categories: mappedCategories, banners: (bannersRes.data || []).map(mapBanner), adminSettings })); if (settingsRes.error) logSafeError('Admin settings load error', settingsRes.error);
     } else {
-      console.error('Supabase load error', productsRes.error || categoriesRes.error || bannersRes.error);
+      logSafeError('Supabase load error', productsRes.error || categoriesRes.error || bannersRes.error);
     }
     setLoading(false);
   };
@@ -228,7 +447,7 @@ function Toast({ message, onClose }) {
 }
 
 function WhatsAppButton() {
-  const number = import.meta.env.VITE_WHATSAPP_NUMBER || "923000000000";
+  const number = getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER);
   return <a className="whatsapp" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer" aria-label="Contact Hafiz Mart on WhatsApp"><MessageCircle size={22}/><span>WhatsApp</span></a>;
 }
 
@@ -475,7 +694,7 @@ function HomeTestimonials() {
       if (!active) return;
 
       if (error) {
-        console.error("Home testimonials load error:", error);
+        logSafeError('Home testimonials load error:', error);
         setRows([]);
       } else {
         setRows(data || []);
@@ -740,18 +959,97 @@ const DEFAULT_PRIVACY_POLICY = [
   }
 ];
 
+function parseConfiguredPrivacyPolicies(rawPolicy) {
+  const text = replaceLegacyStorePhoneText(String(rawPolicy || ""))
+    .replace(/\r\n?/g, "\n")
+    .trim();
+  if (!text) return [];
+
+  // Recognise the policy names entered in the admin textarea even if the user
+  // adds Markdown markers, a colon, or puts the first sentence on the same line.
+  const headingPattern = /^(Publisher(?:'s)?|Published(?:\s+by\s+(?:the\s+)?(?:store|publisher))?|Store)\s+(?:Privacy\s+)?Policy\b\s*:?\s*(.*)$/i;
+  const classify = label => /publisher|published/i.test(label)
+    ? { id: "publisher-policy", title: "Publisher privacy policy", badge: "PUBLISHER" }
+    : { id: "store-policy", title: "Store privacy policy", badge: "STORE POLICY" };
+
+  const lines = text.split("\n");
+  const found = [];
+  let current = null;
+  const preamble = [];
+
+  const finishCurrent = () => {
+    if (!current) return;
+    current.content = current.content.join("\n").trim();
+    found.push(current);
+    current = null;
+  };
+
+  for (const originalLine of lines) {
+    let line = originalLine.trim();
+    if (!line) {
+      if (current) current.content.push("");
+      else if (preamble.length) preamble.push("");
+      continue;
+    }
+
+    // Strip common Markdown heading/bold/list wrappers before testing the title.
+    line = line
+      .replace(/^#{1,6}\s*/, "")
+      .replace(/^[-*+]\s+/, "")
+      .replace(/^\*\*(.*?)\*\*$/, "$1")
+      .replace(/^__(.*?)__$/, "$1")
+      .trim();
+
+    const match = line.match(headingPattern);
+    if (match) {
+      finishCurrent();
+      const kind = classify(match[1]);
+      current = { ...kind, content: [] };
+      if (match[2] && match[2].trim()) current.content.push(match[2].trim());
+      continue;
+    }
+
+    if (current) current.content.push(line);
+    else preamble.push(line);
+  }
+  finishCurrent();
+
+  if (!found.length) {
+    return [{ id: "store-policy", title: "Store privacy policy", badge: "STORE POLICY", content: text }];
+  }
+
+  // Preserve any introductory text by placing it at the start of the first policy,
+  // rather than dropping content typed before the first recognised heading.
+  const intro = preamble.join("\n").trim();
+  if (intro) found[0].content = [intro, found[0].content].filter(Boolean).join("\n\n");
+
+  // Keep each recognised policy as a separate card, including repeated headings.
+  // Stable, unique IDs are important for the table of contents and anchor links.
+  const counts = new Map();
+  return found.map(section => {
+    const count = (counts.get(section.id) || 0) + 1;
+    counts.set(section.id, count);
+    return {
+      ...section,
+      id: count === 1 ? section.id : `${section.id}-${count}`,
+      content: section.content || "",
+    };
+  });
+}
+
 function PrivacyPolicyPage() {
   const { store } = useStore();
-  const configured = String(store.adminSettings?.policies?.privacyPolicy || "").trim();
+  const configured = replaceLegacyStorePhoneText(String(store.adminSettings?.policies?.privacyPolicy || "")).trim();
+  const configuredPolicySections = parseConfiguredPrivacyPolicies(configured);
   const general = store.adminSettings?.general || {};
   const contactMethods = [
     general.supportEmail && { label: "Email support", value: general.supportEmail, href: `mailto:${general.supportEmail}` },
-    general.supportPhone && { label: "Call support", value: general.supportPhone, href: `tel:${String(general.supportPhone).replace(/[^+\d]/g, "")}` },
-    general.whatsapp && { label: "WhatsApp support", value: general.whatsapp, href: `https://wa.me/${String(general.whatsapp).replace(/\D/g, "")}` },
+    general.supportPhone && { label: "Call support", value: displayStorePhone(general.supportPhone), href: `tel:${displayStorePhone(general.supportPhone).replace(/[^+\d]/g, "")}` },
+    general.whatsapp && { label: "WhatsApp support", value: displayStorePhone(general.whatsapp), href: `https://wa.me/${getStoreWhatsAppNumber(general.whatsapp)}` },
     general.address && { label: "Store address", value: general.address, href: "" },
   ].filter(Boolean);
   const sections = configured
-    ? [{ id: "store-policy", number: "", navLabel: "Published policy", title: "Store privacy policy" }, { id: "contact", number: "", navLabel: "Contact us", title: "Questions or privacy concerns?" }]
+    ? [...configuredPolicySections.map((section, index) => ({ id: section.id, number: "", navLabel: section.title, title: section.title })), { id: "contact", number: "", navLabel: "Contact us", title: "Questions or privacy concerns?" }]
     : DEFAULT_PRIVACY_POLICY;
 
   return (
@@ -776,7 +1074,20 @@ function PrivacyPolicyPage() {
             <p className="hm-privacy-toc-title">ON THIS PAGE</p>
             <nav>
               {sections.map(section => (
-                <a key={section.id} href={`#hm-privacy-${section.id}`}>
+                <a
+                  key={section.id}
+                  href={`#hm-privacy-${section.id}`}
+                  onClick={(event) => {
+                    // In a HashRouter app, a raw #fragment is interpreted as a route.
+                    // Prevent that route change and scroll to the actual section instead.
+                    event.preventDefault();
+                    const target = document.getElementById(`hm-privacy-${section.id}`);
+                    if (target) {
+                      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+                      target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+                    }
+                  }}
+                >
                   {section.number && <span>{section.number}</span>}
                   <span>{section.navLabel}</span>
                 </a>
@@ -785,18 +1096,28 @@ function PrivacyPolicyPage() {
             <div className="hm-privacy-toc-help">
               <ShieldCheck size={18} aria-hidden="true" />
               <p><strong>Need help?</strong><span>Contact us to ask a question or make a privacy request.</span></p>
-              <Link to="/complaints">Contact support <ArrowRight size={13} aria-hidden="true" /></Link>
+              <Link to="/contact-us">Contact Us <ArrowRight size={13} aria-hidden="true" /></Link>
             </div>
           </aside>
 
           <article className="hm-privacy-document">
             {configured ? (
-              <section className="hm-privacy-section" id="hm-privacy-store-policy">
-                <div className="hm-privacy-section-heading"><span className="hm-privacy-section-number">PUBLISHED</span><div><h2>Store privacy policy</h2><p>Policy published by the store administrator.</p></div></div>
-                <div className="hm-privacy-prose">
-                  {configured.split(/\n{2,}/).map((block, index) => <p key={index}>{block}</p>)}
-                </div>
-              </section>
+              configuredPolicySections.map((policy) => (
+                <section className={`hm-privacy-section hm-privacy-section-configured ${policy.title.toLowerCase().includes("publisher") ? "is-publisher-policy" : "is-store-policy"}`} id={`hm-privacy-${policy.id}`} key={policy.id}>
+                  <div className="hm-privacy-section-heading">
+                    <span className="hm-privacy-section-number">{policy.badge || (policy.title.toLowerCase().includes("publisher") ? "PUBLISHER" : "STORE POLICY")}</span>
+                    <div>
+                      <h2>{policy.title}</h2>
+                      <p>{policy.title.toLowerCase().includes("publisher") ? "Publisher privacy notice — shown separately from the store policy." : "Store privacy notice — shown separately from the publisher policy."}</p>
+                    </div>
+                  </div>
+                  <div className="hm-privacy-prose hm-privacy-configured-prose">
+                    {policy.content
+                      ? policy.content.split(/\n\s*\n/).filter(block => block.trim()).map((block, blockIndex) => <p key={blockIndex}>{block.trim()}</p>)
+                      : <p className="hm-privacy-empty-copy">No text has been entered for this policy section yet. Update the Privacy policy field in Admin settings to publish its content.</p>}
+                  </div>
+                </section>
+              ))
             ) : DEFAULT_PRIVACY_POLICY.map(section => (
               <section className="hm-privacy-section" id={`hm-privacy-${section.id}`} key={section.id}>
                 <div className="hm-privacy-section-heading">
@@ -823,7 +1144,7 @@ function PrivacyPolicyPage() {
                           {method.href ? <a href={method.href} target={method.href.startsWith("https://") ? "_blank" : undefined} rel={method.href.startsWith("https://") ? "noreferrer" : undefined}>{method.value}</a> : <strong>{method.value}</strong>}
                         </div>
                       ))}
-                      {!contactMethods.length && <div className="hm-privacy-contact-empty"><strong>Contact Hafiz Mart Support</strong><p>Open the Support page on this website to submit your request. Store contact details can be configured by the administrator.</p><Link to="/complaints">Go to Support <ArrowRight size={14} aria-hidden="true" /></Link></div>}
+                      {!contactMethods.length && <div className="hm-privacy-contact-empty"><strong>Contact Hafiz Mart Support</strong><p>Open the Support page on this website to submit your request. Store contact details can be configured by the administrator.</p><Link to="/contact-us">Open Contact Us <ArrowRight size={14} aria-hidden="true" /></Link></div>}
                     </div>
                   )}
                 </div>
@@ -841,6 +1162,46 @@ function PrivacyPolicyPage() {
             <div className="hm-privacy-disclaimer"><ShieldCheck size={19} aria-hidden="true"/><p><strong>A note about this policy</strong><span>This is a store-specific privacy notice based on the current storefront features. The store owner should verify actual provider settings, retention practices, contact information and applicable local legal requirements before treating it as final legal advice.</span></p></div>
           </article>
         </div>
+      </div>
+    </main>
+  );
+}
+
+function ContactUsPage() {
+  const { store } = useStore();
+  const general = store.adminSettings?.general || {};
+  const phone = displayStorePhone(general.supportPhone || STORE_SUPPORT_PHONE_LOCAL);
+  const whatsappDisplay = displayStorePhone(general.whatsapp || STORE_SUPPORT_PHONE_LOCAL);
+  const whatsappNumber = getStoreWhatsAppNumber(general.whatsapp || STORE_WHATSAPP_NUMBER_INTL);
+  const email = String(general.supportEmail || '').trim();
+  const address = String(general.address || '').trim();
+
+  return (
+    <main className="page hm-contact-page">
+      <div className="container hm-contact-shell">
+        <header className="hm-contact-hero">
+          <span className="hm-contact-kicker"><MessageCircle size={15} aria-hidden="true" /> HAFIZ MART SUPPORT</span>
+          <h1>Contact Us</h1>
+          <p>Need help with an order, delivery, product or privacy request? Choose a support channel below.</p>
+        </header>
+        <section className="hm-contact-grid" aria-label="Hafiz Mart contact options">
+          <article className="hm-contact-card">
+            <span className="hm-contact-card-icon"><MessageCircle size={20} aria-hidden="true" /></span>
+            <div><h2>WhatsApp</h2><p>Message the store for order and general enquiries.</p></div>
+            <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noreferrer">{whatsappDisplay} <ArrowRight size={15} aria-hidden="true" /></a>
+          </article>
+          <article className="hm-contact-card">
+            <span className="hm-contact-card-icon"><User size={20} aria-hidden="true" /></span>
+            <div><h2>Phone support</h2><p>Call Hafiz Mart for assistance.</p></div>
+            <a href={`tel:${phone.replace(/[^+\d]/g, '')}`}>{phone} <ArrowRight size={15} aria-hidden="true" /></a>
+          </article>
+          {email && <article className="hm-contact-card"><span className="hm-contact-card-icon"><FileText size={20} aria-hidden="true" /></span><div><h2>Email</h2><p>Send a written question or privacy request.</p></div><a href={`mailto:${email}`}>{email} <ArrowRight size={15} aria-hidden="true" /></a></article>}
+          {address && <article className="hm-contact-card"><span className="hm-contact-card-icon"><Store size={20} aria-hidden="true" /></span><div><h2>Store address</h2><p>Address provided in store settings.</p></div><strong>{address}</strong></article>}
+        </section>
+        <section className="hm-contact-next-steps">
+          <div><h2>Need help with a specific order?</h2><p>Sign in to submit a support request and follow your complaint history.</p></div>
+          <div className="hm-contact-actions"><Link className="gold-btn" to="/complaints">Complaints & Support <ArrowRight size={15} /></Link><Link className="ghost-btn" to="/privacy-policy">Privacy Policy</Link></div>
+        </section>
       </div>
     </main>
   );
@@ -1524,10 +1885,7 @@ const availableCats = categoryCards;
           "You're already subscribed. Thank you!"
         );
       } else {
-        console.error(
-          "Newsletter subscription error:",
-          error
-        );
+        logSafeError('Newsletter subscription error:', error);
 
         setNewsletterMessage(
           "Something went wrong. Please try again."
@@ -1685,103 +2043,29 @@ function ProductReviews({ productId }) {
 
   const uploadReviewImages = async files => {
     const selected = Array.from(files || []);
-
     if (!selected.length) return;
-
-    const allowed = [
-      "image/jpeg",
-      "image/png",
-      "image/webp"
-    ];
-
-    const invalid = selected.find(
-      file => !allowed.includes(file.type)
-    );
-
-    if (invalid) {
-      setMessage(
-        "Sirf JPG, PNG ya WEBP images upload karein."
-      );
-      return;
-    }
-
-    const tooLarge = selected.find(
-      file => file.size > 5 * 1024 * 1024
-    );
-
-    if (tooLarge) {
-      setMessage(
-        "Har review image maximum 5MB ho sakti hai."
-      );
-      return;
-    }
-
     if (reviewImages.length + selected.length > maxReviewImages) {
-      setMessage(
-        `Maximum ${maxReviewImages} images per review upload kar sakte hain.`
-      );
+      setMessage(`Maximum ${maxReviewImages} images per review upload kar sakte hain.`);
       return;
     }
-
-    setUploadingImages(true);
-    setMessage("");
-
-    const uploaded = [];
-
     for (const file of selected) {
-      const safeName = file.name
-        .toLowerCase()
-        .replace(/[^a-z0-9.]+/g, "-");
-
-      const path =
-        `reviews/${productId}/${user.id}/${crypto.randomUUID()}-${safeName}`;
-
-      const {
-        error: uploadError
-      } = await supabase.storage
-        .from("review-images")
-        .upload(
-          path,
-          file,
-          {
-            upsert: false,
-            contentType: file.type,
-            cacheControl: "3600"
-          }
-        );
-
-      if (uploadError) {
-        console.error(
-          "Review image upload error:",
-          uploadError
-        );
-
-        setMessage(
-          "Review image upload nahi ho saki. Dobara try karein."
-        );
-
-        break;
-      }
-
-      const {
-        data
-      } = supabase.storage
-        .from("review-images")
-        .getPublicUrl(path);
-
-      if (data?.publicUrl) {
-        uploaded.push(data.publicUrl);
-      }
+      const validationError = await validateUploadedImage(file, { maxBytes: MAX_IMAGE_UPLOAD_BYTES });
+      if (validationError) { setMessage(validationError); return; }
     }
-
-    if (uploaded.length) {
-      setReviewImages(prev => [
-        ...prev,
-        ...uploaded
-      ]);
-    }
-
-    setUploadingImages(false);
+    setUploadingImages(true); setMessage('');
+    const uploaded = [];
+    try {
+      for (const file of selected) {
+        const path = `reviews/${productId}/${user.id}/${crypto.randomUUID()}.${({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'})[file.type]}`;
+        const { error: uploadError } = await supabase.storage.from('review-images').upload(path, file, { upsert: false, contentType: file.type, cacheControl: '3600' });
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from('review-images').getPublicUrl(path);
+        if (data?.publicUrl) uploaded.push(data.publicUrl);
+      }
+      if (uploaded.length) setReviewImages(prev => [...prev, ...uploaded]);
+    } catch (error) {
+      setMessage(getFriendlyErrorMessage(error, 'Review image upload nahi ho saki. Dobara try karein.'));
+    } finally { setUploadingImages(false); }
   };
 
   const removeReviewImage = url => {
@@ -1807,6 +2091,10 @@ function ProductReviews({ productId }) {
       return;
     }
 
+    if (String(title || '').trim().length > 140 || String(comment || '').trim().length > 4000) {
+      setMessage('Review title 140 aur comment 4,000 characters se kam rakhein.');
+      return;
+    }
     setBusy(true);
     setMessage("");
 
@@ -1838,10 +2126,7 @@ function ProductReviews({ productId }) {
 
     if (error) {
 
-      console.error(
-        "Review submit error:",
-        error
-      );
+      logSafeError('Review submit error:', error);
 
       if (error.code === "23505") {
         setMessage(
@@ -2248,7 +2533,7 @@ function ProductDetails() {
   const { id } = useParams(); const { store, addToCart, update }=useStore(); const product=store.products.find(p=>p.id===id); const [qty,setQty]=useState(1); const [toast,setToast]=useState(""); const [selectedImage,setSelectedImage]=useState(0);
   if(!product) return <main className="page container"><EmptyState title="Product Not Found" text="Yeh product available nahi hai." action="Back to Shop" to="/shop"/></main>;
   const gallery=[...(product.images||[])]; if(product.image&&!gallery.includes(product.image))gallery.unshift(product.image); const images=gallery.length?gallery:[logo]; const currentImage=images[Math.min(selectedImage,images.length-1)];
-  const price=Number(product.salePrice||product.price||0); const wished=store.wishlist.includes(product.id); const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const waText=`Assalam o Alaikum, mujhe Hafiz Mart se yeh product order karna hai:\n\nProduct: ${product.name}\nSKU: ${product.sku||"N/A"}\nQuantity: ${qty}\nPrice: Rs. ${price.toLocaleString()}\nTotal: Rs. ${(price*qty).toLocaleString()}`;
+  const price=Number(product.salePrice||product.price||0); const wished=store.wishlist.includes(product.id); const waNumber=getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER); const waText=`Assalam o Alaikum, mujhe Hafiz Mart se yeh product order karna hai:\n\nProduct: ${product.name}\nSKU: ${product.sku||"N/A"}\nQuantity: ${qty}\nPrice: Rs. ${price.toLocaleString()}\nTotal: Rs. ${(price*qty).toLocaleString()}`;
   return <main className="page"><div className="container product-detail"><div className="detail-gallery"><div className="detail-image"><img src={currentImage} alt={product.name}/></div>{images.length>1&&<div className="thumbnail-row" aria-label={`${product.name} images`}>{images.map((src,i)=><button type="button" key={src+i} className={i===selectedImage?'active':''} onClick={()=>setSelectedImage(i)} aria-label={`View ${product.name} image ${i+1}`} aria-current={i===selectedImage?'true':undefined}><img src={src} alt="" /></button>)}</div>}</div><div className="detail-copy"><p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1><div className="detail-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice&&<del>Rs. {Number(product.price).toLocaleString()}</del>}</div><p className="detail-description">{product.description||product.shortDescription||"Is product ki detailed description abhi add nahi ki gayi."}</p><div className="stock-line">{Number(product.stock||0)>0?<><Check size={16}/> In stock — {product.stock} available</>:"Out of stock"}</div><div className="detail-actions"><div className="qty" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={()=>setQty(Math.max(1,qty-1))} aria-label={`Decrease ${product.name} quantity`}><Minus aria-hidden="true" size={15}/></button><strong aria-live="polite">{qty}</strong><button type="button" onClick={()=>setQty(Math.min(Number(product.stock||1),qty+1))} aria-label={`Increase ${product.name} quantity`}><Plus aria-hidden="true" size={15}/></button></div><button className="gold-btn" type="button" disabled={!Number(product.stock||0)} onClick={()=>{addToCart(product,qty);setToast("Product cart mein add ho gaya")}}><ShoppingBag aria-hidden="true" size={17}/> Add to Cart</button><button type="button" className={`icon-btn ${wished?"active":""}`} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart aria-hidden="true" size={19} fill={wished?"currentColor":"none"}/></button></div><a className="whatsapp-order" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a><Toast message={toast} onClose={()=>setToast("")}/></div></div><div className="container"><ProductReviews productId={product.id}/></div></main>;
 }
 function Categories() {
@@ -2291,7 +2576,7 @@ function Categories() {
 function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Fresh offers will appear here when products have an active sale price." icon={Tag}/>}</div></main>; }
 function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Product cards par heart icon press karke items save karein." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
 
-function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=import.meta.env.VITE_WHATSAPP_NUMBER||"923000000000"; const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt={x.product.name || "Hafiz Mart product"}/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty" aria-label={`Quantity for ${x.product.name}`}><button type="button" onClick={()=>changeQty(x.index,-1)} aria-label={`Decrease ${x.product.name} quantity`}><Minus aria-hidden="true" size={14}/></button><strong aria-live="polite">{x.qty}</strong><button type="button" onClick={()=>changeQty(x.index,1)} aria-label={`Increase ${x.product.name} quantity`}><Plus aria-hidden="true" size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button type="button" className="remove-btn" aria-label={`Remove ${x.product.name} from cart`} title="Remove from cart" onClick={()=>remove(x.index)}><Trash2 aria-hidden="true" size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
+function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER); const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt={x.product.name || "Hafiz Mart product"}/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty" aria-label={`Quantity for ${x.product.name}`}><button type="button" onClick={()=>changeQty(x.index,-1)} aria-label={`Decrease ${x.product.name} quantity`}><Minus aria-hidden="true" size={14}/></button><strong aria-live="polite">{x.qty}</strong><button type="button" onClick={()=>changeQty(x.index,1)} aria-label={`Increase ${x.product.name} quantity`}><Plus aria-hidden="true" size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button type="button" className="remove-btn" aria-label={`Remove ${x.product.name} from cart`} title="Remove from cart" onClick={()=>remove(x.index)}><Trash2 aria-hidden="true" size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
 
 function Shop() {
   const { store } = useStore();
@@ -2656,8 +2941,7 @@ function Checkout(){
   const [order,setOrder]=useState(null);
   const [receipt,setReceipt]=useState(null);
 
-  const waNumber=
-    import.meta.env.VITE_WHATSAPP_NUMBER||'923000000000';
+  const waNumber = getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER);
 
   const provinces={
     Punjab:[
@@ -3089,6 +3373,8 @@ function Checkout(){
     setBusy(true);
     setError('');
 
+    try {
+
     const customerName=
       `${form.firstName.trim()} ${form.lastName.trim()}`
         .trim();
@@ -3145,10 +3431,7 @@ function Checkout(){
     );
 
     if(rpcError){
-      setError(
-        rpcError.message
-      );
-      setBusy(false);
+      setError(getFriendlyErrorMessage(rpcError, 'Order place nahi ho saka. Dobara try karein.'));
       return;
     }
 
@@ -3186,8 +3469,13 @@ function Checkout(){
     setReceipt({...receiptData,whatsappText});
     setOrder(created);
     setBusy(false);
+  
+    } catch (error) {
+      setError(getFriendlyErrorMessage(error, 'Checkout complete nahi ho saka. Apni details check karke dobara try karein.'));
+    } finally {
+      setBusy(false);
+    }
   };
-
   if(order && receipt){
     return (
       <main className="page">
@@ -4356,47 +4644,74 @@ function Account(){
     })
   },[profile]);
 
+  const [ordersError,setOrdersError]=useState('');
+  const [ordersReload,setOrdersReload]=useState(0);
+  const [messageType,setMessageType]=useState('success');
+
   useEffect(()=>{
+    let active = true;
     if(!user){
+      setOrders([]);
+      setOrdersError('');
       setLoading(false);
-      return;
+      return ()=>{ active = false; };
     }
 
+    setLoading(true);
+    setOrdersError('');
     (async()=>{
-      const {data,error}=await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id',user.id)
-        .order('created_at',{ascending:false});
-
-      if(error) console.error(error);
-      else setOrders(data||[]);
-
-      setLoading(false);
-    })()
-  },[user]);
+      try {
+        const {data,error}=await supabase
+          .from('orders')
+          .select('*')
+          .eq('user_id',user.id)
+          .order('created_at',{ascending:false});
+        if(error) throw error;
+        if(active) setOrders(data||[]);
+      } catch(error) {
+        logSafeError('[Hafiz Mart] Account order history load failed:',error);
+        if(active) {
+          setOrders([]);
+          setOrdersError(getFriendlyErrorMessage(error,'Order history abhi load nahi ho saki. Please dobara try karein.'));
+        }
+      } finally {
+        if(active) setLoading(false);
+      }
+    })();
+    return ()=>{ active = false; };
+  },[user,ordersReload]);
 
   const saveProfile=async e=>{
     e.preventDefault();
+    if(!user){
+      setMessageType('error');
+      setMessage('Profile update karne ke liye pehle sign in karein.');
+      return;
+    }
     setSaving(true);
     setMessage('');
-
-    const {error}=await supabase
-      .from('profiles')
-      .update({
-        full_name:form.full_name.trim(),
-        phone:form.phone.trim()
-      })
-      .eq('id',user.id);
-
-    if(error){
-      setMessage(error.message);
-    }else{
+    setMessageType('success');
+    try {
+      const {data,error}=await supabase
+        .from('profiles')
+        .update({
+          full_name:form.full_name.trim(),
+          phone:form.phone.trim()
+        })
+        .eq('id',user.id)
+        .select('id')
+        .maybeSingle();
+      if(error) throw error;
+      if(!data) throw new Error('Profile record was not updated.');
+      await refreshProfile();
       setMessage('Profile update ho gaya.');
-      refreshProfile();
+    } catch(error) {
+      logSafeError('[Hafiz Mart] Profile save failed:',error);
+      setMessageType('error');
+      setMessage(getFriendlyErrorMessage(error,'Profile save nahi ho saka. Please dobara try karein.'));
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false)
   };
 
   if (!user) return (
@@ -4504,7 +4819,7 @@ function Account(){
               </button>
 
               {message&&(
-                <p className="review-message">
+                <p className={`hm-account-feedback ${messageType === 'error' ? 'is-error' : 'is-success'}`} role="status" aria-live="polite">
                   {message}
                 </p>
               )}
@@ -4550,6 +4865,11 @@ function Account(){
               <div className="mini-empty">
                 Orders load ho rahe hain...
               </div>
+            ) : ordersError ? (
+              <div className="hm-inline-error" role="alert">
+                <p>{ordersError}</p>
+                <button type="button" onClick={() => setOrdersReload(value => value + 1)}>Try again</button>
+              </div>
             ) : orders.length ? (
               <div className="account-orders">
                 {orders.map(o=>(
@@ -4569,13 +4889,25 @@ function Account(){
                       </span>
                     </div>
 
-                    <div>
-                      <b>
+                    <div className="account-order-summary">
+                      <span className="account-order-total-label">Order total</span>
+                      <b className="account-order-total">
                         Rs. {Number(
                           o.total||0
                         ).toLocaleString()}
                       </b>
-
+                      {o.payment_method && (
+                        <small className="account-order-payment">
+                          Payment: {
+                            String(o.payment_method).toLowerCase() === 'cod' ||
+                            String(o.payment_method).toLowerCase() === 'cash on delivery'
+                              ? 'Cash on Delivery'
+                              : String(o.payment_method).toLowerCase() === 'card'
+                                ? 'Debit / Credit Card'
+                                : String(o.payment_method).replaceAll('_', ' ')
+                          }
+                        </small>
+                      )}
                       <em
                         className={`status status-${o.status}`}
                       >
@@ -4659,7 +4991,7 @@ function OrderTracker() {
       .maybeSingle();
 
     if (orderError) {
-      setError(orderError.message);
+      setError(getFriendlyErrorMessage(orderError, 'Order lookup fail ho gaya. Dobara try karein.'));
       setLoading(false);
       return;
     }
@@ -4679,7 +5011,7 @@ function OrderTracker() {
       .order("created_at", { ascending: true });
 
     if (itemError) {
-      setError(itemError.message);
+      setError(getFriendlyErrorMessage(itemError, 'Order items load nahi ho sake. Dobara try karein.'));
     } else {
       setOrder(orderData);
       setItems(itemData || []);
@@ -5479,7 +5811,8 @@ function AdminLayout({children}){
     ['/admin/transactions',DollarSign,'Transactions','view_transactions'],
     ['/admin/reports',BarChart3,'Reports','view_reports'],
     ['/admin/notifications',Bell,'Notifications','view_notifications'],
-    ['/admin/settings',Settings,'Settings','manage_settings']
+    ['/admin/settings',Settings,'Settings','manage_settings'],
+    ['/admin/security/mfa',ShieldCheck,'Security / MFA','view_dashboard']
   ];
   const visibleLinks = links.filter(([, , , permission]) => userHasPermission(profile, permission));
   const routePermission = pathname => {
@@ -5521,32 +5854,28 @@ function Admin(){
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN PANEL</p><h1>Dashboard</h1><p>Real Supabase-backed Hafiz Mart control center.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div><div className="stats-grid six">{[[Package,'Products',store.products.length,'Live catalog'],[Tag,'Categories',store.categories.length,'Live categories'],[ShoppingCart,'Orders',stats.orders,'Database orders'],[Users,'Customers',stats.customers,'Registered customers'],[Sparkles,'Active Sales',store.banners.length,'Promotional banners'],[ShoppingBag,'Revenue',`Rs. ${stats.revenue.toLocaleString()}`,'Non-cancelled orders']].map(([I,n,v,small],i)=><motion.div className="stat-card" key={n} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*.04}}><I size={18}/><span>{n}</span><strong>{v}</strong><small>{small}</small></motion.div>)}</div><div className="admin-grid"><div className="panel"><div className="panel-head-row"><div><p className="eyebrow">RECENT ORDERS</p><h2>Latest Activity</h2></div><Link className="text-link" to="/admin/orders">View all <ArrowRight size={15}/></Link></div>{recent.length?<div className="recent-orders">{recent.map(o=><Link to="/admin/orders" className="recent-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{o.customer_name||'Customer'} · {new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{o.status}</em></div></Link>)}</div>:<div className="mini-empty"><ShoppingCart size={25}/><strong>No orders yet</strong><span>Customer checkout complete hone ke baad orders yahan appear honge.</span></div>}</div><div className="panel"><p className="eyebrow">QUICK START</p><h2>Store Setup</h2><div className="check-row"><span>01</span><div><strong>Add products</strong><small>Real catalog items with images and stock.</small></div><Link to="/admin/products"><ChevronRight size={16}/></Link></div><div className="check-row"><span>02</span><div><strong>Manage orders</strong><small>Confirm, pack, ship and deliver customer orders.</small></div><Link to="/admin/orders"><ChevronRight size={16}/></Link></div><div className="check-row"><span>03</span><div><strong>Create a sale</strong><small>Publish promotional banners from admin.</small></div><Link to="/admin/banners"><ChevronRight size={16}/></Link></div></div></div></AdminLayout>;
 }
 
-function AdminProducts(){ const {store,refresh}=useStore(); const remove=async id=>{if(!confirm('Delete this product?'))return; const {error}=await supabase.from('products').delete().eq('id',id); if(error) alert(error.message); else refresh();}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Products</h1><p>{store.products.length} product(s) in your Supabase catalog.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div>{store.products.length?<div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{store.products.map(p=><div className="table-row" key={p.id}><div className="table-product"><img src={p.image||logo} alt={p.name || "Hafiz Mart product"}/><strong>{p.name}</strong><small>{p.sku||"No SKU"}</small></div><span>{store.categories.find(c=>c.id===p.categoryId)?.name||"—"}</span><span>Rs. {Number(p.salePrice||p.price||0).toLocaleString()}</span><span>{p.stock||0}</span><div className="row-actions"><Link to={`/admin/products/${p.id}/edit`} aria-label={`Edit ${p.name}`} title="Edit product"><Pencil aria-hidden="true" size={15}/></Link><button type="button" onClick={()=>remove(p.id)} aria-label={`Delete ${p.name}`} title="Delete product"><Trash2 aria-hidden="true" size={15}/></button></div></div>)}</div>:<EmptyState title="No Products Yet" text="Aapka database catalog abhi empty hai. Apna pehla product add karein." action="Add First Product" to="/admin/products/new" icon={Package}/>}</AdminLayout>; }
+function AdminProducts(){ const {store,refresh}=useStore(); const remove=async id=>{if(!confirm('Delete this product?'))return; const {error}=await supabase.from('products').delete().eq('id',id); if(error) alert(getFriendlyErrorMessage(error)); else refresh();}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Products</h1><p>{store.products.length} product(s) in your Supabase catalog.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div>{store.products.length?<div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{store.products.map(p=><div className="table-row" key={p.id}><div className="table-product"><img src={p.image||logo} alt={p.name || "Hafiz Mart product"}/><strong>{p.name}</strong><small>{p.sku||"No SKU"}</small></div><span>{store.categories.find(c=>c.id===p.categoryId)?.name||"—"}</span><span>Rs. {Number(p.salePrice||p.price||0).toLocaleString()}</span><span>{p.stock||0}</span><div className="row-actions"><Link to={`/admin/products/${p.id}/edit`} aria-label={`Edit ${p.name}`} title="Edit product"><Pencil aria-hidden="true" size={15}/></Link><button type="button" onClick={()=>remove(p.id)} aria-label={`Delete ${p.name}`} title="Delete product"><Trash2 aria-hidden="true" size={15}/></button></div></div>)}</div>:<EmptyState title="No Products Yet" text="Aapka database catalog abhi empty hai. Apna pehla product add karein." action="Add First Product" to="/admin/products/new" icon={Package}/>}</AdminLayout>; }
 
 function ProductImageUploader({images, setImages}){
   const [uploading,setUploading]=useState(false);
   const [error,setError]=useState('');
   const uploadFiles=async files=>{
-    const selected=Array.from(files||[]);
-    if(!selected.length)return;
+    const selected=Array.from(files||[]); if(!selected.length)return;
     setError('');
-    const allowed=['image/jpeg','image/png','image/webp','image/gif'];
-    const invalid=selected.find(f=>!allowed.includes(f.type));
-    if(invalid){setError('Sirf JPG, PNG, WEBP ya GIF images upload karein.');return;}
-    const tooLarge=selected.find(f=>f.size>5*1024*1024);
-    if(tooLarge){setError('Har image maximum 5MB ho sakti hai.');return;}
-    setUploading(true);
-    const uploaded=[];
-    for(const file of selected){
-      const safe=file.name.toLowerCase().replace(/[^a-z0-9.]+/g,'-');
-      const path=`products/${crypto.randomUUID()}-${safe}`;
-      const {error:uploadError}=await supabase.storage.from('product-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});
-      if(uploadError){setError(uploadError.message);break;}
-      const {data}=supabase.storage.from('product-images').getPublicUrl(path);
-      if(data?.publicUrl) uploaded.push(data.publicUrl);
-    }
-    if(uploaded.length)setImages(prev=>[...prev,...uploaded]);
-    setUploading(false);
+    for(const file of selected){const validationError=await validateUploadedImage(file,{maxBytes:MAX_IMAGE_UPLOAD_BYTES});if(validationError){setError(validationError);return;}}
+    setUploading(true); const uploaded=[];
+    try {
+      for(const file of selected){
+        const ext=({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'})[file.type];
+        const path=`products/${crypto.randomUUID()}.${ext}`;
+        const {error:uploadError}=await supabase.storage.from('product-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});
+        if(uploadError)throw uploadError;
+        const {data}=supabase.storage.from('product-images').getPublicUrl(path);
+        if(data?.publicUrl)uploaded.push(data.publicUrl);
+      }
+      if(uploaded.length)setImages(prev=>[...prev,...uploaded]);
+    } catch(error) { setError(getFriendlyErrorMessage(error,'Product image upload nahi ho saki. Dobara try karein.')); }
+    finally { setUploading(false); }
   };
   const removeImage=url=>setImages(prev=>prev.filter(x=>x!==url));
   return <div className="image-uploader span-2">
@@ -5558,7 +5887,23 @@ function ProductImageUploader({images, setImages}){
   </div>;
 }
 
-function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore(); const editing=Boolean(id); const existing=store.products.find(p=>p.id===id); const [form,setForm]=useState({name:'',sku:'',categoryId:'',brand:'',shortDescription:'',description:'',price:'',salePrice:'',stock:'',status:'active'}); const [images,setImages]=useState([]); const [busy,setBusy]=useState(false); const navigate=useNavigate(); useEffect(()=>{if(existing){let gallery=Array.isArray(existing.images)?existing.images:[];if(existing.image&&!gallery.includes(existing.image))gallery=[existing.image,...gallery];setForm({name:existing.name||'',sku:existing.sku||'',categoryId:existing.categoryId||'',brand:existing.brand||'',shortDescription:existing.shortDescription||'',description:existing.description||'',price:existing.price||'',salePrice:existing.salePrice||'',stock:existing.stock||0,status:existing.status||'active'});setImages(gallery)}},[existing]); const submit=async e=>{e.preventDefault();setBusy(true); const cleanImages=images.filter(Boolean); const slug=(form.name||'product').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+(id||crypto.randomUUID().slice(0,8)); const payload={name:form.name,slug,sku:form.sku||null,category_id:form.categoryId||null,brand:form.brand||null,short_description:form.shortDescription||null,description:form.description||null,price:Number(form.price||0),sale_price:form.salePrice?Number(form.salePrice):null,stock_quantity:Number(form.stock||0),main_image:cleanImages[0]||null,images:cleanImages,status:form.status}; const result=editing?await supabase.from('products').update(payload).eq('id',id).select().single():await supabase.from('products').insert(payload).select().single(); if(result.error) alert(result.error.message); else {await refresh();navigate('/admin/products');} setBusy(false);}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data ab directly Supabase database mein save hogi.</p></div></div><form className="admin-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=>{const parent=store.categories.find(item=>String(item.id)===String(c.parent_category_id||''));return <option key={c.id} value={c.id}>{parent?`${parent.name} / ${c.name}`:`${c.name} — Main category`}</option>})}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
+function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore(); const editing=Boolean(id); const existing=store.products.find(p=>p.id===id); const [form,setForm]=useState({name:'',sku:'',categoryId:'',brand:'',shortDescription:'',description:'',price:'',salePrice:'',stock:'',status:'active'}); const [images,setImages]=useState([]); const [busy,setBusy]=useState(false); const navigate=useNavigate(); useEffect(()=>{if(existing){let gallery=Array.isArray(existing.images)?existing.images:[];if(existing.image&&!gallery.includes(existing.image))gallery=[existing.image,...gallery];setForm({name:existing.name||'',sku:existing.sku||'',categoryId:existing.categoryId||'',brand:existing.brand||'',shortDescription:existing.shortDescription||'',description:existing.description||'',price:existing.price||'',salePrice:existing.salePrice||'',stock:existing.stock||0,status:existing.status||'active'});setImages(gallery)}},[existing]); const submit=async e=>{
+  e.preventDefault();
+  const enteredImages=images.filter(Boolean); const cleanImages=enteredImages.filter(isSafeHttpUrl);
+  if(enteredImages.length!==cleanImages.length){alert('Product image URLs sirf valid http/https URLs honi chahiye.');return;}
+  if(!String(form.name||'').trim() || String(form.name).trim().length>180){alert('Product name required hai aur 180 characters se kam hona chahiye.');return;}
+  const price=Number(form.price); const salePrice=form.salePrice===''?null:Number(form.salePrice); const stock=Number(form.stock||0);
+  if(!Number.isFinite(price)||price<0|| (salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0||salePrice>price)) || !Number.isInteger(stock)||stock<0){alert('Price, sale price ya stock value valid nahi hai.');return;}
+  setBusy(true);
+  try {
+    const slug=(form.name||'product').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+(id||crypto.randomUUID().slice(0,8));
+    const payload={name:String(form.name).trim(),slug,sku:form.sku.trim()||null,category_id:form.categoryId||null,brand:form.brand.trim()||null,short_description:form.shortDescription.trim()||null,description:form.description.trim()||null,price,sale_price:salePrice,stock_quantity:stock,main_image:cleanImages[0]||null,images:cleanImages,status:form.status};
+    const result=editing?await supabase.from('products').update(payload).eq('id',id).select().single():await supabase.from('products').insert(payload).select().single();
+    if(result.error)throw result.error;
+    await refresh();navigate('/admin/products');
+  } catch(error) { alert(getFriendlyErrorMessage(error,'Product save nahi ho saka. Dobara try karein.')); }
+  finally { setBusy(false); }
+ }; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data ab directly Supabase database mein save hogi.</p></div></div><form className="admin-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=>{const parent=store.categories.find(item=>String(item.id)===String(c.parent_category_id||''));return <option key={c.id} value={c.id}>{parent?`${parent.name} / ${c.name}`:`${c.name} — Main category`}</option>})}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
 
 function AdminCategories() {
   const { store, refresh } = useStore();
@@ -5596,8 +5941,8 @@ function AdminCategories() {
     };
     const { error } = await supabase.from('categories').insert(payload);
     if (error) {
-      console.error('Category create error:', error);
-      alert(`Category create nahi ho saki.\n\n${error.message}\n\nAgar parent_category_id missing ho to supplied category migration SQL pehle run karein.`);
+      logSafeError('Category create error:', error);
+      alert(getFriendlyErrorMessage(error, 'Category create nahi ho saki. Schema migration pending ho to pehle relevant category migration apply karein.'));
       setBusy(false);
       return;
     }
@@ -5615,7 +5960,7 @@ function AdminCategories() {
     if (productCount) { alert(`Is category se ${productCount} product(s) linked hain. Pehle products ko doosri category mein move karein.`); return; }
     if (!confirm(`"${category.name}" delete karni hai?`)) return;
     const { error } = await supabase.from('categories').delete().eq('id', category.id);
-    if (error) { alert(error.message); return; }
+    if (error) { alert(getFriendlyErrorMessage(error)); return; }
     await refresh();
   };
 
@@ -5658,7 +6003,7 @@ function AdminCategories() {
 }
 function BannerImageUploader({value,setValue}){
   const [busy,setBusy]=useState(false); const [error,setError]=useState('');
-  const upload=async file=>{ if(!file)return; setBusy(true);setError(''); const ext=(file.name.split('.').pop()||'jpg').toLowerCase(); const path=`banners/${crypto.randomUUID()}.${ext}`; const {error}=await supabase.storage.from('banner-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'}); if(error){setError(error.message);setBusy(false);return;} const {data}=supabase.storage.from('banner-images').getPublicUrl(path);setValue(data.publicUrl);setBusy(false); };
+  const upload=async file=>{ if(!file)return; const validationError=await validateUploadedImage(file,{maxBytes:MAX_IMAGE_UPLOAD_BYTES}); if(validationError){setError(validationError);return;} setBusy(true);setError(''); try { const ext=({ 'image/jpeg':'jpg','image/png':'png','image/webp':'webp' })[file.type]; const path=`banners/${crypto.randomUUID()}.${ext}`; const {error}=await supabase.storage.from('banner-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'}); if(error) throw error; const {data}=supabase.storage.from('banner-images').getPublicUrl(path); if(!data?.publicUrl) throw new Error('URL unavailable'); setValue(data.publicUrl); } catch(error) { setError(getFriendlyErrorMessage(error,'Banner upload nahi ho saki. Dobara try karein.')); } finally { setBusy(false); } };
   return <div className="image-uploader span-2"><div className="upload-head"><div><strong>Banner Image</strong><small>Optional promotional image. JPG, PNG or WEBP, max 5MB.</small></div><label className="gold-btn upload-btn"><Upload size={16}/>{busy?'Uploading...':'Upload Image'}<input hidden type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{upload(e.target.files?.[0]);e.target.value='';}}/></label></div>{error&&<p className="upload-error">{error}</p>}{value?<div className="banner-image-preview"><img src={value} alt="Banner preview"/><button type="button" className="remove-btn" onClick={()=>setValue('')}><Trash2 size={15}/></button></div>:<div className="upload-empty"><ImageIcon size={24}/><span>No banner image selected.</span></div>}</div>;
 }
 
@@ -5666,18 +6011,18 @@ function AdminBanners(){ const {store,refresh}=useStore(); const blank={title:''
   const save=async e=>{e.preventDefault();if(!form.title.trim())return;const payload={title:form.title.trim(),subtitle:form.subtitle||null,button_text:form.buttonText||null,button_link:form.buttonLink||'/deals',start_date:form.startDate||null,end_date:form.endDate||null,status:form.status,image_url:form.imageUrl||null};const result=editing?await supabase.from('banners').update(payload).eq('id',editing).select().single():await supabase.from('banners').insert(payload).select().single();if(result.error)alert(result.error.message);else{setForm(blank);setEditing(null);refresh();}};
   const beginEdit=b=>{setEditing(b.id);editForm(b)};
   const editForm=b=>setForm({title:b.title||'',subtitle:b.subtitle||'',buttonText:b.buttonText||'Shop Now',buttonLink:b.buttonLink||'/deals',startDate:b.startDate?new Date(b.startDate).toISOString().slice(0,16):'',endDate:b.endDate?new Date(b.endDate).toISOString().slice(0,16):'',status:b.status||'active',imageUrl:b.imageUrl||''});
-  const remove=async id=>{if(!confirm('Delete this banner?'))return;const {error}=await supabase.from('banners').delete().eq('id',id);if(error)alert(error.message);else refresh();};
+  const remove=async id=>{if(!confirm('Delete this banner?'))return;const {error}=await supabase.from('banners').delete().eq('id',id);if(error)alert(getFriendlyErrorMessage(error));else refresh();};
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">PROMOTIONS</p><h1>Sale Banners</h1><p>Homepage promotional banner — dates ke bahar automatically hide ho jata hai.</p></div></div><form className="admin-form" onSubmit={save}><div className="form-grid"><label>Title*<input required value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Mega Sale"/></label><label>Subtitle<input value={form.subtitle} onChange={e=>setForm({...form,subtitle:e.target.value})} placeholder="Up to 30% off"/></label><label>Button Text<input value={form.buttonText} onChange={e=>setForm({...form,buttonText:e.target.value})}/></label><label>Button Link<input value={form.buttonLink} onChange={e=>setForm({...form,buttonLink:e.target.value})}/></label><label>Start Date<input type="datetime-local" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})}/></label><label>End Date<input type="datetime-local" value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></label><BannerImageUploader value={form.imageUrl} setValue={v=>setForm({...form,imageUrl:v})}/></div><div className="form-actions"><button type="button" className="ghost-btn" onClick={()=>{setForm(blank);setEditing(null)}}>{editing?'Cancel Edit':'Reset'}</button><button className="gold-btn">{editing?<Pencil size={16}/>:<Plus size={17}/>} {editing?'Save Banner':'Create Sale Banner'}</button></div></form>{store.banners.length?<div className="simple-list">{store.banners.map(b=><div key={b.id}><div>{b.imageUrl?<img className="list-thumb" src={b.imageUrl} alt={b.title || "Hafiz Mart banner"}/>:<Sparkles size={17}/>}<strong>{b.title}</strong><span>{b.status}{b.endDate?` · ends ${new Date(b.endDate).toLocaleString()}`:''}</span></div><div className="row-actions"><button onClick={()=>beginEdit(b)}><Pencil size={15}/></button><button onClick={()=>remove(b.id)}><Trash2 size={16}/></button></div></div>)}</div>:<EmptyState title="No Sale Banners" text="Abhi koi promotional banner nahi hai." icon={Sparkles}/>}</AdminLayout>;
 }
 
 function AdminCoupons(){
   const blank={code:'',displayName:'',discountType:'percent',discountValue:'',minOrderAmount:'0',maxDiscount:'',usageLimit:'',startsAt:'',expiresAt:'',status:'active'};
   const [form,setForm]=useState(blank); const [rows,setRows]=useState([]); const [editing,setEditing]=useState(null); const [loading,setLoading]=useState(true);
-  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('coupons').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false);};
+  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('coupons').select('*').order('created_at',{ascending:false});if(error)alert(getFriendlyErrorMessage(error));else setRows(data||[]);setLoading(false);};
   useEffect(()=>{load()},[]);
   const save=async e=>{e.preventDefault();const payload={code:form.code.trim().toLowerCase(),display_name:form.displayName.trim()||null,discount_type:form.discountType,discount_value:form.discountType==='free_shipping'?0:Number(form.discountValue||0),min_order_amount:Number(form.minOrderAmount||0),max_discount:form.maxDiscount?Number(form.maxDiscount):null,usage_limit:form.usageLimit?Number(form.usageLimit):null,starts_at:form.startsAt||null,expires_at:form.expiresAt||null,status:form.status,updated_at:new Date().toISOString()};const result=editing?await supabase.from('coupons').update(payload).eq('id',editing):await supabase.from('coupons').insert(payload);if(result.error)alert(result.error.message);else{setForm(blank);setEditing(null);load();}};
   const beginEdit=c=>{setEditing(c.id);setForm({code:c.code||'',displayName:c.display_name||'',discountType:c.discount_type||'percent',discountValue:c.discount_value||'',minOrderAmount:c.min_order_amount||0,maxDiscount:c.max_discount||'',usageLimit:c.usage_limit||'',startsAt:c.starts_at?new Date(c.starts_at).toISOString().slice(0,16):'',expiresAt:c.expires_at?new Date(c.expires_at).toISOString().slice(0,16):'',status:c.status||'active'});window.scrollTo({top:0,behavior:'smooth'});};
-  const remove=async id=>{if(!confirm('Delete this coupon?'))return;const {error}=await supabase.from('coupons').delete().eq('id',id);if(error)alert(error.message);else load();};
+  const remove=async id=>{if(!confirm('Delete this coupon?'))return;const {error}=await supabase.from('coupons').delete().eq('id',id);if(error)alert(getFriendlyErrorMessage(error));else load();};
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">PROMOTIONS</p><h1>Coupons</h1><p>Create percentage or fixed-amount discounts with limits and dates.</p></div></div><form className="admin-form" onSubmit={save}><div className="form-grid"><label>Coupon Code*<input required value={form.code} onChange={e=>setForm({...form,code:e.target.value.toUpperCase()})} placeholder="WELCOME"/></label><label>Customer-facing Offer Name<input value={form.displayName} onChange={e=>setForm({...form,displayName:e.target.value})} placeholder="Hafiz VIP Offer"/></label><label>Discount Type<select value={form.discountType} onChange={e=>setForm({...form,discountType:e.target.value})}><option value="percent">Percentage (%)</option><option value="fixed">Fixed (Rs.)</option><option value="free_shipping">Free Delivery</option></select></label><label>Discount Value{form.discountType==='free_shipping'&&<small className="form-hint">Free Delivery voucher ke liye 0 use hoga.</small>}<input required={form.discountType!=='free_shipping'} disabled={form.discountType==='free_shipping'} type="number" min="0" step="0.01" value={form.discountType==='free_shipping'?0:form.discountValue} onChange={e=>setForm({...form,discountValue:e.target.value})}/></label><label>Minimum Order (Rs.)<input type="number" min="0" value={form.minOrderAmount} onChange={e=>setForm({...form,minOrderAmount:e.target.value})}/></label><label>Max Discount (Rs.)<input type="number" min="0" value={form.maxDiscount} onChange={e=>setForm({...form,maxDiscount:e.target.value})} placeholder="Optional"/></label><label>Usage Limit<input type="number" min="1" value={form.usageLimit} onChange={e=>setForm({...form,usageLimit:e.target.value})} placeholder="Unlimited if blank"/></label><label>Starts At<input type="datetime-local" value={form.startsAt} onChange={e=>setForm({...form,startsAt:e.target.value})}/></label><label>Expires At<input type="datetime-local" value={form.expiresAt} onChange={e=>setForm({...form,expiresAt:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div><div className="form-actions"><button type="button" className="ghost-btn" onClick={()=>{setForm(blank);setEditing(null)}}>Reset</button><button className="gold-btn">{editing?<Pencil size={16}/>:<Plus size={17}/>} {editing?'Save Coupon':'Create Coupon'}</button></div></form>{loading?<EmptyState title="Loading coupons..." text="Supabase se coupons fetch ho rahe hain." icon={TicketPercent}/>:rows.length?<div className="coupon-list">{rows.map(c=><div className="coupon-card" key={c.id}><div className="coupon-code"><TicketPercent size={18}/><strong>{c.code.toUpperCase()}</strong><span>{c.discount_type==='percent'?`${c.discount_value}% off`:c.discount_type==='free_shipping'?'Free Delivery':`Rs. ${Number(c.discount_value).toLocaleString()} off`}</span><small className="coupon-display-name">{c.display_name||'Custom offer'}</small></div><div className="coupon-meta"><span>Min: Rs. {Number(c.min_order_amount||0).toLocaleString()}</span><span>Used: {c.used_count}{c.usage_limit?` / ${c.usage_limit}`:''}</span><span className={`status status-${c.status}`}>{c.status}</span></div><div className="row-actions"><button onClick={()=>beginEdit(c)}><Pencil size={15}/></button><button onClick={()=>remove(c.id)}><Trash2 size={15}/></button></div></div>)}</div>:<EmptyState title="No Coupons Yet" text="Pehla coupon create karein; checkout par customer code apply kar sakega." icon={TicketPercent}/>}</AdminLayout>;
 }
 
@@ -5714,7 +6059,7 @@ function AdminOrders(){
   const updateStatus=async(id,status)=>{
     setSaving(id);
     const {error}=await supabase.from('orders').update({status}).eq('id',id);
-    if(error) alert(error.message); else setOrders(r=>r.map(o=>o.id===id?{...o,status}:o));
+    if(error) alert(getFriendlyErrorMessage(error)); else setOrders(r=>r.map(o=>o.id===id?{...o,status}:o));
     setSaving(null);
   };
 
@@ -5722,7 +6067,7 @@ function AdminOrders(){
     if(!confirm(`Order ${order.order_number||order.id.slice(0,8)} permanently delete karna hai? Ye action undo nahi hoga.`))return;
     setDeleting(order.id);
     const {error}=await supabase.rpc('admin_delete_order',{p_order_id:order.id});
-    if(error) alert(error.message);
+    if(error) alert(getFriendlyErrorMessage(error));
     else{
       setOrders(r=>r.filter(o=>o.id!==order.id));
       setItems(r=>r.filter(x=>x.order_id!==order.id));
@@ -5825,14 +6170,14 @@ function AdminCustomers(){
   const { profile: currentProfile } = useAuth();
   const { store } = useStore();
   const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);const [tab,setTab]=useState('customers');const [search,setSearch]=useState('');const [saving,setSaving]=useState(null);const [expanded,setExpanded]=useState(null);const [customerOrders,setCustomerOrders]=useState({});const [customerItems,setCustomerItems]=useState({});const [ordersLoading,setOrdersLoading]=useState(null);const [receiptOrder,setReceiptOrder]=useState(null);
-  const permissionKeys=['view_dashboard','manage_products','manage_content','manage_marketing','manage_orders','manage_support','manage_users','manage_reviews','view_transactions','view_reports','view_notifications','manage_notifications','manage_settings'];
-  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('profiles').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};
+  const permissionKeys=['view_dashboard','manage_products','manage_content','manage_marketing','manage_orders','manage_support','manage_users','manage_reviews','view_transactions','manage_transactions','view_reports','view_notifications','manage_notifications','manage_settings'];
+  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('profiles').select('*').order('created_at',{ascending:false});if(error)alert(getFriendlyErrorMessage(error));else setRows(data||[]);setLoading(false)};
   useEffect(()=>{load()},[]);
-  const updateUser=async(id,patch)=>{if(id===currentProfile?.id)return;setSaving(id);const {data,error}=await supabase.rpc('admin_update_user',{p_user_id:id,p_patch:patch});if(error)alert(error.message);else setRows(r=>r.map(x=>x.id===id?{...x,...(data||patch)}:x));setSaving(null)};
+  const updateUser=async(id,patch)=>{if(id===currentProfile?.id)return;setSaving(id);const {data,error}=await supabase.rpc('admin_update_user',{p_user_id:id,p_patch:patch});if(error)alert(getFriendlyErrorMessage(error));else setRows(r=>r.map(x=>x.id===id?{...x,...(data||patch)}:x));setSaving(null)};
   const loadCustomerOrders=async(customer)=>{
     setOrdersLoading(customer.id);
     const {data,error}=await supabase.from('orders').select('*').eq('user_id',customer.id).order('created_at',{ascending:false});
-    if(error){alert(error.message);setOrdersLoading(null);return}
+    if(error){alert(getFriendlyErrorMessage(error));setOrdersLoading(null);return}
     const orders=data||[];
     setCustomerOrders(prev=>({...prev,[customer.id]:orders}));
     const ids=orders.map(o=>o.id);
@@ -5854,12 +6199,12 @@ function AdminCustomers(){
 
 function AdminComplaints(){
   const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);const [filter,setFilter]=useState('all');const [saving,setSaving]=useState(null);
-  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('complaints').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};useEffect(()=>{load()},[]);
-  const updateComplaint=async(id,status,response)=>{setSaving(id);const {error}=await supabase.from('complaints').update({status,admin_response:response.trim()||null,updated_at:new Date().toISOString()}).eq('id',id);if(error)alert(error.message);else setRows(r=>r.map(x=>x.id===id?{...x,status,admin_response:response.trim()||null}:x));setSaving(null)};
+  const load=async()=>{setLoading(true);try{const {data,error}=await supabase.from('complaints').select('*').order('created_at',{ascending:false});if(error)throw error;setRows(await addSignedComplaintImageUrls(data||[]));}catch(error){reportAppErrorNotice(getFriendlyErrorMessage(error,'Complaints load nahi ho sakin. Refresh karke dobara try karein.'));}finally{setLoading(false)}};useEffect(()=>{load()},[]);
+  const updateComplaint=async(id,status,response)=>{setSaving(id);const {error}=await supabase.from('complaints').update({status,admin_response:response.trim()||null,updated_at:new Date().toISOString()}).eq('id',id);if(error)alert(getFriendlyErrorMessage(error));else setRows(r=>r.map(x=>x.id===id?{...x,status,admin_response:response.trim()||null}:x));setSaving(null)};
   const visible=filter==='all'?rows:rows.filter(r=>r.status===filter);
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints</h1><p>{rows.length} support ticket(s) from customers.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['all','pending','in_progress','resolved','closed'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s.replaceAll('_',' ')}</button>)}</div>{loading?<EmptyState title="Loading complaints..." text="Complaints fetch ho rahi hain." icon={MessageSquare}/>:visible.length?<div className="complaint-admin-list">{visible.map(c=><ComplaintAdminCard key={c.id} complaint={c} saving={saving===c.id} onSave={updateComplaint}/>)}</div>:<EmptyState title={`No ${filter} complaints`} text="Is queue mein abhi koi complaint nahi hai." icon={MessageSquare}/>}</AdminLayout>;
 }
-function ComplaintAdminCard({complaint,saving,onSave}){const [status,setStatus]=useState(complaint.status||'pending');const [response,setResponse]=useState(complaint.admin_response||'');useEffect(()=>{setStatus(complaint.status||'pending');setResponse(complaint.admin_response||'')},[complaint.status,complaint.admin_response]);return <article className="complaint-admin-card"><div className="complaint-card-head"><div><strong>{complaint.subject}</strong><span>{complaint.order_number?`Order ${complaint.order_number}`:'General complaint'} · {new Date(complaint.created_at).toLocaleString()}</span></div><em className={`status status-${complaint.status}`}>{String(complaint.status||'pending').replaceAll('_',' ')}</em></div><div className="complaint-admin-meta"><span>Type: <strong>{complaint.type||'Other'}</strong></span><span>User: <strong>{complaint.user_id}</strong></span></div><p>{complaint.message}</p>{Array.isArray(complaint.image_urls)&&complaint.image_urls.length>0&&<div className="complaint-images admin-complaint-images">{complaint.image_urls.map((url,i)=><a key={`${complaint.id}-${i}`} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Evidence ${i+1}`}/></a>)}</div>}<div className="complaint-admin-controls"><label>Status<select value={status} onChange={e=>setStatus(e.target.value)}><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></label><label>Admin Response<textarea rows="3" value={response} onChange={e=>setResponse(e.target.value)} placeholder="Response for customer..."/></label><button className="gold-btn" disabled={saving} onClick={()=>onSave(complaint.id,status,response)}>{saving?'Saving...':'Save Response'} <Check size={15}/></button></div></article>}
+function ComplaintAdminCard({complaint,saving,onSave}){const [status,setStatus]=useState(complaint.status||'pending');const [response,setResponse]=useState(complaint.admin_response||'');useEffect(()=>{setStatus(complaint.status||'pending');setResponse(complaint.admin_response||'')},[complaint.status,complaint.admin_response]);return <article className="complaint-admin-card"><div className="complaint-card-head"><div><strong>{complaint.subject}</strong><span>{complaint.order_number?`Order ${complaint.order_number}`:'General complaint'} · {new Date(complaint.created_at).toLocaleString()}</span></div><em className={`status status-${complaint.status}`}>{String(complaint.status||'pending').replaceAll('_',' ')}</em></div><div className="complaint-admin-meta"><span>Type: <strong>{complaint.type||'Other'}</strong></span><span>User: <strong>{complaint.user_id}</strong></span></div><p>{complaint.message}</p>{Array.isArray(complaint.image_urls)&&complaint.image_urls.length>0&&<div className="complaint-images admin-complaint-images">{complaint.image_urls.map((_,i)=>{const imageUrl=complaint.image_display_urls?.[i];return imageUrl?<a key={`${complaint.id}-${i}`} href={imageUrl} target="_blank" rel="noopener noreferrer"><img src={imageUrl} alt={`Evidence ${i+1}`} loading="lazy"/></a>:null;})}</div>}<div className="complaint-admin-controls"><label>Status<select value={status} onChange={e=>setStatus(e.target.value)}><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></label><label>Admin Response<textarea rows="3" value={response} onChange={e=>setResponse(e.target.value)} placeholder="Response for customer..."/></label><button className="gold-btn" disabled={saving} onClick={()=>onSave(complaint.id,status,response)}>{saving?'Saving...':'Save Response'} <Check size={15}/></button></div></article>}
 
 function AdminNotifications(){
   const { user, profile }=useAuth();
@@ -5885,12 +6230,12 @@ function AdminNotifications(){
 
   const markRead=async id=>{
     const {error}=await supabase.from('notifications').update({is_read:true,read_at:new Date().toISOString()}).eq('id',id).eq('recipient_user_id',user.id);
-    if(error) alert(error.message); else setRows(r=>r.map(x=>x.id===id?{...x,is_read:true,read_at:new Date().toISOString()}:x));
+    if(error) alert(getFriendlyErrorMessage(error)); else setRows(r=>r.map(x=>x.id===id?{...x,is_read:true,read_at:new Date().toISOString()}:x));
   };
 
   const markAll=async()=>{
     const {error}=await supabase.from('notifications').update({is_read:true,read_at:new Date().toISOString()}).eq('recipient_user_id',user.id).eq('is_read',false);
-    if(error) alert(error.message); else setRows(r=>r.map(x=>({...x,is_read:true})));
+    if(error) alert(getFriendlyErrorMessage(error)); else setRows(r=>r.map(x=>({...x,is_read:true})));
   };
 
   const send=async e=>{
@@ -5902,7 +6247,7 @@ function AdminNotifications(){
     if(!recipients.length){alert('Customer select karein.');setBusy(false);return;}
     const payload=recipients.map(u=>({recipient_user_id:u.id,type:form.type,title:form.title.trim(),message:form.message.trim(),priority:form.priority,is_read:false}));
     const {error}=await supabase.from('notifications').insert(payload);
-    if(error) alert(error.message);
+    if(error) alert(getFriendlyErrorMessage(error));
     else {setForm({audience:'all',userId:'',type:'announcement',title:'',message:'',priority:'normal'});alert('Notification send ho gayi.');}
     setBusy(false);
   };
@@ -5912,7 +6257,7 @@ function AdminNotifications(){
 
 function CustomerNotifications(){
   const { user }=useAuth();const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);
-  const load=async()=>{if(!user){setLoading(false);return}setLoading(true);const {data,error}=await supabase.from('notifications').select('*').eq('recipient_user_id',user.id).order('created_at',{ascending:false});if(error)console.error(error.message);else setRows(data||[]);setLoading(false)};useEffect(()=>{load()},[user]);
+  const load=async()=>{if(!user){setLoading(false);return}setLoading(true);const {data,error}=await supabase.from('notifications').select('*').eq('recipient_user_id',user.id).order('created_at',{ascending:false});if(error)logSafeError('Notifications load failed:', error);else setRows(data||[]);setLoading(false)};useEffect(()=>{load()},[user]);
   const markRead=async id=>{await supabase.from('notifications').update({is_read:true,read_at:new Date().toISOString()}).eq('id',id).eq('recipient_user_id',user.id);setRows(r=>r.map(x=>x.id===id?{...x,is_read:true}:x))};
   const markAll=async()=>{await supabase.from('notifications').update({is_read:true,read_at:new Date().toISOString()}).eq('recipient_user_id',user.id).eq('is_read',false);setRows(r=>r.map(x=>({...x,is_read:true})))};
   if(!user)return <main className="page container"><EmptyState title="Login Required" text="Notifications dekhne ke liye login karein." action="Login" to="/login" icon={Bell}/></main>;
@@ -5930,26 +6275,56 @@ function AdminReports(){
 }
 
 function AdminTransactions(){
+  const { profile }=useAuth();const canManageTransactions=userHasPermission(profile,'manage_transactions');
   const [rows,setRows]=useState([]);const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(null);
-  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('transactions').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};useEffect(()=>{load()},[]);
-  const update=async(id,patch)=>{setSaving(id);const {error}=await supabase.from('transactions').update({...patch,updated_at:new Date().toISOString()}).eq('id',id);if(error)alert(error.message);else setRows(r=>r.map(x=>x.id===id?{...x,...patch}:x));setSaving(null)};
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">PAYMENTS & TRANSACTIONS</p><h1>Transactions</h1><p>Payment status, refunds aur commission tracking.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div>{loading?<div className="mini-empty">Transactions load ho rahi hain...</div>:rows.length?<div className="transaction-list">{rows.map(r=><article className="transaction-card" key={r.id}><div className="transaction-head"><div><strong>{r.transaction_number||r.id.slice(0,8)}</strong><span>{r.order_number||r.order_id||'Order'} · {new Date(r.created_at).toLocaleString()}</span></div><strong>Rs. {Number(r.amount||0).toLocaleString()}</strong></div><div className="transaction-grid"><label>Status<select disabled={saving===r.id} value={r.status||'pending'} onChange={e=>update(r.id,{status:e.target.value})}><option value="pending">Pending</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="refunded">Refunded</option><option value="cancelled">Cancelled</option></select></label><label>Refund Amount<input type="number" min="0" value={r.refund_amount||0} onChange={e=>update(r.id,{refund_amount:Number(e.target.value||0)})}/></label><label>Commission<input type="number" min="0" value={r.commission_amount||0} onChange={e=>update(r.id,{commission_amount:Number(e.target.value||0)})}/></label><div className="transaction-method"><span>Method</span><strong>{r.payment_method||'COD'}</strong></div></div></article>)}</div>:<EmptyState title="No transactions yet" text="New orders ke saath transaction records yahan appear hongi." icon={DollarSign}/>}</AdminLayout>;
+  const load=async()=>{setLoading(true);try{const {data,error}=await supabase.from('transactions').select('*').order('created_at',{ascending:false});if(error)throw error;setRows(data||[]);}catch(error){reportAppErrorNotice(getFriendlyErrorMessage(error,'Transactions load nahi ho sakin.'));}finally{setLoading(false)}};useEffect(()=>{void load()},[]);
+  const update=async(id,patch)=>{if(!canManageTransactions){reportAppErrorNotice('Transactions edit karne ke liye manage_transactions permission aur admin MFA required hai.');return;}setSaving(id);try{const {error}=await supabase.from('transactions').update({...patch,updated_at:new Date().toISOString()}).eq('id',id);if(error)throw error;setRows(r=>r.map(x=>x.id===id?{...x,...patch}:x));}catch(error){reportAppErrorNotice(getFriendlyErrorMessage(error,'Transaction update nahi ho saki.'));}finally{setSaving(null)}};
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">PAYMENTS & TRANSACTIONS</p><h1>Transactions</h1><p>Payment status, refunds aur commission tracking.</p>{!canManageTransactions&&<small className="muted">Read-only access. Editing requires the manage_transactions permission and admin MFA.</small>}</div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div>{loading?<div className="mini-empty">Transactions load ho rahi hain...</div>:rows.length?<div className="transaction-list">{rows.map(r=><article className="transaction-card" key={r.id}><div className="transaction-head"><div><strong>{r.transaction_number||r.id.slice(0,8)}</strong><span>{r.order_number||r.order_id||'Order'} · {new Date(r.created_at).toLocaleString()}</span></div><strong>Rs. {Number(r.amount||0).toLocaleString()}</strong></div><div className="transaction-grid"><label>Status<select disabled={!canManageTransactions||saving===r.id} value={r.status||'pending'} onChange={e=>update(r.id,{status:e.target.value})}><option value="pending">Pending</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="refunded">Refunded</option><option value="cancelled">Cancelled</option></select></label><label>Refund Amount<input type="number" min="0" disabled={!canManageTransactions||saving===r.id} value={r.refund_amount||0} onChange={e=>update(r.id,{refund_amount:Number(e.target.value||0)})}/></label><label>Commission<input type="number" min="0" disabled={!canManageTransactions||saving===r.id} value={r.commission_amount||0} onChange={e=>update(r.id,{commission_amount:Number(e.target.value||0)})}/></label><div className="transaction-method"><span>Method</span><strong>{r.payment_method||'COD'}</strong></div></div></article>)}</div>:<EmptyState title="No transactions yet" text="New orders ke saath transaction records yahan appear hongi." icon={DollarSign}/>}</AdminLayout>;
 }
 
 function Complaints(){
   const { user }=useAuth(); const navigate=useNavigate();const [orders,setOrders]=useState([]);const [complaints,setComplaints]=useState([]);const [form,setForm]=useState({orderId:'',type:'Order Issue',subject:'',message:''});const [files,setFiles]=useState([]);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [notice,setNotice]=useState('');const [turnstileToken,setTurnstileToken]=useState('');
-  const load=async()=>{if(!user){setLoading(false);return}setLoading(true);const [o,c]=await Promise.all([supabase.from('orders').select('id,order_number,total,status,created_at').eq('user_id',user.id).order('created_at',{ascending:false}),supabase.from('complaints').select('*').eq('user_id',user.id).order('created_at',{ascending:false})]);if(!o.error)setOrders(o.data||[]);if(!c.error)setComplaints(c.data||[]);else setNotice(c.error.message);setLoading(false)};useEffect(()=>{load()},[user]);
-  const submit=async e=>{e.preventDefault();if(!user)return;if(!form.subject.trim()||!form.message.trim()){setNotice('Subject aur complaint details dono required hain.');return};const turnstileEnabled=Boolean(String(import.meta.env.VITE_TURNSTILE_SITE_KEY||'').trim());if(turnstileEnabled&&!turnstileToken){setNotice('Spam protection complete karein, phir complaint submit karein.');return}const selectedFiles=Array.from(files||[]);if(selectedFiles.length>5){setNotice('Maximum 5 complaint images upload kar sakte hain.');return}if(selectedFiles.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type)||f.size>5*1024*1024)){setNotice('Sirf JPG, PNG, WEBP images (max 5MB each) upload karein.');return}setBusy(true);setNotice('');if(String(import.meta.env.VITE_TURNSTILE_SITE_KEY||'').trim()){const {data:turnstileResult,error:turnstileError}=await supabase.functions.invoke('verify-turnstile',{body:{token:turnstileToken}});if(turnstileError||!turnstileResult?.success){setNotice('Spam verification failed. Dobara try karein.');setBusy(false);return}}const uploaded=[];for(const file of selectedFiles){const safe=file.name.toLowerCase().replace(/[^a-z0-9.]+/g,'-');const path=`complaints/${user.id}/${crypto.randomUUID()}-${safe}`;const {error:uploadError}=await supabase.storage.from('complaint-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});if(uploadError){setNotice('Complaint image upload nahi ho saki.');setBusy(false);return}const {data}=supabase.storage.from('complaint-images').getPublicUrl(path);if(data?.publicUrl)uploaded.push(data.publicUrl)}const selected=orders.find(o=>o.id===form.orderId);const {error}=await supabase.from('complaints').insert({user_id:user.id,order_id:form.orderId||null,order_number:selected?.order_number||null,type:form.type,subject:form.subject.trim(),message:form.message.trim(),image_urls:uploaded,status:'pending'});if(error)setNotice(error.message);else{setForm({orderId:'',type:'Order Issue',subject:'',message:''});setFiles([]);setTurnstileToken('');navigate('/thank-you?type=complaint')}setBusy(false)};
+  const load=async()=>{if(!user){setLoading(false);return}setLoading(true);try{const [o,c]=await Promise.all([supabase.from('orders').select('id,order_number,total,status,created_at').eq('user_id',user.id).order('created_at',{ascending:false}),supabase.from('complaints').select('*').eq('user_id',user.id).order('created_at',{ascending:false})]);if(o.error)throw o.error;if(c.error)throw c.error;setOrders(o.data||[]);setComplaints(await addSignedComplaintImageUrls(c.data||[]));setNotice('');}catch(error){setNotice(getFriendlyErrorMessage(error,'Complaint history load nahi ho saki.'));}finally{setLoading(false)}};useEffect(()=>{void load()},[user?.id]);
+  const submit=async e=>{
+    e.preventDefault();
+    if(!user){setNotice('Complaint submit karne ke liye login karein.');return;}
+    const subject=form.subject.trim(); const message=form.message.trim();
+    if(!subject||!message){setNotice('Subject aur complaint details dono required hain.');return;}
+    if(subject.length>180||message.length>5000){setNotice('Subject 180 aur complaint details 5,000 characters se kam rakhein.');return;}
+    const turnstileEnabled=Boolean(String(import.meta.env.VITE_TURNSTILE_SITE_KEY||'').trim());
+    if(turnstileEnabled&&!turnstileToken){setNotice('Spam protection complete karein, phir complaint submit karein.');return;}
+    const selectedFiles=Array.from(files||[]);
+    if(selectedFiles.length>5){setNotice('Maximum 5 complaint images upload kar sakte hain.');return;}
+    for(const file of selectedFiles){const validationError=await validateUploadedImage(file,{maxBytes:MAX_IMAGE_UPLOAD_BYTES});if(validationError){setNotice(validationError);return;}}
+    setBusy(true);setNotice('');
+    try {
+      if(turnstileEnabled){const {data:turnstileResult,error:turnstileError}=await supabase.functions.invoke('verify-turnstile',{body:{token:turnstileToken}});if(turnstileError||!turnstileResult?.success)throw new Error('Spam verification failed. Dobara try karein.');}
+      const uploaded=[];
+      for(const file of selectedFiles){
+        const ext=({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'})[file.type];
+        const path=`complaints/${user.id}/${crypto.randomUUID()}.${ext}`;
+        const {error:uploadError}=await supabase.storage.from('complaint-images').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'600'});
+        if(uploadError)throw uploadError;
+        uploaded.push(path);
+      }
+      const selected=orders.find(o=>o.id===form.orderId);
+      if(form.orderId&&!selected)throw new Error('Selected order is not available in your account.');
+      const {error}=await supabase.from('complaints').insert({user_id:user.id,order_id:form.orderId||null,order_number:selected?.order_number||null,type:form.type,subject,message,image_urls:uploaded,status:'pending'});
+      if(error)throw error;
+      setForm({orderId:'',type:'Order Issue',subject:'',message:''});setFiles([]);setTurnstileToken('');navigate('/thank-you?type=complaint');
+    } catch(error) { setNotice(getFriendlyErrorMessage(error,'Complaint submit nahi ho saki. Dobara try karein.')); }
+    finally { setBusy(false); }
+  };
   if(!user)return <main className="page container"><EmptyState title="Login Required" text="Complaint submit karne ke liye login karein." action="Login" to="/login" icon={MessageSquare}/></main>;
-  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints & Support</h1><p>Issue ho to complaint submit karein aur response yahin dekhein.</p></div></div><div className="complaint-layout"><form className="form-card complaint-form" onSubmit={submit}><div className="panel-head-row"><div><p className="eyebrow">NEW COMPLAINT</p><h2>How can we help?</h2></div><MessageSquare size={20}/></div><label>Related Order<select value={form.orderId} onChange={e=>setForm({...form,orderId:e.target.value})}><option value="">General / No specific order</option>{orders.map(o=><option key={o.id} value={o.id}>{o.order_number} — Rs. {Number(o.total||0).toLocaleString()}</option>)}</select></label><label>Complaint Type<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Order Issue</option><option>Product Issue</option><option>Delivery Issue</option><option>Payment Issue</option><option>Return / Exchange</option><option>Other</option></select></label><label>Subject<input required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})} placeholder="Short summary"/></label><label>Details<textarea required rows="6" value={form.message} onChange={e=>setForm({...form,message:e.target.value})} placeholder="Explain your issue..."/></label><label className="complaint-file-field">Evidence images (optional)<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>setFiles(Array.from(e.target.files||[]).slice(0,5))}/><small>{files.length?`${files.length} image(s) selected.`:'Up to 5 images, 5MB each.'}</small></label><TurnstileWidget onToken={setTurnstileToken}/>{notice&&<p className="review-message" role="status" aria-live="polite">{notice}</p>}<button className="gold-btn" disabled={busy}>{busy?'Submitting...':'Submit Complaint'} <ArrowRight size={16}/></button></form><section className="complaint-history"><div className="section-heading"><div><p className="eyebrow">MY TICKETS</p><h2>Complaint History</h2></div></div>{loading?<div className="mini-empty">Complaints load ho rahi hain...</div>:complaints.length?<div className="complaint-list">{complaints.map(c=><article className="complaint-card" key={c.id}><div className="complaint-card-head"><div><strong>{c.subject}</strong><span>{c.order_number?`Order ${c.order_number}`:'General'} · {new Date(c.created_at).toLocaleString()}</span></div><em className={`status status-${c.status}`}>{String(c.status||'pending').replaceAll('_',' ')}</em></div><p>{c.message}</p>{Array.isArray(c.image_urls)&&c.image_urls.length>0&&<div className="complaint-images">{c.image_urls.map((url,i)=><a key={`${c.id}-${i}`} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`Complaint evidence ${i+1}`}/></a>)}</div>}{c.admin_response&&<div className="complaint-response"><span>Admin Response</span><p>{c.admin_response}</p></div>}</article>)}</div>:<div className="mini-empty"><MessageSquare size={24}/><strong>No complaints yet</strong><span>Submitted complaints yahan appear hongi.</span></div>}</section></div></div></main>;
+  return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">CUSTOMER SUPPORT</p><h1>Complaints & Support</h1><p>Issue ho to complaint submit karein aur response yahin dekhein.</p></div></div><div className="complaint-layout"><form className="form-card complaint-form" onSubmit={submit}><div className="panel-head-row"><div><p className="eyebrow">NEW COMPLAINT</p><h2>How can we help?</h2></div><MessageSquare size={20}/></div><label>Related Order<select value={form.orderId} onChange={e=>setForm({...form,orderId:e.target.value})}><option value="">General / No specific order</option>{orders.map(o=><option key={o.id} value={o.id}>{o.order_number} — Rs. {Number(o.total||0).toLocaleString()}</option>)}</select></label><label>Complaint Type<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Order Issue</option><option>Product Issue</option><option>Delivery Issue</option><option>Payment Issue</option><option>Return / Exchange</option><option>Other</option></select></label><label>Subject<input required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})} placeholder="Short summary"/></label><label>Details<textarea required rows="6" value={form.message} onChange={e=>setForm({...form,message:e.target.value})} placeholder="Explain your issue..."/></label><label className="complaint-file-field">Evidence images (optional)<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>setFiles(Array.from(e.target.files||[]).slice(0,5))}/><small>{files.length?`${files.length} image(s) selected.`:'Up to 5 images, 5MB each.'}</small></label><TurnstileWidget onToken={setTurnstileToken}/>{notice&&<p className="review-message" role="status" aria-live="polite">{notice}</p>}<button className="gold-btn" disabled={busy}>{busy?'Submitting...':'Submit Complaint'} <ArrowRight size={16}/></button></form><section className="complaint-history"><div className="section-heading"><div><p className="eyebrow">MY TICKETS</p><h2>Complaint History</h2></div></div>{loading?<div className="mini-empty">Complaints load ho rahi hain...</div>:complaints.length?<div className="complaint-list">{complaints.map(c=><article className="complaint-card" key={c.id}><div className="complaint-card-head"><div><strong>{c.subject}</strong><span>{c.order_number?`Order ${c.order_number}`:'General'} · {new Date(c.created_at).toLocaleString()}</span></div><em className={`status status-${c.status}`}>{String(c.status||'pending').replaceAll('_',' ')}</em></div><p>{c.message}</p>{Array.isArray(c.image_urls)&&c.image_urls.length>0&&<div className="complaint-images">{c.image_urls.map((_,i)=>{const imageUrl=c.image_display_urls?.[i];return imageUrl?<a key={`${c.id}-${i}`} href={imageUrl} target="_blank" rel="noopener noreferrer"><img src={imageUrl} alt={`Complaint evidence ${i+1}`} loading="lazy"/></a>:null;})}</div>}{c.admin_response&&<div className="complaint-response"><span>Admin Response</span><p>{c.admin_response}</p></div>}</article>)}</div>:<div className="mini-empty"><MessageSquare size={24}/><strong>No complaints yet</strong><span>Submitted complaints yahan appear hongi.</span></div>}</section></div></div></main>;
 }
 
 function AdminReviews(){
   const { store } = useStore();
   const [rows,setRows]=useState([]); const [loading,setLoading]=useState(true); const [filter,setFilter]=useState('pending');
-  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('reviews').select('*').order('created_at',{ascending:false});if(error)alert(error.message);else setRows(data||[]);setLoading(false)};
+  const load=async()=>{setLoading(true);const {data,error}=await supabase.from('reviews').select('*').order('created_at',{ascending:false});if(error)alert(getFriendlyErrorMessage(error));else setRows(data||[]);setLoading(false)};
   useEffect(()=>{load()},[]);
-  const moderate=async(id,status)=>{const {error}=await supabase.from('reviews').update({status,updated_at:new Date().toISOString()}).eq('id',id);if(error)alert(error.message);else setRows(r=>r.map(x=>x.id===id?{...x,status}:x))};
+  const moderate=async(id,status)=>{const {error}=await supabase.from('reviews').update({status,updated_at:new Date().toISOString()}).eq('id',id);if(error)alert(getFriendlyErrorMessage(error));else setRows(r=>r.map(x=>x.id===id?{...x,status}:x))};
   const visible=filter==='all'?rows:rows.filter(r=>r.status===filter);
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER VOICE</p><h1>Reviews</h1><p>Customer reviews ko approve, reject aur manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['pending','approved','rejected','all'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s.charAt(0).toUpperCase()+s.slice(1)}</button>)}</div>{loading?<EmptyState title="Loading reviews..." text="Reviews fetch ho rahi hain." icon={Star}/>:visible.length?<div className="admin-review-list">{visible.map(r=>{const reviewedProduct=store.products.find(p=>String(p.id)===String(r.product_id));return <article className="admin-review-card" key={r.id}><div className="review-card-head"><div><strong className="reviewer-display-name">{r.reviewer_name||'Customer'}</strong><span>{new Date(r.created_at).toLocaleString()}</span></div><StarRating value={r.rating}/></div><small className="review-product-ref">Product: <strong>{reviewedProduct?.name || 'Product unavailable'}</strong>{reviewedProduct?.sku ? ` · SKU ${reviewedProduct.sku}` : ''}</small>{r.title&&<h3>{r.title}</h3>}{r.comment&&<p>{r.comment}</p>}<div className="row-actions"><span className={`status review-status-pill status-${r.status}`}>{String(r.status||'pending').replace(/^./,value=>value.toUpperCase())}</span>{r.status!=='approved'&&<button type="button" className="review-approve-btn" onClick={()=>moderate(r.id,'approved')}><Check size={15}/> Approve</button>}{r.status!=='rejected'&&<button type="button" className="review-reject-btn" onClick={()=>moderate(r.id,'rejected')}><X size={15}/> Reject</button>}</div></article>})}</div>:<EmptyState title={`No ${filter} reviews`} text="Is moderation queue mein abhi koi review nahi hai." icon={Star}/>}</AdminLayout>;
 }
@@ -5970,10 +6345,10 @@ function AdminSettings(){
     ['inventory','Inventory',Boxes],['content','Content',Sparkles],['users','Users & Roles',Users],['reports','Reports & Data',BarChart3],['security','Security',ShieldCheck]
   ];
 
-  useEffect(()=>{(async()=>{setLoading(true);const {data,error}=await supabase.from('admin_store_settings').select('settings').eq('id','default').maybeSingle();if(error)setNotice(error.message);else{const merged=mergeAdminSettings(DEFAULT_ADMIN_SETTINGS,data?.settings||{});setSettings(merged);setSaved(merged)}setLoading(false)})()},[]);
+  useEffect(()=>{let active=true;(async()=>{setLoading(true);try{const {data,error}=await supabase.from('admin_store_settings').select('settings').eq('id','default').maybeSingle();if(error)throw error;const merged=mergeAdminSettings(DEFAULT_ADMIN_SETTINGS,data?.settings||{});if(active){setSettings(merged);setSaved(merged);setNotice('');}}catch(error){if(active)setNotice(getFriendlyErrorMessage(error,'Admin settings load nahi ho sakin.'));}finally{if(active)setLoading(false)}})();return()=>{active=false}},[]);
 
   const setField=(group,key,value)=>setSettings(s=>({...s,[group]:{...s[group],[key]:value}}));
-  const save=async e=>{e.preventDefault();setSaving(true);setNotice('');const payload={id:'default',settings,updated_at:new Date().toISOString(),updated_by:user?.id||null};const {error}=await supabase.from('admin_store_settings').upsert(payload,{onConflict:'id'});if(error)setNotice(`Save failed: ${error.message}`);else{setSaved(settings);update({adminSettings:settings});setNotice('Settings successfully saved.')}setSaving(false)};
+  const save=async e=>{e.preventDefault();setSaving(true);setNotice('');try{const payload={id:'default',settings,updated_at:new Date().toISOString(),updated_by:user?.id||null};const {error}=await supabase.from('admin_store_settings').upsert(payload,{onConflict:'id'});if(error)throw error;setSaved(settings);update({adminSettings:settings});setNotice('Settings successfully saved.')}catch(error){setNotice(`Save failed: ${getFriendlyErrorMessage(error)}`)}finally{setSaving(false)}};
   const field=(label,value,onChange,type='text')=><label className="settings-field"><span>{label}</span><input type={type} min={type==='number'?0:undefined} value={value??''} onChange={e=>onChange(e.target.value)}/></label>;
   const area=(label,value,onChange)=> <label className="settings-field settings-field-wide"><span>{label}</span><textarea rows="4" value={value??''} onChange={e=>onChange(e.target.value)}/></label>;
   const toggle=(label,value,onChange,hint='')=> <label className="settings-toggle"><span><strong>{label}</strong>{hint&&<small>{hint}</small>}</span><input type="checkbox" checked={!!value} onChange={e=>onChange(e.target.checked)}/><i/></label>;
@@ -6049,13 +6424,87 @@ function MobileZoomLock(){
   return null;
 }
 
+function AdminMfaSecurityPage() {
+  const { user, profile } = useAuth();
+  const [factorId, setFactorId] = useState('');
+  const [qrCode, setQrCode] = useState('');
+  const [manualSecret, setManualSecret] = useState('');
+  const [code, setCode] = useState('');
+  const [currentLevel, setCurrentLevel] = useState('aal1');
+  const [verifiedFactor, setVerifiedFactor] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  const refreshStatus = async () => {
+    try {
+      const [{ data: factorsData, error: factorsError }, { data: assuranceData, error: assuranceError }] = await Promise.all([
+        supabase.auth.mfa.listFactors(),
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+      ]);
+      if (factorsError) throw factorsError;
+      if (assuranceError) throw assuranceError;
+      const verified = (factorsData?.totp || []).find(factor => factor.status === 'verified');
+      setVerifiedFactor(Boolean(verified));
+      setFactorId(verified?.id || '');
+      setCurrentLevel(assuranceData?.currentLevel || 'aal1');
+    } catch (error) {
+      setNotice(getFriendlyErrorMessage(error, 'MFA status load nahi ho saka.')); 
+    }
+  };
+  useEffect(() => { if (user) void refreshStatus(); }, [user?.id]);
+
+  const beginEnrollment = async () => {
+    setBusy(true); setNotice('');
+    try {
+      const { data: factorList, error: factorListError } = await supabase.auth.mfa.listFactors();
+      if (factorListError) throw factorListError;
+      for (const pendingFactor of (factorList?.totp || []).filter(factor => factor.status === 'unverified')) {
+        const { error: removeError } = await supabase.auth.mfa.unenroll({ factorId: pendingFactor.id });
+        if (removeError) throw removeError;
+      }
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Hafiz Mart Admin' });
+      if (error) throw error;
+      setFactorId(data.id); setQrCode(data.totp?.qr_code || ''); setManualSecret(data.totp?.secret || '');
+      setNotice('Authenticator app se QR scan karein, phir 6-digit code enter karein.');
+    } catch (error) { setNotice(getFriendlyErrorMessage(error, 'MFA setup shuru nahi ho saka.')); }
+    finally { setBusy(false); }
+  };
+
+  const verifyCode = async event => {
+    event.preventDefault();
+    const cleanCode = code.replace(/\D/g, '').slice(0, 6);
+    if (!factorId || cleanCode.length !== 6) { setNotice('Authenticator app ka 6-digit code enter karein.'); return; }
+    setBusy(true); setNotice('');
+    try {
+      const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
+      if (challengeError) throw challengeError;
+      const { error: verifyError } = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.id, code: cleanCode });
+      if (verifyError) throw verifyError;
+      setCode(''); setQrCode(''); setManualSecret(''); setNotice('MFA verify ho gayi. Admin access ke liye session refresh ho raha hai.');
+      await refreshStatus();
+      // Supabase returns an AAL2 session after successful verification. Reload ensures all queries use the upgraded JWT.
+      window.location.reload();
+    } catch (error) { setNotice(getFriendlyErrorMessage(error, 'Code verify nahi hua. Naya code try karein.')); }
+    finally { setBusy(false); }
+  };
+
+  if (!profile || profile.role !== 'admin') return <main className="page container"><EmptyState title="Admin access required" text="MFA setup sirf authorized admin accounts ke liye hai." action="Back Home" to="/" icon={ShieldCheck}/></main>;
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ACCOUNT SECURITY</p><h1>Multi-Factor Authentication</h1><p>Admin operations ko authenticator app ke second factor se protect karein.</p></div></div>
+    <section className="hm-security-card"><div className="hm-security-status"><ShieldCheck size={28}/><div><strong>{currentLevel === 'aal2' ? 'MFA verified for this session' : verifiedFactor ? 'Authenticator registered — verification required' : 'MFA setup required'}</strong><span>Current assurance level: {currentLevel.toUpperCase()}</span></div></div>
+    {!verifiedFactor && !qrCode && <p>Authenticator app (Google Authenticator, Microsoft Authenticator ya compatible TOTP app) install karein aur enrollment start karein. Admin database permissions MFA verification ke baad hi available hoti hain.</p>}
+    {qrCode && <div className="hm-mfa-qr"><img src={qrCode} alt="MFA enrollment QR code"/><div><strong>Manual setup key</strong><code>{manualSecret}</code><small>Is key ko kisi ke saath share na karein.</small></div></div>}
+    {currentLevel !== 'aal2' && <form className="hm-mfa-verify" onSubmit={verifyCode}>{!factorId ? <button className="gold-btn" type="button" disabled={busy} onClick={beginEnrollment}>{busy ? 'Setting up…' : 'Set up authenticator'}</button> : <><label>6-digit authenticator code<input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required/></label><div className="form-actions"><button className="gold-btn" type="submit" disabled={busy || code.replace(/\D/g, '').length !== 6}>{busy ? 'Verifying…' : 'Verify MFA code'}</button>{verifiedFactor && <button className="ghost-btn" type="button" onClick={() => { setCode(''); setNotice('Authenticator se naya code enter karein.'); }}>Clear code</button>}</div></>}</form>}
+    {notice && <p className={`hm-account-feedback ${/verify nahi|nahi ho saka|error|failed/i.test(notice) ? 'is-error' : 'is-success'}`} role="status" aria-live="polite">{notice}</p>}
+    <p className="hm-security-note">Agar authenticator lose ho jaye to Supabase dashboard ke documented recovery options use karein. MFA recovery codes ko secure offline jagah par rakhein.</p></section></AdminLayout>;
+}
+
 function AppRoutes(){
   const {store}=useStore(); const {profile}=useAuth(); const location=useLocation();
   const maintenance=Boolean(store.adminSettings?.storefront?.maintenanceMode); const isAdmin=profile?.role==='admin';
   const authAllowed=['/login','/forgot-password','/reset-password'].includes(location.pathname); const adminAllowed=location.pathname.startsWith('/admin'); const bypass=isAdmin||adminAllowed||authAllowed;
   return <><Navbar/>{(!maintenance||bypass)&&<AnnouncementBar/>}{maintenance&&!bypass?<MaintenancePage/>:<Routes>
-    <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
-    <Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/>
+    <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/store-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/publisher-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/contact-us" element={<ContactUsPage/>}/><Route path="/contact" element={<ContactUsPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
+    <Route path="/admin/security/mfa" element={<AdminMfaSecurityPage/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/>
   </Routes>}<WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><div className="footer-center"><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span><nav className="footer-links" aria-label="Footer links"><Link to="/faq">FAQ</Link><Link to="/privacy-policy">Privacy Policy</Link><Link to="/track-order">Track Order</Link><Link to="/complaints">Support</Link></nav></div></div></footer></>;
 }
-export default function App(){ return <AuthProvider><StoreProvider><div className="app"><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider>; }
+export default function App(){ return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
