@@ -143,20 +143,20 @@ function logSafeError(label, error) {
   console.error(label, tag);
 }
 
-function getFriendlyErrorMessage(error, fallback = 'Ye kaam abhi complete nahi ho saka. Please dobara try karein.') {
+function getFriendlyErrorMessage(error, fallback = 'This action could not be completed. Please try again.') {
   const code = String(error?.code || '');
   const message = String(error?.message || error || '').toLowerCase();
   if (code === '23505' || message.includes('duplicate key') || message.includes('already exists')) {
-    return 'Ye information pehle se maujood hai. Details check karke dobara try karein.';
+    return 'This information already exists. Check the details and try again.';
   }
   if (code === '42501' || message.includes('row-level security') || message.includes('permission denied')) {
-    return 'Is action ki permission nahi mili. Apna account/session check karein ya support se rabta karein.';
+    return 'You do not have permission to perform this action. Check your account or contact support.';
   }
   if (message.includes('failed to fetch') || message.includes('network') || message.includes('fetch')) {
-    return 'Internet ya server connection mein masla hai. Connection check karke dobara try karein.';
+    return 'There is a network or server connection problem. Check your connection and try again.';
   }
   if (message.includes('jwt') || message.includes('session expired') || message.includes('not authenticated')) {
-    return 'Aapka login session expire ho sakta hai. Dobara sign in karke try karein.';
+    return 'Your sign-in session may have expired. Sign in again and try.';
   }
   return fallback;
 }
@@ -202,8 +202,8 @@ async function validateUploadedImage(file, { allowGif = false, maxBytes = MAX_IM
   const allowed = allowGif
     ? ALLOWED_IMAGE_MIME_TYPES
     : new Set(['image/jpeg', 'image/png', 'image/webp']);
-  if (!allowed.has(file.type)) return 'Sirf JPG, PNG ya WEBP images upload karein.';
-  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > maxBytes) return 'Image empty hai ya 5MB limit se bari hai.';
+  if (!allowed.has(file.type)) return 'Upload JPG, PNG, or WEBP images only.';
+  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > maxBytes) return 'The image is empty or exceeds the 5MB limit.';
   // Check magic bytes as well as the browser-provided MIME type (client checks are not server security).
   const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   const starts = (...values) => values.every((value, index) => bytes[index] === value);
@@ -213,7 +213,7 @@ async function validateUploadedImage(file, { allowGif = false, maxBytes = MAX_IM
     : ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP' ? 'image/webp'
     : ['GIF87a', 'GIF89a'].includes(ascii(0, 6)) ? 'image/gif' : '';
   if (!signatureType || signatureType !== file.type || (!allowGif && signatureType === 'image/gif')) {
-    return 'File ka actual format valid image se match nahi karta.';
+    return "The file's actual format does not match a supported image type.";
   }
   return '';
 }
@@ -255,14 +255,15 @@ function replaceLegacyStorePhoneText(value) {
 }
 
 const DEFAULT_ADMIN_SETTINGS = {
-  general: { storeName: 'Hafiz Mart', tagline: 'Everything You Need, Delivered', supportEmail: '', supportPhone: '', whatsapp: '', address: '', currency: 'PKR', timezone: 'Asia/Karachi', facebook: '', instagram: '', tiktok: '' },
+  general: { storeName: 'Hafiz Mart', tagline: 'Everything You Need, Delivered', supportEmail: '', supportPhone: '', whatsapp: '', address: '', currency: 'PKR', timezone: 'Asia/Karachi', facebook: '', instagram: '', youtube: '', tiktok: '' },
   shipping: { enabled: true, defaultRate: 300, freeDeliveryThreshold: 10000, minDays: 2, maxDays: 5, cityRates: [{ city: 'Multan', rate: 270 }] },
   storefront: { announcementEnabled: true, announcementText: 'Shop your favourites at Hafiz Mart', announcementLink: '/deals', announcementButton: 'Shop Deals', announcementTheme: 'gold', maintenanceMode: false, maintenanceMessage: 'We are improving your shopping experience. Please check back soon.' },
   payments: { codEnabled: true, onlinePaymentsEnabled: false },
   policies: { cancellationWindowHours: 2, returnWindowDays: 7, returnsPolicy: '', shippingPolicy: '', privacyPolicy: '', terms: '' },
   notifications: { inAppEnabled: true, emailEnabled: false, whatsappEnabled: false, notifyOnNewOrder: true, notifyOnNewCustomer: true, notifyOnComplaint: true, notifyOnReview: true, notifyOnOrderStatus: true, notifyOnComplaintResponse: true, notifyOnTransactionFailure: true, notifyOnRefund: true, notifyOnLowStock: true },
   inventory: { lowStockThreshold: 5, hideOutOfStock: true, allowBackorders: false, reviewsRequireApproval: false, maxReviewImages: 5 },
-  content: { showCategoriesOnHome: true, showDealsSection: true, featuredProductsLimit: 8 },
+  content: { showCategoriesOnHome: true, showDealsSection: true, featuredProductsLimit: 8, homepageSections: [{ id: 'new-arrivals', title: 'New Arrivals', type: 'new_arrivals', visible: true, order: 1 }, { id: 'popular-products', title: 'Popular Products', type: 'popular_products', visible: true, order: 2 }, { id: 'featured-products', title: 'Featured Products', type: 'product_collection', visible: true, order: 3 }] },
+  charges: { cashHandlingEnabled: true, cashHandlingMode: 'fixed', cashHandlingValue: 30, cashHandlingCodOnly: true },
   users: { requireManualVerification: false, allowGuestCheckout: false, defaultAccountStatus: 'active' },
   reports: { defaultRange: '30', includeCustomerPhone: false }
 };
@@ -316,7 +317,7 @@ function sanitiseStoreContent(record) {
 
 function mapProduct(p) {
   const clean = sanitiseStoreContent(p);
-  return { ...clean, salePrice: clean.sale_price ?? '', image: clean.main_image || '', images: Array.isArray(clean.images) ? clean.images : [], stock: clean.stock_quantity ?? 0, categoryId: clean.category_id, shortDescription: clean.short_description || '', description: clean.description || '', createdAt: clean.created_at };
+  return { ...clean, salePrice: clean.sale_price ?? '', image: clean.main_image || '', images: Array.isArray(clean.images) ? clean.images : [], stock: clean.stock_quantity ?? 0, categoryId: clean.category_id, shortDescription: clean.short_description || '', description: clean.description || '', createdAt: clean.created_at, productType: clean.product_type || 'general', variants: Array.isArray(clean.variants) ? clean.variants : [], attributes: clean.attributes && typeof clean.attributes === 'object' ? clean.attributes : {}, returnPolicy: clean.return_policy || '', warrantyInfo: clean.warranty_info || '', sizeGuide: clean.size_guide || '', highlights: Array.isArray(clean.highlights) ? clean.highlights : [], videoUrl: clean.video_url || '' };
 }
 function mapCategory(c) { const clean = sanitiseStoreContent(c); return { ...clean, image: clean.image_url || '', createdAt: clean.created_at }; }
 function mapBanner(b) { const clean = sanitiseStoreContent(b); return { ...clean, buttonText: clean.button_text || '', buttonLink: clean.button_link || '/deals', startDate: clean.start_date || '', endDate: clean.end_date || '', imageUrl: clean.image_url || '', createdAt: clean.created_at }; }
@@ -426,15 +427,23 @@ function StoreProvider({ children }) {
   useEffect(() => { localStorage.setItem(STORE_KEY, JSON.stringify({ cart: store.cart, wishlist: store.wishlist })); }, [store.cart, store.wishlist]);
 
   const update = (patch) => setStore(s => ({ ...s, ...patch }));
-  const addToCart = (product, qty = 1) => {
-    const maxStock = Number(product.stock || 0); if (maxStock < 1) return;
-    const existing = store.cart.find(x => x.productId === product.id);
+  const addToCart = (product, qty = 1, variant = null) => {
+    const maxStock = Number(variant?.stock ?? variant?.stock_quantity ?? product.stock ?? 0); if (maxStock < 1) return;
+    const variantKey = variant ? JSON.stringify([variant.color || '', variant.size || '', variant.style || '', variant.fit || '']) : '';
+    const existing = store.cart.find(x => x.productId === product.id && (x.variantKey || '') === variantKey);
     const nextQty = Math.min(maxStock, Math.max(1, (existing?.qty || 0) + qty));
-    const cart = existing ? store.cart.map(x => x.productId === product.id ? { ...x, qty: nextQty } : x) : [...store.cart, { productId: product.id, qty: Math.min(maxStock, Math.max(1, qty)) }];
+    const unitPrice = Number(variant?.salePrice ?? variant?.sale_price ?? variant?.price ?? product.salePrice ?? product.price ?? 0);
+    const cart = existing ? store.cart.map(x => x.productId === product.id && (x.variantKey || '') === variantKey ? { ...x, qty: nextQty, unitPrice, variant } : x) : [...store.cart, { productId: product.id, qty: Math.min(maxStock, Math.max(1, qty)), variantKey, variant: variant || null, unitPrice }];
     update({ cart });
   };
-  const cartItems = useMemo(() => store.cart.map((line, index) => ({ ...line, index, product: store.products.find(p => p.id === line.productId) })).filter(x => x.product), [store.cart, store.products]);
-  const subtotal = cartItems.reduce((sum, x) => sum + (Number(x.product.salePrice || x.product.price) * x.qty), 0);
+  const cartItems = useMemo(() => store.cart.map((line, index) => {
+    const base = store.products.find(p => String(p.id) === String(line.productId));
+    if (!base) return null;
+    const variant = line.variant || null;
+    const product = variant ? { ...base, price: line.unitPrice ?? variant.price ?? base.price, salePrice: '', stock: variant.stock ?? variant.stock_quantity ?? base.stock, selectedVariant: variant } : base;
+    return { ...line, index, product, unitPrice: Number(line.unitPrice ?? product.salePrice ?? product.price ?? 0) };
+  }).filter(Boolean), [store.cart, store.products]);
+  const subtotal = cartItems.reduce((sum, x) => sum + (Number(x.unitPrice ?? x.product.salePrice ?? x.product.price) * x.qty), 0);
   const value = { store, update, addToCart, cartItems, subtotal, refresh, loading };
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -447,8 +456,9 @@ function Toast({ message, onClose }) {
 }
 
 function WhatsAppButton() {
-  const number = getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER);
-  return <a className="whatsapp" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer" aria-label="Contact Hafiz Mart on WhatsApp"><MessageCircle size={22}/><span>WhatsApp</span></a>;
+  const { store } = useStore();
+  const number = getStoreWhatsAppNumber(store.adminSettings?.general?.whatsapp || import.meta.env.VITE_WHATSAPP_NUMBER);
+  return <a className="whatsapp" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer" aria-label="Contact Hafiz Mart on WhatsApp" title="WhatsApp"><MessageCircle size={23}/></a>;
 }
 
 function ScrollToTop() {
@@ -1305,7 +1315,7 @@ function Navbar() {
     const children = store.categories
       .filter(category => String(category.parent_category_id || '') === String(root.id))
       .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-    const rootPath = `/shop?category=${encodeURIComponent(root.name)}`;
+    const rootPath = `/categories?category=${encodeURIComponent(root.name)}`;
     const rootCount = getCategoryProductCount(store.categories, store.products, root.id);
     return {
       id: root.id,
@@ -1319,7 +1329,9 @@ function Navbar() {
           label: category.name,
           productCount,
           available: productCount > 0,
-          path: `/shop?category=${encodeURIComponent(category.name)}`
+          path: store.categories.some(child => String(child.parent_category_id || '') === String(category.id))
+            ? `/categories?category=${encodeURIComponent(category.name)}`
+            : `/shop?category=${encodeURIComponent(category.name)}`
         };
       })
     };
@@ -1546,7 +1558,7 @@ function ProductCard({ product, onToast }) {
   const toggleWish = () => update({ wishlist: wished ? store.wishlist.filter(id=>id!==product.id) : [...store.wishlist, product.id] });
   return <motion.article className="product-card" layout whileHover={{ y:-5, scale:1.015 }}>
     <div className="product-image-wrap"><Link to={`/product/${product.id}`}><img src={product.image || logo} alt={product.name}/></Link><button type="button" className={`wish-btn ${wished ? "active" : ""}`} onClick={toggleWish} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"}><Heart aria-hidden="true" size={18} fill={wished ? "currentColor" : "none"}/></button>{product.salePrice && <span className="product-badge">SALE</span>}</div>
-    <div className="product-info"><p className="product-category">{product.category || "Uncategorized"}</p><Link to={`/product/${product.id}`}><h3>{product.name}</h3></Link><div className="product-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice && <del>Rs. {Number(product.price).toLocaleString()}</del>}</div><button className="add-cart" onClick={()=>{addToCart(product); onToast?.("Product cart mein add ho gaya")}}><ShoppingBag size={15}/> Add to Cart</button></div>
+    <div className="product-info"><p className="product-category">{product.category || "Uncategorized"}</p><Link to={`/product/${product.id}`}><h3>{product.name}</h3></Link><div className="product-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice && <del>Rs. {Number(product.price).toLocaleString()}</del>}</div><button className="add-cart" onClick={()=>{addToCart(product); onToast?.("Product added to cart")}}><ShoppingBag size={15}/> Add to Cart</button></div>
   </motion.article>;
 }
 
@@ -1573,6 +1585,8 @@ const [newsletterMessage, setNewsletterMessage] = useState("");
   const trendingProducts = productsAfterNewArrivals.slice(0, 8);
   const featuredProducts = productsAfterNewArrivals.slice(8, 8 + featuredLimit);
   const heroProduct = activeProducts[0] || null;
+  const homepageSections = [...(contentSettings.homepageSections || [])].filter(section => section && section.visible !== false && !['new-arrivals','popular-products','featured-products'].includes(section.id)).sort((a,b)=>Number(a.order||0)-Number(b.order||0));
+
 
 const mainCategories = sortMainCategories(store.categories);
 const categoryCards = mainCategories.map(category => {
@@ -1589,7 +1603,7 @@ const categoryCards = mainCategories.map(category => {
   };
 });
 
-const availableCats = categoryCards;
+const availableCats = categoryCards.slice(0, 3);
 
   return (
     <>
@@ -1676,7 +1690,7 @@ const availableCats = categoryCards;
 
               {(availableCats.length > 0) && (
                 <Link className="text-link" to="/categories">
-                  View All <ArrowRight size={15} />
+                  View All Categories <ArrowRight size={15} />
                 </Link>
               )}
             </div>
@@ -1686,8 +1700,8 @@ const availableCats = categoryCards;
       <Link
         className="home-category-card"
         key={c.id}
-        to={`/shop?category=${encodeURIComponent(c.name)}`}
-        aria-label={`View ${c.name} category`}
+        to={`/categories?category=${encodeURIComponent(c.name)}`}
+        aria-label={`Explore ${c.name} subcategories`}
       >
         <CategoryArtwork category={c} image={c.image} />
         <div className="home-category-copy">
@@ -1704,6 +1718,15 @@ const availableCats = categoryCards;
         <span className="category-card-arrow"><ArrowRight aria-hidden="true" size={17} /></span>
       </Link>
     ))}
+    <Link className="home-category-card home-category-all-card" to="/categories" aria-label="View all categories">
+      <div className="home-category-all-art"><Boxes size={42} strokeWidth={1.4}/><span>{mainCategories.length}+</span></div>
+      <div className="home-category-copy">
+        <span className="category-card-kicker">EXPLORE EVERYTHING</span>
+        <strong>View All Categories</strong>
+        <span className="home-category-all-caption">Browse Every Collection and Subcategory</span>
+      </div>
+      <span className="category-card-arrow"><ArrowRight aria-hidden="true" size={17}/></span>
+    </Link>
   </div>
 ) : (
   <div className="home-category-coming-soon">
@@ -1719,7 +1742,7 @@ const availableCats = categoryCards;
         </section>}
 
         {/* NEW ARRIVALS */}
-        {newArrivals.length > 0 && (
+        {newArrivals.length > 0 && (store.adminSettings?.content?.homepageSections || []).find(section => section.id === 'new-arrivals')?.visible !== false && (
           <section className="home-section">
             <div className="container">
 
@@ -1758,7 +1781,7 @@ const availableCats = categoryCards;
                 <h2>Popular Products</h2>
               </div>
 
-              {trendingProducts.length > 0 && (
+              {trendingProducts.length > 0 && (store.adminSettings?.content?.homepageSections || []).find(section => section.id === 'popular-products')?.visible !== false && (
                 <Link className="text-link" to="/shop">
                   Shop more <ArrowRight size={15}/>
                 </Link>
@@ -1816,7 +1839,7 @@ const availableCats = categoryCards;
         </section>}
 
         {/* FEATURED */}
-        {featuredProducts.length > 0 && (
+        {featuredProducts.length > 0 && (store.adminSettings?.content?.homepageSections || []).find(section => section.id === 'featured-products')?.visible !== false && (
           <section className="home-section home-section-dark">
             <div className="container">
 
@@ -1844,7 +1867,26 @@ const availableCats = categoryCards;
             </div>
           </section>
         )}
-                {/* STAY UPDATED */}
+                {homepageSections.map(section => {
+          const categoryIds = section.categoryId ? getCategoryDescendantIds(store.categories, section.categoryId).map(String) : [];
+          const explicitIds = (section.productIds || []).map(String);
+          let selectedProducts = [];
+          if (section.type === 'new_arrivals') selectedProducts = activeProducts.slice(0, 8);
+          else if (section.type === 'popular_products') selectedProducts = activeProducts.slice(0, 8);
+          else if (section.type === 'category_collection') selectedProducts = activeProducts.filter(product => categoryIds.includes(String(product.categoryId)));
+          else if (section.type === 'selected_products' || section.type === 'product_collection') selectedProducts = activeProducts.filter(product => explicitIds.includes(String(product.id)) || categoryIds.includes(String(product.categoryId)));
+          const selectedCategories = section.type === 'category_collection' ? store.categories.filter(category => String(category.parent_category_id || '') === String(section.categoryId || '')) : [];
+          return <section className="home-section hm-custom-home-section" key={section.id || section.title} style={{"--hm-section-desktop-columns":Math.max(1,Math.min(6,Number(section.desktopColumns||4))),"--hm-section-mobile-columns":Math.max(1,Math.min(2,Number(section.mobileColumns||2)))}}>
+            <div className="container">
+              <div className="home-section-heading"><div><p className="eyebrow">HAFIZ MART COLLECTION</p><h2>{section.title || 'Featured Collection'}</h2></div><Link className="text-link" to={section.categoryId && store.categories.find(c=>String(c.id)===String(section.categoryId)) ? `/shop?category=${encodeURIComponent(store.categories.find(c=>String(c.id)===String(section.categoryId)).name)}` : '/shop'}>View All <ArrowRight size={15}/></Link></div>
+              {selectedCategories.length ? <div className="home-category-grid">{selectedCategories.map(category => <Link className="home-category-card" key={category.id} to={`/categories?category=${encodeURIComponent(category.name)}`}><CategoryArtwork category={category} image={category.image}/><div className="home-category-copy"><strong>{category.name}</strong><span>Explore collection</span></div><span className="category-card-arrow"><ArrowRight size={17}/></span></Link>)}</div>
+                : selectedProducts.length ? <div className="home-product-grid">{selectedProducts.map(product => <ProductCard key={product.id} product={product} onToast={setToast}/>)}</div>
+                : <div className="home-category-coming-soon"><strong>No products selected yet</strong><span>Choose products or a category in the Homepage Section Manager.</span></div>}
+            </div>
+          </section>;
+        })}
+
+        {/* STAY UPDATED */}
         <section className="home-section home-newsletter-section">
           <div className="container">
 
@@ -1860,6 +1902,7 @@ const availableCats = categoryCards;
                 </p>
               </div>
 
+              <div className="newsletter-form-area">
               <form
   className="home-newsletter-form"
   onSubmit={async (e) => {
@@ -1926,11 +1969,16 @@ const availableCats = categoryCards;
   </button>
 </form>
 
+<div className="newsletter-socials" aria-label="Follow Hafiz Mart">
+  <div>{storeSocialLinks().filter(item => ['Facebook','WhatsApp','Instagram'].includes(item.label)).map(item => <a key={item.label} href={item.url} target="_blank" rel="noreferrer" className={`newsletter-social-link social-${item.label.toLowerCase()}`} aria-label={`Open Hafiz Mart on ${item.label}`} title={item.label}>{item.icon}</a>)}</div>
+</div>
+
 {newsletterMessage && (
   <p className="newsletter-message" role="status" aria-live="polite">
     {newsletterMessage}
   </p>
 )}
+              </div>
             </div>
 
           </div>
@@ -2045,7 +2093,7 @@ function ProductReviews({ productId }) {
     const selected = Array.from(files || []);
     if (!selected.length) return;
     if (reviewImages.length + selected.length > maxReviewImages) {
-      setMessage(`Maximum ${maxReviewImages} images per review upload kar sakte hain.`);
+      setMessage(`You can upload a maximum of ${maxReviewImages} images per review.`);
       return;
     }
     for (const file of selected) {
@@ -2064,7 +2112,7 @@ function ProductReviews({ productId }) {
       }
       if (uploaded.length) setReviewImages(prev => [...prev, ...uploaded]);
     } catch (error) {
-      setMessage(getFriendlyErrorMessage(error, 'Review image upload nahi ho saki. Dobara try karein.'));
+      setMessage(getFriendlyErrorMessage(error, 'The review image could not be uploaded. Please try again.'));
     } finally { setUploadingImages(false); }
   };
 
@@ -2079,14 +2127,14 @@ function ProductReviews({ productId }) {
 
     if (!user) {
       setMessage(
-        "Review dene ke liye customer account mein login karein."
+        "Sign in to your customer account to leave a review."
       );
       return;
     }
 
     if (!rating) {
       setMessage(
-        "Please product rating select karein."
+        "Please select a product rating."
       );
       return;
     }
@@ -2130,11 +2178,11 @@ function ProductReviews({ productId }) {
 
       if (error.code === "23505") {
         setMessage(
-          "Aap is product ko already review de chuke hain."
+          "You have already reviewed this product."
         );
       } else {
         setMessage(
-          "Review submit nahi ho saka. Dobara try karein."
+          "The review could not be submitted. Please try again."
         );
       }
 
@@ -2146,7 +2194,7 @@ function ProductReviews({ productId }) {
       setReviewImages([]);
 
       setMessage(
-        "Thank you! Aapka review ab product par show ho raha hai."
+        "Thank you! Your review is now visible on the product."
       );
 
       await load();
@@ -2201,7 +2249,7 @@ function ProductReviews({ productId }) {
       {loading ? (
 
         <div className="mini-empty">
-          Reviews load ho rahe hain...
+          Loading reviews...
         </div>
 
       ) : reviews.length ? (
@@ -2296,7 +2344,7 @@ function ProductReviews({ productId }) {
           </strong>
 
           <span>
-            Is product par pehla review aap de sakte hain.
+            You can be the first to review this product.
           </span>
 
         </div>
@@ -2312,11 +2360,11 @@ function ProductReviews({ productId }) {
           </p>
 
           <h3>
-            Apna experience share karein
+            Share your experience
           </h3>
 
           <p className="muted">
-            Aapka review submit hote hi product par show ho jayega.
+            Your review will appear on the product once submitted.
           </p>
 
         </div>
@@ -2385,7 +2433,7 @@ function ProductReviews({ productId }) {
               onChange={e =>
                 setComment(e.target.value)
               }
-              placeholder="Aapka review..."
+              placeholder="Your review..."
               rows="4"
               maxLength={500}
             />
@@ -2498,8 +2546,8 @@ function ProductReviews({ productId }) {
             <span>
 
               {user
-                ? "Aap is product ko already review de chuke hain."
-                : "Login karke review submit karein."}
+                ? "You have already reviewed this product."
+                : "Sign in to submit a review."}
 
             </span>
 
@@ -2530,53 +2578,122 @@ function ProductReviews({ productId }) {
 }
 
 function ProductDetails() {
-  const { id } = useParams(); const { store, addToCart, update }=useStore(); const product=store.products.find(p=>p.id===id); const [qty,setQty]=useState(1); const [toast,setToast]=useState(""); const [selectedImage,setSelectedImage]=useState(0);
-  if(!product) return <main className="page container"><EmptyState title="Product Not Found" text="Yeh product available nahi hai." action="Back to Shop" to="/shop"/></main>;
-  const gallery=[...(product.images||[])]; if(product.image&&!gallery.includes(product.image))gallery.unshift(product.image); const images=gallery.length?gallery:[logo]; const currentImage=images[Math.min(selectedImage,images.length-1)];
-  const price=Number(product.salePrice||product.price||0); const wished=store.wishlist.includes(product.id); const waNumber=getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER); const waText=`Assalam o Alaikum, mujhe Hafiz Mart se yeh product order karna hai:\n\nProduct: ${product.name}\nSKU: ${product.sku||"N/A"}\nQuantity: ${qty}\nPrice: Rs. ${price.toLocaleString()}\nTotal: Rs. ${(price*qty).toLocaleString()}`;
-  return <main className="page"><div className="container product-detail"><div className="detail-gallery"><div className="detail-image"><img src={currentImage} alt={product.name}/></div>{images.length>1&&<div className="thumbnail-row" aria-label={`${product.name} images`}>{images.map((src,i)=><button type="button" key={src+i} className={i===selectedImage?'active':''} onClick={()=>setSelectedImage(i)} aria-label={`View ${product.name} image ${i+1}`} aria-current={i===selectedImage?'true':undefined}><img src={src} alt="" /></button>)}</div>}</div><div className="detail-copy"><p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1><div className="detail-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice&&<del>Rs. {Number(product.price).toLocaleString()}</del>}</div><p className="detail-description">{product.description||product.shortDescription||"Is product ki detailed description abhi add nahi ki gayi."}</p><div className="stock-line">{Number(product.stock||0)>0?<><Check size={16}/> In stock — {product.stock} available</>:"Out of stock"}</div><div className="detail-actions"><div className="qty" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={()=>setQty(Math.max(1,qty-1))} aria-label={`Decrease ${product.name} quantity`}><Minus aria-hidden="true" size={15}/></button><strong aria-live="polite">{qty}</strong><button type="button" onClick={()=>setQty(Math.min(Number(product.stock||1),qty+1))} aria-label={`Increase ${product.name} quantity`}><Plus aria-hidden="true" size={15}/></button></div><button className="gold-btn" type="button" disabled={!Number(product.stock||0)} onClick={()=>{addToCart(product,qty);setToast("Product cart mein add ho gaya")}}><ShoppingBag aria-hidden="true" size={17}/> Add to Cart</button><button type="button" className={`icon-btn ${wished?"active":""}`} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart aria-hidden="true" size={19} fill={wished?"currentColor":"none"}/></button></div><a className="whatsapp-order" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a><Toast message={toast} onClose={()=>setToast("")}/></div></div><div className="container"><ProductReviews productId={product.id}/></div></main>;
+  const { id } = useParams();
+  const { store, addToCart, update } = useStore();
+  const product = store.products.find(p => String(p.id) === String(id));
+  const [qty, setQty] = useState(1);
+  const [toast, setToast] = useState("");
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [selectedVariant, setSelectedVariant] = useState(null);
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const [zoomPoint, setZoomPoint] = useState({ x: 50, y: 50 });
+  useEffect(() => { setSelectedVariant(null); setSelectedImage(0); setQty(1); }, [id]);
+  if (!product) return <main className="page container"><EmptyState title="Product Not Found" text="This product is not available." action="Back to Shop" to="/shop"/></main>;
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const colors = [...new Set(variants.map(v => v.color).filter(Boolean))];
+  const sizes = [...new Set(variants.map(v => v.size).filter(Boolean))];
+  const gallery = [...(product.images || [])];
+  if (product.image && !gallery.includes(product.image)) gallery.unshift(product.image);
+  variants.forEach(v => { if (v.image && !gallery.includes(v.image)) gallery.push(v.image); });
+  const images = gallery.length ? gallery : [logo];
+  const currentImage = selectedVariant?.image || images[Math.min(selectedImage, images.length - 1)];
+  const price = Number(selectedVariant?.salePrice ?? selectedVariant?.sale_price ?? selectedVariant?.price ?? product.salePrice ?? product.price ?? 0);
+  const stock = Number(selectedVariant?.stock ?? selectedVariant?.stock_quantity ?? product.stock ?? 0);
+  const wished = store.wishlist.includes(product.id);
+  const waNumber = getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER);
+  const waText = `Hello Hafiz Mart, I would like to enquire about this product.\\n\\nProduct: ${product.name}\\nSKU: ${product.sku || "N/A"}\\nVariant: ${[selectedVariant?.color, selectedVariant?.size].filter(Boolean).join(" / ") || "Standard"}\\nQuantity: ${qty}\\nPrice: Rs. ${price.toLocaleString()}\\nTotal: Rs. ${(price * qty).toLocaleString()}\\nLink: ${window.location.href}`;
+  const selectVariant = (next) => {
+    setSelectedVariant(next);
+    if (next?.image) {
+      const imageIndex = images.indexOf(next.image);
+      if (imageIndex >= 0) setSelectedImage(imageIndex);
+    }
+    setQty(1);
+  };
+  return <main className="page">
+    <div className="container hm-product-breadcrumb"><Link to="/">Home</Link><ChevronRight size={14}/><Link to="/shop">Shop</Link><ChevronRight size={14}/><span>{product.name}</span></div>
+    <div className="container product-detail">
+      <div className="detail-gallery">
+        <div className="detail-image hm-zoom-image" onClick={() => setZoomOpen(true)} role="button" tabIndex={0} onKeyDown={e => {if(e.key==='Enter'||e.key===' '){e.preventDefault();setZoomOpen(true);}}} aria-label="Open product image zoom">
+          <img src={currentImage} alt={product.name}/>
+          <span className="hm-zoom-hint"><Search size={13}/> Click to zoom</span>
+        </div>
+        {images.length>1&&<div className="thumbnail-row" aria-label={`${product.name} images`}>{images.map((src,i)=><button type="button" key={src+i} className={src===currentImage?'active':''} onClick={()=>{setSelectedImage(i);setSelectedVariant(null);}} aria-label={`View ${product.name} image ${i+1}`} aria-current={src===currentImage?'true':undefined}><img src={src} alt=""/></button>)}</div>}
+        {product.videoUrl && isSafeHttpUrl(product.videoUrl) && <a className="ghost-btn hm-video-link" href={product.videoUrl} target="_blank" rel="noreferrer"><ImageIcon size={16}/> Watch product video</a>}
+      </div>
+      <div className="detail-copy">
+        <p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1>
+        <div className="hm-seller-inline"><span><strong>Sold by Hafiz Mart</strong><small>Official Store Seller</small></span><a className="whatsapp-order" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer"><MessageCircle size={15}/> Chat Now</a></div>
+        <p className="detail-description">{product.description||product.shortDescription||"Detailed product information will be added soon."}</p>
+        {colors.length>0&&<div className="hm-option-group"><strong>Color</strong><div className="hm-option-list">{colors.map(color=><button key={color} type="button" className={`hm-option-chip ${(selectedVariant?.color===color)?'active':''}`} onClick={()=>{const candidate=variants.find(v=>v.color===color&&(!selectedVariant?.size||v.size===selectedVariant.size))||variants.find(v=>v.color===color);selectVariant(candidate);}}>{color}</button>)}</div></div>}
+        {sizes.length>0&&<div className="hm-option-group"><strong>Size</strong><div className="hm-option-list">{sizes.map(size=><button key={size} type="button" className={`hm-option-chip ${selectedVariant?.size===size?'active':''}`} onClick={()=>{const candidate=variants.find(v=>v.size===size&&(!selectedVariant?.color||v.color===selectedVariant.color))||variants.find(v=>v.size===size);selectVariant(candidate);}}>{size}</button>)}</div></div>}
+        {product.attributes && Object.keys(product.attributes).length>0&&<div className="hm-spec-grid">{Object.entries(product.attributes).map(([key,value])=><div key={key}><span>{key.replace(/[_-]/g,' ')}</span><strong>{Array.isArray(value)?value.join(', '):String(value)}</strong></div>)}</div>}
+        {product.highlights?.length>0&&<div className="hm-highlights"><strong>Highlights</strong><ul>{product.highlights.map((item,i)=><li key={`${item}-${i}`}>{item}</li>)}</ul></div>}
+        <div className="stock-line">{stock>0?<><Check size={16}/> In stock — {stock} available</>:"Out of stock"}</div>
+        <div className="detail-actions"><div className="qty" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity"><Minus size={15}/></button><strong aria-live="polite">{qty}</strong><button type="button" onClick={()=>setQty(Math.min(Math.max(1,stock),qty+1))} aria-label="Increase quantity"><Plus size={15}/></button></div><button className="gold-btn" type="button" disabled={!stock} onClick={()=>{addToCart(product,qty,selectedVariant);setToast("Product added to cart");}}><ShoppingBag size={17}/> Add to Cart</button><button type="button" className={`icon-btn ${wished?"active":""}`} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart size={19} fill={wished?"currentColor":"none"}/></button></div>
+        <div className="hm-policy-grid"><div><strong>Returns</strong><span>{product.returnPolicy==='change_of_mind'?'Change of Mind':product.returnPolicy==='easy_returns'?'Easy Returns':product.returnPolicy==='no_returns'?'Returns not available':'See store return policy'}</span></div><div><strong>Warranty</strong><span>{product.warrantyInfo||'Not specified'}</span></div></div>
+        {product.sizeGuide&&<details className="hm-size-guide"><summary>Size Guide</summary><p>{product.sizeGuide}</p></details>}
+        <Toast message={toast} onClose={()=>setToast("")}/>
+      </div>
+    </div>
+    <div className="container"><ProductReviews productId={product.id}/></div>
+    {zoomOpen&&<div className="hm-lightbox" role="dialog" aria-modal="true" aria-label={`${product.name} image zoom`} onClick={()=>setZoomOpen(false)}><button type="button" aria-label="Close image zoom" onClick={()=>setZoomOpen(false)}><X size={22}/></button><img src={currentImage} alt={product.name} onClick={e=>e.stopPropagation()}/></div>}
+  </main>;
 }
+
 function Categories() {
   const { store } = useStore();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const selectedName = params.get('category') || '';
+  const selected = store.categories.find(item => String(item.name) === selectedName);
   const mainCategories = sortMainCategories(store.categories);
-  return (
-    <main className="page">
-      <div className="container">
-        <div className="page-head">
-          <div><p className="eyebrow">DISCOVER</p><h1>Categories</h1><p>Explore Hafiz Mart collections and their subcategories.</p></div>
-        </div>
-        {mainCategories.length ? (
-          <div className="category-grid large category-directory-grid">
-            {mainCategories.map(category => {
-              const children = store.categories.filter(child => String(child.parent_category_id || '') === String(category.id));
-              const count = getCategoryProductCount(store.categories, store.products, category.id);
-              const descendants = new Set(getCategoryDescendantIds(store.categories, category.id));
-              const image = category.image || children.find(child => child.image)?.image || store.products.find(product => descendants.has(String(product.categoryId)) && product.image)?.image || '';
-              return (
-                <Link className="category-directory-card" key={category.id} to={`/shop?category=${encodeURIComponent(category.name)}`}>
-                  <CategoryArtwork category={category} image={image} />
-                  <div className="category-directory-copy">
-                    <span className="category-directory-kicker">COLLECTION</span>
-                    <h2>{category.name}</h2>
-                    <p>{count > 0 ? `${count} ${count === 1 ? 'product' : 'products'} available` : children.length ? `${children.length} subcategories` : 'Coming soon'}</p>
-                    {children.length > 0 && <div className="category-directory-subcats">{children.slice(0, 3).map(child => <span key={child.id}>{child.name}</span>)}{children.length > 3 && <span>+{children.length - 3} more</span>}</div>}
-                    <span className="category-directory-arrow"><ArrowRight size={17} /></span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState title="Categories Coming Soon" text="New collections will appear here as they are added." icon={Tag} />
-        )}
+  const visibleCategories = selected
+    ? store.categories.filter(item => String(item.parent_category_id || '') === String(selected.id))
+    : mainCategories;
+  const breadcrumbs = [];
+  let cursor = selected;
+  const visitedBreadcrumbIds = new Set();
+  while (cursor && !visitedBreadcrumbIds.has(String(cursor.id))) {
+    visitedBreadcrumbIds.add(String(cursor.id));
+    breadcrumbs.unshift(cursor);
+    cursor = store.categories.find(item => String(item.id) === String(cursor.parent_category_id || ''));
+  }
+  const categoryCard = category => {
+    const children = store.categories.filter(child => String(child.parent_category_id || '') === String(category.id));
+    const count = getCategoryProductCount(store.categories, store.products, category.id);
+    const descendants = new Set(getCategoryDescendantIds(store.categories, category.id));
+    const image = category.image || children.find(child => child.image)?.image || store.products.find(product => descendants.has(String(product.categoryId)) && product.image)?.image || '';
+    const nextPath = children.length
+      ? `/categories?category=${encodeURIComponent(category.name)}`
+      : `/shop?category=${encodeURIComponent(category.name)}`;
+    return <Link className="category-directory-card" key={category.id} to={nextPath}>
+      <CategoryArtwork category={category} image={image} />
+      <div className="category-directory-copy">
+        <span className="category-directory-kicker">{children.length ? 'COLLECTION' : 'SHOP CATEGORY'}</span>
+        <h2>{category.name}</h2>
+        <p>{children.length ? `${children.length} subcategories` : `${count} ${count === 1 ? 'product' : 'products'} available`}</p>
+        {children.length > 0 && <div className="category-directory-subcats">{children.slice(0, 3).map(child => <span key={child.id}>{child.name}</span>)}{children.length > 3 && <span>+{children.length - 3} more</span>}</div>}
+        <span className="category-directory-arrow"><ArrowRight size={17} /></span>
       </div>
-    </main>
-  );
+    </Link>;
+  };
+  return <main className="page"><div className="container">
+    <div className="page-head"><div><p className="eyebrow">DISCOVER</p><h1>{selected ? selected.name : 'Categories'}</h1><p>{selected ? 'Explore this collection and choose a subcategory.' : 'Explore all Hafiz Mart collections.'}</p></div>
+      {selected && <Link className="ghost-btn" to={breadcrumbs.length > 1 ? `/categories?category=${encodeURIComponent(breadcrumbs[breadcrumbs.length - 2].name)}` : '/categories'}>Back to {breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].name : 'all categories'}</Link>}
+    </div>
+    {selected && <nav className="hm-category-breadcrumb" aria-label="Breadcrumb"><Link to="/categories">Categories</Link>{breadcrumbs.map((item, index) => <React.Fragment key={item.id}><ChevronRight size={14}/>{index === breadcrumbs.length - 1 ? <span>{item.name}</span> : <Link to={`/categories?category=${encodeURIComponent(item.name)}`}>{item.name}</Link>}</React.Fragment>)}</nav>}
+    {visibleCategories.length ? <div className="category-grid large category-directory-grid">{visibleCategories.map(categoryCard)}</div> :
+      selected ? <div className="category-leaf-panel"><p>This category has no subcategories.</p><Link className="gold-btn" to={`/shop?category=${encodeURIComponent(selected.name)}`}>View Products <ArrowRight size={16}/></Link></div> :
+      <EmptyState title="Categories Coming Soon" text="New collections will appear here as they are added." icon={Tag}/>}
+    {!selected && mainCategories.length > 3 && <p className="hm-category-note">Showing the full category directory. Choose a collection to explore its subcategories.</p>}
+  </div></main>;
 }
-function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Fresh offers will appear here when products have an active sale price." icon={Tag}/>}</div></main>; }
-function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Product cards par heart icon press karke items save karein." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
 
-function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER); const changeQty=(index,delta)=>{const cart=[...store.cart]; cart[index]={...cart[index],qty:Math.max(1,cart[index].qty+delta)};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Assalam o Alaikum, Hafiz Mart se order place karna hai.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt={x.product.name || "Hafiz Mart product"}/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>Rs. {Number(x.product.salePrice||x.product.price).toLocaleString()}</span></div><div className="qty" aria-label={`Quantity for ${x.product.name}`}><button type="button" onClick={()=>changeQty(x.index,-1)} aria-label={`Decrease ${x.product.name} quantity`}><Minus aria-hidden="true" size={14}/></button><strong aria-live="polite">{x.qty}</strong><button type="button" onClick={()=>changeQty(x.index,1)} aria-label={`Increase ${x.product.name} quantity`}><Plus aria-hidden="true" size={14}/></button></div><strong className="line-total">Rs. {(Number(x.product.salePrice||x.product.price)*x.qty).toLocaleString()}</strong><button type="button" className="remove-btn" aria-label={`Remove ${x.product.name} from cart`} title="Remove from cart" onClick={()=>remove(x.index)}><Trash2 aria-hidden="true" size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Shop se products add karein, phir yahan order summary dekhein." action="Start Shopping" to="/shop"/>}</div></main>; }
+function Deals(){ const {store}=useStore(); const deals=store.products.filter(p=>p.salePrice); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">OFFERS</p><h1>Deals</h1><p>Products with an active sale price.</p></div></div>{deals.length?<div className="product-grid">{deals.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="No Active Deals" text="Fresh offers will appear here when products have an active sale price." icon={Tag}/>}</div></main>; }
+function Wishlist(){ const {store}=useStore(); const products=store.products.filter(p=>store.wishlist.includes(p.id)); return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">SAVED</p><h1>Wishlist</h1><p>Your saved products.</p></div></div>{products.length?<div className="product-grid">{products.map(p=><ProductCard key={p.id} product={p}/>)}</div>:<EmptyState title="Wishlist Empty" text="Save items by selecting the heart icon on product cards." action="Start Shopping" to="/shop" icon={Heart}/>}</div></main>; }
+
+function Cart(){ const {store,cartItems,subtotal,update}=useStore(); const delivery=0; const total=subtotal+delivery; const waNumber=getStoreWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER); const changeQty=(index,delta)=>{const cart=[...store.cart]; const line=cart[index]; const lineStock=Number(line.variant?.stock ?? line.variant?.stock_quantity ?? cartItems.find(item=>item.index===index)?.product.stock ?? 999999); cart[index]={...line,qty:Math.min(Math.max(1,lineStock),Math.max(1,line.qty+delta))};update({cart})}; const remove=(index)=>update({cart:store.cart.filter((_,i)=>i!==index)}); const message=`Hello, I would like to place an order with Hafiz Mart.\n\n${cartItems.map(x=>`• ${x.product.name} x${x.qty} — Rs. ${(Number(x.unitPrice ?? x.product.salePrice ?? x.product.price)*x.qty).toLocaleString()}`).join("\n")}\n\nSubtotal: Rs. ${subtotal.toLocaleString()}\nDelivery: Rs. ${delivery.toLocaleString()}\nTotal: Rs. ${total.toLocaleString()}`; return <main className="page"><div className="container"><div className="page-head"><div><p className="eyebrow">YOUR BAG</p><h1>Shopping Cart</h1><p>Review your items before ordering.</p></div></div>{cartItems.length?<div className="cart-layout"><div className="cart-list">{cartItems.map(x=><div className="cart-row" key={x.index}><img src={x.product.image||logo} alt={x.product.name || "Hafiz Mart product"}/><div className="cart-main"><Link to={`/product/${x.product.id}`}><strong>{x.product.name}</strong></Link><span>{[x.variant?.color,x.variant?.size,x.variant?.fit,x.variant?.style].filter(Boolean).join(" / ") || "Standard"} · Rs. {Number(x.unitPrice ?? x.product.salePrice ?? x.product.price).toLocaleString()}</span></div><div className="qty" aria-label={`Quantity for ${x.product.name}`}><button type="button" onClick={()=>changeQty(x.index,-1)} aria-label={`Decrease ${x.product.name} quantity`}><Minus aria-hidden="true" size={14}/></button><strong aria-live="polite">{x.qty}</strong><button type="button" onClick={()=>changeQty(x.index,1)} aria-label={`Increase ${x.product.name} quantity`}><Plus aria-hidden="true" size={14}/></button></div><strong className="line-total">Rs. {(Number(x.unitPrice ?? x.product.salePrice ?? x.product.price)*x.qty).toLocaleString()}</strong><button type="button" className="remove-btn" aria-label={`Remove ${x.product.name} from cart`} title="Remove from cart" onClick={()=>remove(x.index)}><Trash2 aria-hidden="true" size={16}/></button></div>)}</div><aside className="summary"><p className="eyebrow">SUMMARY</p><h2>Order Total</h2><div><span>Subtotal</span><strong>Rs. {subtotal.toLocaleString()}</strong></div><div><span>Delivery</span><strong>Rs. {delivery.toLocaleString()}</strong></div><div className="summary-total"><span>Total</span><strong>Rs. {total.toLocaleString()}</strong></div><Link className="gold-btn full" to="/checkout">Checkout</Link><a className="whatsapp-order full" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle size={18}/> Order on WhatsApp</a></aside></div>:<EmptyState title="Your Cart is Empty" text="Add products from the shop to review your order summary here." action="Start Shopping" to="/shop"/>}</div></main>; }
 
 function Shop() {
   const { store } = useStore();
@@ -2867,8 +2984,8 @@ function Shop() {
             title="No Products Found"
             text={
               store.products.length
-                ? "Search/filter change karke dobara try karein."
-                : "Abhi store mein koi product nahi hai."
+                ? "Change your search or filters and try again."
+                : "There are currently no products in the store."
             }
             action="Reset Filters"
             to="/shop"
@@ -3034,7 +3151,10 @@ function Checkout(){
   const discount=Number(coupon?.discount||0);
   const freeShippingCoupon=Boolean(coupon?.freeShipping);
   const finalDeliveryFee=freeShippingCoupon ? 0 : deliveryFee;
-  const total=Math.max(0,subtotal-discount+finalDeliveryFee);
+  const chargeSettings=appSettings.charges || DEFAULT_ADMIN_SETTINGS.charges;
+  const cashHandlingApplies=Boolean(chargeSettings.cashHandlingEnabled) && (chargeSettings.cashHandlingCodOnly !== false ? paymentMethod === 'cod' : true);
+  const cashHandlingFee=cashHandlingApplies ? Math.max(0, chargeSettings.cashHandlingMode === 'percentage' ? Math.round(Math.max(0,subtotal-discount) * Number(chargeSettings.cashHandlingValue||0) / 100) : Number(chargeSettings.cashHandlingValue||0)) : 0;
+  const total=Math.max(0,subtotal-discount+cashHandlingFee+finalDeliveryFee);
 
   const validateWhatsApp=(phone)=>{
     const cleaned=
@@ -3071,7 +3191,7 @@ function Checkout(){
 
     if(!couponCode.trim()){
       setCouponError(
-        'Coupon code enter karein.'
+        'Please enter a coupon code.'
       );
       setCouponBusy(false);
       return;
@@ -3101,7 +3221,7 @@ function Checkout(){
     ){
       setCouponError(
         result?.message||
-        'Coupon apply nahi hua.'
+        'The coupon could not be applied.'
       );
     }else{
       setCoupon({
@@ -3128,7 +3248,7 @@ function Checkout(){
 
       if(!form.email.trim()){
         setError(
-          'Email address required hai.'
+          'Email address is required.'
         );
         return false;
       }
@@ -3138,7 +3258,7 @@ function Checkout(){
           .test(form.email)
       ){
         setError(
-          'Valid email address enter karein.'
+          'Enter a valid email address.'
         );
         return false;
       }
@@ -3150,63 +3270,63 @@ function Checkout(){
 
       if(!form.firstName.trim()){
         setError(
-          'First name required hai.'
+          'First name is required.'
         );
         return false;
       }
 
       if(!form.lastName.trim()){
         setError(
-          'Last name required hai.'
+          'Last name is required.'
         );
         return false;
       }
 
       if(!form.phone.trim()){
         setError(
-          'WhatsApp number required hai.'
+          'WhatsApp number is required.'
         );
         return false;
       }
 
       if(!validateWhatsApp(form.phone)){
         setError(
-          'Valid Pakistani WhatsApp number enter karein. Example: 03001234567'
+          'Enter a valid Pakistani WhatsApp number, e.g. 03001234567.'
         );
         return false;
       }
 
       if(!form.address1.trim()){
         setError(
-          'Address Line 1 required hai.'
+          'Address Line 1 is required.'
         );
         return false;
       }
 
       if(!form.country){
         setError(
-          'Country select karein.'
+          'Please select a country.'
         );
         return false;
       }
 
       if(!form.province){
         setError(
-          'Province select karein.'
+          'Please select a province.'
         );
         return false;
       }
 
       if(!form.city){
         setError(
-          'City select karein.'
+          'Please select a city.'
         );
         return false;
       }
 
       if(!form.postalCode.trim()){
         setError(
-          'Postal code required hai.'
+          'Postal code is required.'
         );
         return false;
       }
@@ -3218,7 +3338,7 @@ function Checkout(){
 
       if(!deliveryMethod){
         setError(
-          'Delivery method select karein.'
+          'Please select a delivery method.'
         );
         return false;
       }
@@ -3229,12 +3349,12 @@ function Checkout(){
     if(step===4){
 
       if(!paymentMethod){
-        setError(paymentSettings.codEnabled ? 'Payment method select karein.' : 'Filhaal koi payment method available nahi hai.');
+        setError(paymentSettings.codEnabled ? 'Please select a payment method.' : 'No payment method is currently available.');
         return false;
       }
 
       if(paymentMethod==='cod' && !paymentSettings.codEnabled){
-        setError('Cash on Delivery filhaal available nahi hai.');
+        setError('Cash on Delivery is currently unavailable.');
         return false;
       }
 
@@ -3242,14 +3362,14 @@ function Checkout(){
 
         if(!cardPaymentsEnabled){
           setError(
-            'Debit / Credit Card payment gateway abhi configure nahi hai.'
+            'The debit/credit card payment gateway is not configured yet.'
           );
           return false;
         }
 
         if(!card.name.trim()){
           setError(
-            'Cardholder name required hai.'
+            'Cardholder name is required.'
           );
           return false;
         }
@@ -3259,21 +3379,21 @@ function Checkout(){
 
         if(cardDigits.length!==16){
           setError(
-            'Valid 16-digit card number enter karein.'
+            'Enter a valid 16-digit card number.'
           );
           return false;
         }
 
         if(!/^\d{2}\/\d{2}$/.test(card.expiry)){
           setError(
-            'Expiry date MM/YY format mein enter karein.'
+            'Enter the expiry date in MM/YY format.'
           );
           return false;
         }
 
         if(!/^\d{3,4}$/.test(card.cvv)){
           setError(
-            'Valid CVV enter karein.'
+            'Enter a valid CVV.'
           );
           return false;
         }
@@ -3285,7 +3405,7 @@ function Checkout(){
         */
 
         setError(
-          'Card payment gateway abhi connect nahi hai. Filhaal Cash on Delivery select karein.'
+          'The card payment gateway is not connected yet. Please select Cash on Delivery.'
         );
 
         return false;
@@ -3295,28 +3415,28 @@ function Checkout(){
 
         if(!billing.address1.trim()){
           setError(
-            'Billing address required hai.'
+            'Billing address is required.'
           );
           return false;
         }
 
         if(!billing.country){
           setError(
-            'Billing country select karein.'
+            'Please select a billing country.'
           );
           return false;
         }
 
         if(!billing.province){
           setError(
-            'Billing province select karein.'
+            'Please select a billing province.'
           );
           return false;
         }
 
         if(!billing.city){
           setError(
-            'Billing city select karein.'
+            'Please select a billing city.'
           );
           return false;
         }
@@ -3366,7 +3486,7 @@ function Checkout(){
 
     if(!validateStep()) return;
     if(storefrontSettings.maintenanceMode){
-      setError(storefrontSettings.maintenanceMessage || 'Store maintenance mein hai. Baad mein dobara koshish karein.');
+      setError(storefrontSettings.maintenanceMessage || 'The store is under maintenance. Please try again later.');
       return;
     }
 
@@ -3405,7 +3525,10 @@ function Checkout(){
 
     const items=cartItems.map(x=>({
       product_id:x.product.id,
-      quantity:x.qty
+      quantity:x.qty,
+      unit_price:Number(x.unitPrice ?? x.product.salePrice ?? x.product.price ?? 0),
+      variant:x.variant || null,
+      variant_label:[x.variant?.color,x.variant?.size,x.variant?.fit,x.variant?.style].filter(Boolean).join(' / ')
     }));
 
     const {
@@ -3431,7 +3554,7 @@ function Checkout(){
     );
 
     if(rpcError){
-      setError(getFriendlyErrorMessage(rpcError, 'Order place nahi ho saka. Dobara try karein.'));
+      setError(getFriendlyErrorMessage(rpcError, 'Your order could not be placed. Please try again.'));
       return;
     }
 
@@ -3442,36 +3565,49 @@ function Checkout(){
 
     if(!created){
       setError(
-        'Order create nahi hua. Dobara try karein.'
+        'The order could not be created. Please try again.'
       );
       setBusy(false);
       return;
     }
 
-    const receiptItems = cartItems.map(x => ({ productId:x.product.id, name:x.product.name, image:x.product.image||'', quantity:x.qty, unitPrice:Number(x.product.salePrice||x.product.price), lineTotal:Number(x.product.salePrice||x.product.price)*x.qty }));
+    const receiptItems = cartItems.map(x => ({ productId:x.product.id, name:x.product.name + (x.variant ? ` (${[x.variant.color,x.variant.size,x.variant.fit,x.variant.style].filter(Boolean).join(' / ')})` : ''), image:x.variant?.image||x.product.image||'', quantity:x.qty, unitPrice:Number(x.unitPrice ?? x.product.salePrice ?? x.product.price), lineTotal:Number(x.unitPrice ?? x.product.salePrice ?? x.product.price)*x.qty, variant:x.variant||null }));
     const billingLine = billingSame ? 'Billing Address: Same as Shipping' : `Billing Address: ${billingAddress}`;
 
     // The order RPC is authoritative for the final total. Some RPC responses may
     // omit the discount field even though the discount has already been applied
     // to the returned total. Keep the receipt consistent with that server total
     // by deriving the applied discount when the explicit field is unavailable/zero.
-    const receiptSubtotal = Number(created.subtotal ?? subtotal);
+    const serverSubtotal = Number(created.subtotal ?? subtotal);
+    const receiptSubtotal = subtotal;
     const receiptDeliveryFee = Number(created.delivery_fee ?? finalDeliveryFee);
-    const receiptTotal = Number(created.total ?? total);
+    const serverTotal = Number(created.total ?? (serverSubtotal - discount + receiptDeliveryFee));
+    const receiptCashHandlingFee = cashHandlingFee;
+    const receiptTotal = serverTotal + (receiptSubtotal - serverSubtotal) + receiptCashHandlingFee;
     const explicitDiscount = Number(created.discount ?? created.discount_amount ?? created.coupon_discount ?? 0);
-    const derivedDiscount = Math.max(0, receiptSubtotal + receiptDeliveryFee - receiptTotal);
+    const derivedDiscount = Math.max(0, serverSubtotal + receiptDeliveryFee - serverTotal);
     const receiptDiscount = derivedDiscount > 0 ? derivedDiscount : Math.max(0, explicitDiscount);
+    if (created.id || created.order_id) {
+      const orderSnapshot = {
+        cash_handling_fee: receiptCashHandlingFee,
+        total: receiptTotal,
+        items_snapshot: receiptItems.map(item => ({ ...item, variant: item.variant || null }))
+      };
+      const { error:feeSaveError } = await supabase.from('orders').update(orderSnapshot).eq('id', created.id || created.order_id);
+      if (feeSaveError) console.error('[Hafiz Mart] Order fee/variant snapshot save failed:', feeSaveError.code || feeSaveError.name || 'Request failed');
+    }
 
-    const receiptData = { orderNumber:created.order_number, customerName, phone:form.phone, email:form.email, shippingAddress:fullAddress, billingAddress:billingLine.replace('Billing Address: ','').trim(), paymentMethod:paymentMethod==='cod'?'Cash on Delivery':paymentMethod, items:receiptItems, subtotal:receiptSubtotal, discount:receiptDiscount, deliveryFee:receiptDeliveryFee, total:receiptTotal, createdAt:new Date().toISOString() };
+
+    const receiptData = { orderNumber:created.order_number, customerName, phone:form.phone, email:form.email, shippingAddress:fullAddress, billingAddress:billingLine.replace('Billing Address: ','').trim(), paymentMethod:paymentMethod==='cod'?'Cash on Delivery':paymentMethod, items:receiptItems, subtotal:receiptSubtotal, discount:receiptDiscount, deliveryFee:receiptDeliveryFee, cashHandlingFee:receiptCashHandlingFee, total:receiptTotal, createdAt:new Date().toISOString() };
     const whatsappLines = receiptItems.map(item => `• ${item.name} x${item.quantity} — Rs. ${item.lineTotal.toLocaleString()}`).join('\n');
-    const whatsappText = `Assalam o Alaikum, Hafiz Mart se order confirm karna hai.\n\nOrder: ${receiptData.orderNumber}\nCustomer: ${receiptData.customerName}\nWhatsApp: ${receiptData.phone}\nEmail: ${receiptData.email}\n\nShipping Address:\n${receiptData.shippingAddress}\n\nBilling Address: ${receiptData.billingAddress}\nPayment Method: ${receiptData.paymentMethod}\n\n${whatsappLines}\n\nSubtotal: Rs. ${receiptData.subtotal.toLocaleString()}\nDiscount: Rs. ${receiptData.discount.toLocaleString()}\nDelivery: Rs. ${receiptData.deliveryFee.toLocaleString()}\nTotal: Rs. ${receiptData.total.toLocaleString()}`;
+    const whatsappText = `Assalam o Alaikum, Hafiz Mart se order confirm karna hai.\n\nOrder: ${receiptData.orderNumber}\nCustomer: ${receiptData.customerName}\nWhatsApp: ${receiptData.phone}\nEmail: ${receiptData.email}\n\nShipping Address:\n${receiptData.shippingAddress}\n\nBilling Address: ${receiptData.billingAddress}\nPayment Method: ${receiptData.paymentMethod}\n\n${whatsappLines}\n\nSubtotal: Rs. ${receiptData.subtotal.toLocaleString()}\nDiscount: Rs. ${receiptData.discount.toLocaleString()}\nCash Handling: Rs. ${receiptData.cashHandlingFee.toLocaleString()}\nDelivery: Rs. ${receiptData.deliveryFee.toLocaleString()}\nTotal: Rs. ${receiptData.total.toLocaleString()}`;
     update({cart:[]});
     setReceipt({...receiptData,whatsappText});
     setOrder(created);
     setBusy(false);
   
     } catch (error) {
-      setError(getFriendlyErrorMessage(error, 'Checkout complete nahi ho saka. Apni details check karke dobara try karein.'));
+      setError(getFriendlyErrorMessage(error, 'Checkout could not be completed. Check your details and try again.'));
     } finally {
       setBusy(false);
     }
@@ -3486,7 +3622,7 @@ function Checkout(){
               <div className="receipt-card-head"><div><p className="eyebrow">HAFIZ MART</p><h2>Order Receipt</h2></div><div className="receipt-meta"><span>Order Date</span><strong>{new Date(receipt.createdAt).toLocaleString()}</strong></div></div>
               <div className="receipt-info-grid"><div><span>Customer</span><strong>{receipt.customerName}</strong></div><div><span>Phone</span><strong>{receipt.phone}</strong></div><div><span>Email</span><strong>{receipt.email||'—'}</strong></div><div><span>Payment</span><strong>{receipt.paymentMethod}</strong></div><div className="receipt-info-wide"><span>Shipping Address</span><strong>{receipt.shippingAddress}</strong></div><div className="receipt-info-wide"><span>Billing Address</span><strong>{receipt.billingAddress}</strong></div></div>
               <div className="receipt-items">{receipt.items.map(item=><div className="receipt-item" key={item.productId}><div className="receipt-item-main">{item.image?<img src={item.image} alt={item.name || "Hafiz Mart product"}/>:<div className="receipt-item-placeholder"><ShoppingBag size={16}/></div>}<div><strong>{item.name}</strong><span>Qty {item.quantity} × Rs. {item.unitPrice.toLocaleString()}</span></div></div><strong>Rs. {item.lineTotal.toLocaleString()}</strong></div>)}</div>
-              <div className="receipt-total-box"><div><span>Subtotal</span><strong>Rs. {receipt.subtotal.toLocaleString()}</strong></div><div><span>Discount</span><strong>- Rs. {receipt.discount.toLocaleString()}</strong></div><div><span>Delivery</span><strong>{receipt.deliveryFee===0?'FREE':`Rs. ${receipt.deliveryFee.toLocaleString()}`}</strong></div><div className="receipt-grand"><span>Grand Total</span><strong>Rs. {receipt.total.toLocaleString()}</strong></div></div>
+              <div className="receipt-total-box"><div><span>Subtotal</span><strong>Rs. {receipt.subtotal.toLocaleString()}</strong></div><div><span>Discount</span><strong>- Rs. {receipt.discount.toLocaleString()}</strong></div><div><span>Cash Handling Charges</span><strong>Rs. {Number(receipt.cashHandlingFee||0).toLocaleString()}</strong></div><div><span>Delivery</span><strong>{receipt.deliveryFee===0?'FREE':`Rs. ${receipt.deliveryFee.toLocaleString()}`}</strong></div><div className="receipt-grand"><span>Grand Total</span><strong>Rs. {receipt.total.toLocaleString()}</strong></div></div>
               <div className="receipt-actions"><button className="gold-btn" onClick={()=>window.print()}><FileText size={16}/> Print / Save Receipt</button><a className="ghost-btn" href={`https://wa.me/${waNumber}?text=${encodeURIComponent(receipt.whatsappText)}`} target="_blank" rel="noreferrer"><MessageCircle size={16}/> Send on WhatsApp</a><Link className="ghost-btn" to="/track-order">Track Order</Link><Link className="ghost-btn" to="/shop">Continue Shopping</Link></div>
             </section>
           </div>
@@ -3500,7 +3636,7 @@ function Checkout(){
 
         <EmptyState
           title="Cart Empty"
-          text="Checkout se pehle cart mein product add karein."
+          text="Add products to your cart before checkout."
           action="Go to Shop"
           to="/shop"
         />
@@ -3525,7 +3661,7 @@ function Checkout(){
           </h1>
 
           <p className="muted">
-            Apni information complete karein aur order place karein.
+            Complete your information and place your order.
           </p>
 
         </div>
@@ -4041,7 +4177,7 @@ function Checkout(){
                     <span>
                       {cardPaymentsEnabled
                         ? 'Secure card payment.'
-                        : 'Online card payment gateway abhi connected nahi hai.'
+                        : 'The online card payment gateway is not connected yet.'
                       }
                     </span>
 
@@ -4073,7 +4209,7 @@ function Checkout(){
                   <div className="card-payment-box">
 
                     <div className="card-payment-note">
-                      Card details gateway ke secure payment flow mein process honi chahiye. Hafiz Mart database mein raw card number ya CVV save nahi kiya jayega.
+                      Card details must be processed by a secure payment gateway. Hafiz Mart will not store raw card numbers or CVV values in its database.
                     </div>
 
                     <div className="checkout-form-grid">
@@ -4593,12 +4729,17 @@ function Checkout(){
 
 
             <div>
+              <span>Cash Handling Charges</span>
+              <strong>Rs. {cashHandlingFee.toLocaleString()}</strong>
+            </div>
+
+            <div>
               <span>
                 Delivery
               </span>
 
               <strong>
-                Rs. {deliveryFee.toLocaleString()}
+                Rs. {finalDeliveryFee.toLocaleString()}
               </strong>
             </div>
 
@@ -4672,7 +4813,7 @@ function Account(){
         logSafeError('[Hafiz Mart] Account order history load failed:',error);
         if(active) {
           setOrders([]);
-          setOrdersError(getFriendlyErrorMessage(error,'Order history abhi load nahi ho saki. Please dobara try karein.'));
+          setOrdersError(getFriendlyErrorMessage(error,'Order history could not be loaded. Please try again.'));
         }
       } finally {
         if(active) setLoading(false);
@@ -4704,11 +4845,11 @@ function Account(){
       if(error) throw error;
       if(!data) throw new Error('Profile record was not updated.');
       await refreshProfile();
-      setMessage('Profile update ho gaya.');
+      setMessage('Profile updated successfully.');
     } catch(error) {
       logSafeError('[Hafiz Mart] Profile save failed:',error);
       setMessageType('error');
-      setMessage(getFriendlyErrorMessage(error,'Profile save nahi ho saka. Please dobara try karein.'));
+      setMessage(getFriendlyErrorMessage(error,'The profile could not be saved. Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -4922,7 +5063,7 @@ function Account(){
             ) : (
               <EmptyState
                 title="No Orders Yet"
-                text="Aapki placed orders yahan appear hongi."
+                text="Your placed orders will appear here."
                 action="Start Shopping"
                 to="/shop"
                 icon={ShoppingCart}
@@ -4991,14 +5132,14 @@ function OrderTracker() {
       .maybeSingle();
 
     if (orderError) {
-      setError(getFriendlyErrorMessage(orderError, 'Order lookup fail ho gaya. Dobara try karein.'));
+      setError(getFriendlyErrorMessage(orderError, 'Order lookup failed. Please try again.'));
       setLoading(false);
       return;
     }
 
     if (!orderData) {
       setError(
-        "Is order number ka order aapke account mein nahi mila."
+        "No order with this order number was found in your account."
       );
       setLoading(false);
       return;
@@ -5011,7 +5152,7 @@ function OrderTracker() {
       .order("created_at", { ascending: true });
 
     if (itemError) {
-      setError(getFriendlyErrorMessage(itemError, 'Order items load nahi ho sake. Dobara try karein.'));
+      setError(getFriendlyErrorMessage(itemError, 'Order items could not be loaded. Please try again.'));
     } else {
       setOrder(orderData);
       setItems(itemData || []);
@@ -5239,7 +5380,7 @@ function OrderTracker() {
                     </div>
                   ) : (
                     <div className="mini-empty">
-                      Order items available nahi hain.
+                      Order items are not available.
                     </div>
                   )}
 
@@ -5356,7 +5497,7 @@ function Login() {
       if (mode === "login") {
 
         setError(
-          "Email ya password ghalat hai. Apni details check karein ya naya account create karein."
+          "Incorrect email or password. Check your details or create a new account."
         );
 
       } else {
@@ -5377,11 +5518,11 @@ function Login() {
           errorMessage.includes("password")
         ) {
           setError(
-            "Password kam az kam 6 characters ka hona chahiye."
+            "Password must be at least 6 characters long."
           );
         } else {
           setError(
-            "Account create nahi ho saka. Details check karke dobara try karein."
+            "The account could not be created. Check your details and try again."
           );
         }
       }
@@ -5392,13 +5533,13 @@ function Login() {
     ) {
 
       setMessage(
-        "Account create ho gaya. Agar email confirmation enabled hai to apni email confirm karein."
+        "Your account has been created. If email confirmation is enabled, please confirm your email address."
       );
 
     } else if (mode === "login") {
 
       setMessage(
-        "Login successful. Aapka account open ho raha hai..."
+        "Sign-in successful. Opening your account..."
       );
     }
 
@@ -5415,22 +5556,19 @@ function Login() {
           alt="Hafiz Mart"
         />
 
-        <p className="eyebrow">
-          ACCOUNT
-        </p>
-
-        <h1>
+        <h1 className="hm-login-title">
           {mode === "login"
-            ? "Login to your account"
+            ? "Login into your account"
             : "Create account"}
         </h1>
 
         <p className="muted">
           {mode === "login"
-            ? "Apne Hafiz Mart account mein sign in karein."
-            : "Hafiz Mart par apna account create karein."}
+            ? "Sign in to your Hafiz Mart account."
+            : "Create your Hafiz Mart account."}
         </p>
 
+        <form className="auth-form" onSubmit={submit}>
         {mode === "register" && (
           <label>
             Full Name
@@ -5518,9 +5656,8 @@ function Login() {
 
         <button
           className="gold-btn full"
-          type="button"
+          type="submit"
           disabled={busy}
-          onClick={submit}
         >
           {busy
             ? "Please wait..."
@@ -5530,6 +5667,7 @@ function Login() {
 
           <ArrowRight size={17} />
         </button>
+        </form>
 
         <button
           className="text-link center"
@@ -5586,7 +5724,7 @@ function ForgotPassword(){
       setError(error.message);
     }else{
       setMessage(
-        'Password reset link aapke email par bhej diya gaya hai. Inbox ke saath spam/junk folder bhi check karein.'
+        'A password reset link has been sent to your email. Check your inbox and spam/junk folder.'
       );
     }
 
@@ -5603,7 +5741,7 @@ function ForgotPassword(){
         <h1>Forgot Password?</h1>
 
         <p className="muted">
-          Apna account email enter karein. Hum aapko password reset link bhej denge.
+          Enter your account email address. We will send you a password reset link.
         </p>
 
         <form onSubmit={submit}>
@@ -5667,12 +5805,12 @@ function ResetPassword(){
     setMessage('');
 
     if(password.length < 6){
-      setError('Password kam az kam 6 characters ka hona chahiye.');
+      setError('Password must be at least 6 characters long.');
       return;
     }
 
     if(password !== confirmPassword){
-      setError('Passwords match nahi kar rahe.');
+      setError('Passwords do not match.');
       return;
     }
 
@@ -5686,7 +5824,7 @@ function ResetPassword(){
       setError(error.message);
     }else{
       setMessage(
-        'Password successfully update ho gaya. Ab aap naye password se login kar sakte hain.'
+        'Password updated successfully. You can now sign in with your new password.'
       );
       setPassword('');
       setConfirmPassword('');
@@ -5844,17 +5982,17 @@ function AdminLayout({children}){
   if(loading) return <main className="page container"><EmptyState title="Loading admin..." text="Authentication aur store data verify ho raha hai."/></main>;
   if(!profile || !visibleLinks.length) return <main className="page container"><EmptyState title="Admin access required" text="Is section ke liye authorized team account chahiye." action="Login" to="/login" icon={User}/></main>;
   const required=routePermission(location.pathname);
-  if(!userHasPermission(profile,required)) return <main className="page container"><EmptyState title="Access restricted" text="Aapke current role ke paas is section ki permission nahi hai." action="Back to Dashboard" to="/admin" icon={ShieldCheck}/></main>;
+  if(!userHasPermission(profile,required)) return <main className="page container"><EmptyState title="Access restricted" text="Your current role does not have permission to access this section." action="Back to Dashboard" to="/admin" icon={ShieldCheck}/></main>;
   return <main className="admin-shell"><aside className="admin-sidebar"><Link to="/admin" className="admin-logo"><img src={logo} alt="Hafiz Mart"/></Link><nav>{visibleLinks.map(([to,I,label,permission])=><Link key={to} to={to} className={location.pathname===to?'active':''}><I size={17}/><span>{label}</span>{permission==='view_notifications'&&unread>0&&<b className="admin-notification-badge">{unread>99?'99+':unread}</b>}</Link>)}</nav><Link className="store-link" to="/"><ArrowRight size={15}/> View Store</Link><button className="store-link" onClick={signOut}>Sign out</button></aside><section className="admin-content">{children}</section></main>;
 }
 
 function Admin(){
   const {store}=useStore(); const [stats,setStats]=useState({orders:0,customers:0,revenue:0}); const [recent,setRecent]=useState([]);
   useEffect(()=>{ let active=true; (async()=>{ const [orders,customers]=await Promise.all([supabase.from('orders').select('id,total,status,created_at,customer_name,order_number').order('created_at',{ascending:false}),supabase.from('profiles').select('id,role',{count:'exact',head:true}).eq('role','customer')]); if(!active)return; const rows=orders.data||[]; setStats({orders:rows.length,customers:customers.count||0,revenue:rows.filter(o=>o.status!=='cancelled').reduce((n,o)=>n+Number(o.total||0),0)}); setRecent(rows.slice(0,5)); })(); return()=>{active=false}; },[]);
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN PANEL</p><h1>Dashboard</h1><p>Real Supabase-backed Hafiz Mart control center.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div><div className="stats-grid six">{[[Package,'Products',store.products.length,'Live catalog'],[Tag,'Categories',store.categories.length,'Live categories'],[ShoppingCart,'Orders',stats.orders,'Database orders'],[Users,'Customers',stats.customers,'Registered customers'],[Sparkles,'Active Sales',store.banners.length,'Promotional banners'],[ShoppingBag,'Revenue',`Rs. ${stats.revenue.toLocaleString()}`,'Non-cancelled orders']].map(([I,n,v,small],i)=><motion.div className="stat-card" key={n} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*.04}}><I size={18}/><span>{n}</span><strong>{v}</strong><small>{small}</small></motion.div>)}</div><div className="admin-grid"><div className="panel"><div className="panel-head-row"><div><p className="eyebrow">RECENT ORDERS</p><h2>Latest Activity</h2></div><Link className="text-link" to="/admin/orders">View all <ArrowRight size={15}/></Link></div>{recent.length?<div className="recent-orders">{recent.map(o=><Link to="/admin/orders" className="recent-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{o.customer_name||'Customer'} · {new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{o.status}</em></div></Link>)}</div>:<div className="mini-empty"><ShoppingCart size={25}/><strong>No orders yet</strong><span>Customer checkout complete hone ke baad orders yahan appear honge.</span></div>}</div><div className="panel"><p className="eyebrow">QUICK START</p><h2>Store Setup</h2><div className="check-row"><span>01</span><div><strong>Add products</strong><small>Real catalog items with images and stock.</small></div><Link to="/admin/products"><ChevronRight size={16}/></Link></div><div className="check-row"><span>02</span><div><strong>Manage orders</strong><small>Confirm, pack, ship and deliver customer orders.</small></div><Link to="/admin/orders"><ChevronRight size={16}/></Link></div><div className="check-row"><span>03</span><div><strong>Create a sale</strong><small>Publish promotional banners from admin.</small></div><Link to="/admin/banners"><ChevronRight size={16}/></Link></div></div></div></AdminLayout>;
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN PANEL</p><h1>Dashboard</h1><p>Real Supabase-backed Hafiz Mart control center.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div><div className="stats-grid six">{[[Package,'Products',store.products.length,'Live catalog'],[Tag,'Categories',store.categories.length,'Live categories'],[ShoppingCart,'Orders',stats.orders,'Database orders'],[Users,'Customers',stats.customers,'Registered customers'],[Sparkles,'Active Sales',store.banners.length,'Promotional banners'],[ShoppingBag,'Revenue',`Rs. ${stats.revenue.toLocaleString()}`,'Non-cancelled orders']].map(([I,n,v,small],i)=><motion.div className="stat-card" key={n} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*.04}}><I size={18}/><span>{n}</span><strong>{v}</strong><small>{small}</small></motion.div>)}</div><div className="admin-grid"><div className="panel"><div className="panel-head-row"><div><p className="eyebrow">RECENT ORDERS</p><h2>Latest Activity</h2></div><Link className="text-link" to="/admin/orders">View all <ArrowRight size={15}/></Link></div>{recent.length?<div className="recent-orders">{recent.map(o=><Link to="/admin/orders" className="recent-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{o.customer_name||'Customer'} · {new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{o.status}</em></div></Link>)}</div>:<div className="mini-empty"><ShoppingCart size={25}/><strong>No orders yet</strong><span>Customer checkout complete hone ke baad orders yahan appear honge.</span></div>}</div><div className="panel"><p className="eyebrow">QUICK START</p><h2>Store Setup</h2><Link className="check-row hm-quick-card" to="/admin/products"><span>01</span><div><strong>Add products</strong><small>Real catalog items with images and stock.</small></div><ChevronRight size={16}/></Link><Link className="check-row hm-quick-card" to="/admin/orders"><span>02</span><div><strong>Manage orders</strong><small>Confirm, pack, ship and deliver customer orders.</small></div><ChevronRight size={16}/></Link><Link className="check-row hm-quick-card" to="/admin/banners"><span>03</span><div><strong>Create a sale</strong><small>Publish promotional banners from admin.</small></div><ChevronRight size={16}/></Link></div></div></AdminLayout>;
 }
 
-function AdminProducts(){ const {store,refresh}=useStore(); const remove=async id=>{if(!confirm('Delete this product?'))return; const {error}=await supabase.from('products').delete().eq('id',id); if(error) alert(getFriendlyErrorMessage(error)); else refresh();}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Products</h1><p>{store.products.length} product(s) in your Supabase catalog.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div>{store.products.length?<div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{store.products.map(p=><div className="table-row" key={p.id}><div className="table-product"><img src={p.image||logo} alt={p.name || "Hafiz Mart product"}/><strong>{p.name}</strong><small>{p.sku||"No SKU"}</small></div><span>{store.categories.find(c=>c.id===p.categoryId)?.name||"—"}</span><span>Rs. {Number(p.salePrice||p.price||0).toLocaleString()}</span><span>{p.stock||0}</span><div className="row-actions"><Link to={`/admin/products/${p.id}/edit`} aria-label={`Edit ${p.name}`} title="Edit product"><Pencil aria-hidden="true" size={15}/></Link><button type="button" onClick={()=>remove(p.id)} aria-label={`Delete ${p.name}`} title="Delete product"><Trash2 aria-hidden="true" size={15}/></button></div></div>)}</div>:<EmptyState title="No Products Yet" text="Aapka database catalog abhi empty hai. Apna pehla product add karein." action="Add First Product" to="/admin/products/new" icon={Package}/>}</AdminLayout>; }
+function AdminProducts(){ const {store,refresh}=useStore(); const remove=async id=>{if(!confirm('Delete this product?'))return; const {error}=await supabase.from('products').delete().eq('id',id); if(error) alert(getFriendlyErrorMessage(error)); else refresh();}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Products</h1><p>{store.products.length} product(s) in your Supabase catalog.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div>{store.products.length?<div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{store.products.map(p=><div className="table-row" key={p.id}><div className="table-product"><img src={p.image||logo} alt={p.name || "Hafiz Mart product"}/><strong>{p.name}</strong><small>{p.sku||"No SKU"}</small></div><span>{store.categories.find(c=>c.id===p.categoryId)?.name||"—"}</span><span>Rs. {Number(p.salePrice||p.price||0).toLocaleString()}</span><span>{p.stock||0}</span><div className="row-actions"><Link to={`/admin/products/${p.id}/edit`} aria-label={`Edit ${p.name}`} title="Edit product"><Pencil aria-hidden="true" size={15}/></Link><button type="button" onClick={()=>remove(p.id)} aria-label={`Delete ${p.name}`} title="Delete product"><Trash2 aria-hidden="true" size={15}/></button></div></div>)}</div>:<EmptyState title="No Products Yet" text="Your database catalog is empty. Add your first product." action="Add First Product" to="/admin/products/new" icon={Package}/>}</AdminLayout>; }
 
 function ProductImageUploader({images, setImages}){
   const [uploading,setUploading]=useState(false);
@@ -5874,7 +6012,7 @@ function ProductImageUploader({images, setImages}){
         if(data?.publicUrl)uploaded.push(data.publicUrl);
       }
       if(uploaded.length)setImages(prev=>[...prev,...uploaded]);
-    } catch(error) { setError(getFriendlyErrorMessage(error,'Product image upload nahi ho saki. Dobara try karein.')); }
+    } catch(error) { setError(getFriendlyErrorMessage(error,'The product image could not be uploaded. Please try again.')); }
     finally { setUploading(false); }
   };
   const removeImage=url=>setImages(prev=>prev.filter(x=>x!==url));
@@ -5882,28 +6020,28 @@ function ProductImageUploader({images, setImages}){
     <div className="upload-head"><div><strong>Product Images</strong><small>Multiple images upload karein. Pehli image main product image hogi.</small></div><label className="gold-btn upload-btn"><Upload size={16}/>{uploading?'Uploading...':'Upload Images'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden disabled={uploading} onChange={e=>{uploadFiles(e.target.files);e.target.value='';}}/></label></div>
     {error&&<p className="upload-error">{error}</p>}
     {uploading&&<div className="upload-progress"><LoaderCircle size={17} className="spin"/> Images upload ho rahi hain...</div>}
-    {images.length?<div className="image-preview-grid">{images.map((url,i)=><div className={`image-preview ${i===0?'main':''}`} key={`${url}-${i}`}><img src={url} alt={`Product ${i+1}`}/><div className="image-preview-bar"><span>{i===0?'Main Image':`Image ${i+1}`}</span><button type="button" onClick={()=>removeImage(url)}><Trash2 size={14}/></button></div></div>)}</div>:<div className="upload-empty"><ImageIcon size={24}/><span>Abhi koi product image upload nahi hui.</span></div>}
+    {images.length?<div className="image-preview-grid">{images.map((url,i)=><div className={`image-preview ${i===0?'main':''}`} key={`${url}-${i}`}><img src={url} alt={`Product ${i+1}`}/><div className="image-preview-bar"><span>{i===0?'Main Image':`Image ${i+1}`}</span><button type="button" onClick={()=>removeImage(url)}><Trash2 size={14}/></button></div></div>)}</div>:<div className="upload-empty"><ImageIcon size={24}/><span>No product images have been uploaded yet.</span></div>}
     <label className="manual-url">Or image URL<input value={images[0]||''} onChange={e=>setImages(prev=>e.target.value?[e.target.value,...prev.slice(1)]:prev.slice(1))} placeholder="https://..."/></label>
   </div>;
 }
 
-function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore(); const editing=Boolean(id); const existing=store.products.find(p=>p.id===id); const [form,setForm]=useState({name:'',sku:'',categoryId:'',brand:'',shortDescription:'',description:'',price:'',salePrice:'',stock:'',status:'active'}); const [images,setImages]=useState([]); const [busy,setBusy]=useState(false); const navigate=useNavigate(); useEffect(()=>{if(existing){let gallery=Array.isArray(existing.images)?existing.images:[];if(existing.image&&!gallery.includes(existing.image))gallery=[existing.image,...gallery];setForm({name:existing.name||'',sku:existing.sku||'',categoryId:existing.categoryId||'',brand:existing.brand||'',shortDescription:existing.shortDescription||'',description:existing.description||'',price:existing.price||'',salePrice:existing.salePrice||'',stock:existing.stock||0,status:existing.status||'active'});setImages(gallery)}},[existing]); const submit=async e=>{
+function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore(); const editing=Boolean(id); const existing=store.products.find(p=>p.id===id); const [form,setForm]=useState({name:'',sku:'',categoryId:'',brand:'',shortDescription:'',description:'',price:'',salePrice:'',stock:'',status:'active',productType:'general',variantsText:'[]',attributesText:'{}',returnPolicy:'',warrantyInfo:'',sizeGuide:'',highlightsText:'',videoUrl:''}); const [images,setImages]=useState([]); const [busy,setBusy]=useState(false); const navigate=useNavigate(); useEffect(()=>{if(existing){let gallery=Array.isArray(existing.images)?existing.images:[];if(existing.image&&!gallery.includes(existing.image))gallery=[existing.image,...gallery];setForm({name:existing.name||'',sku:existing.sku||'',categoryId:existing.categoryId||'',brand:existing.brand||'',shortDescription:existing.shortDescription||'',description:existing.description||'',price:existing.price||'',salePrice:existing.salePrice||'',stock:existing.stock||0,status:existing.status||'active',productType:existing.productType||'general',variantsText:JSON.stringify(existing.variants||[],null,2),attributesText:JSON.stringify(existing.attributes||{},null,2),returnPolicy:existing.returnPolicy||'',warrantyInfo:existing.warrantyInfo||'',sizeGuide:existing.sizeGuide||'',highlightsText:JSON.stringify(existing.highlights||[],null,2),videoUrl:existing.videoUrl||''});setImages(gallery)}},[existing]); const submit=async e=>{
   e.preventDefault();
   const enteredImages=images.filter(Boolean); const cleanImages=enteredImages.filter(isSafeHttpUrl);
-  if(enteredImages.length!==cleanImages.length){alert('Product image URLs sirf valid http/https URLs honi chahiye.');return;}
-  if(!String(form.name||'').trim() || String(form.name).trim().length>180){alert('Product name required hai aur 180 characters se kam hona chahiye.');return;}
-  const price=Number(form.price); const salePrice=form.salePrice===''?null:Number(form.salePrice); const stock=Number(form.stock||0);
-  if(!Number.isFinite(price)||price<0|| (salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0||salePrice>price)) || !Number.isInteger(stock)||stock<0){alert('Price, sale price ya stock value valid nahi hai.');return;}
+  if(enteredImages.length!==cleanImages.length){alert('Product image URLs must use valid HTTP or HTTPS URLs.');return;}
+  if(!String(form.name||'').trim() || String(form.name).trim().length>180){alert('Product name is required and must be 180 characters or fewer.');return;}
+  const price=Number(form.price); const salePrice=form.salePrice===''?null:Number(form.salePrice); const stock=Number(form.stock||0); let variants=[],attributes={},highlights=[]; try { variants=JSON.parse(form.variantsText||'[]'); attributes=JSON.parse(form.attributesText||'{}'); highlights=JSON.parse(form.highlightsText||'[]'); if(!Array.isArray(variants)||!attributes||Array.isArray(attributes)||typeof attributes!=='object'||!Array.isArray(highlights)) throw new Error('Invalid JSON shape'); } catch { alert('Variants, attributes, and highlights must be valid JSON (array/object as labelled).'); return; }
+  if(!Number.isFinite(price)||price<0|| (salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0||salePrice>price)) || !Number.isInteger(stock)||stock<0){alert('Enter a valid price, sale price, and stock quantity.');return;}
   setBusy(true);
   try {
     const slug=(form.name||'product').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+(id||crypto.randomUUID().slice(0,8));
-    const payload={name:String(form.name).trim(),slug,sku:form.sku.trim()||null,category_id:form.categoryId||null,brand:form.brand.trim()||null,short_description:form.shortDescription.trim()||null,description:form.description.trim()||null,price,sale_price:salePrice,stock_quantity:stock,main_image:cleanImages[0]||null,images:cleanImages,status:form.status};
+    const payload={name:String(form.name).trim(),slug,sku:form.sku.trim()||null,category_id:form.categoryId||null,brand:form.brand.trim()||null,short_description:form.shortDescription.trim()||null,description:form.description.trim()||null,price,sale_price:salePrice,stock_quantity:stock,main_image:cleanImages[0]||null,images:cleanImages,status:form.status,product_type:form.productType,variants,attributes,return_policy:form.returnPolicy.trim()||null,warranty_info:form.warrantyInfo.trim()||null,size_guide:form.sizeGuide.trim()||null,highlights,video_url:form.videoUrl.trim()||null};
     const result=editing?await supabase.from('products').update(payload).eq('id',id).select().single():await supabase.from('products').insert(payload).select().single();
     if(result.error)throw result.error;
     await refresh();navigate('/admin/products');
-  } catch(error) { alert(getFriendlyErrorMessage(error,'Product save nahi ho saka. Dobara try karein.')); }
+  } catch(error) { alert(getFriendlyErrorMessage(error,'Product could not be saved. Please try again.')); }
   finally { setBusy(false); }
- }; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data ab directly Supabase database mein save hogi.</p></div></div><form className="admin-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=>{const parent=store.categories.find(item=>String(item.id)===String(c.parent_category_id||''));return <option key={c.id} value={c.id}>{parent?`${parent.name} / ${c.name}`:`${c.name} — Main category`}</option>})}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
+ }; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data is saved directly to the Supabase database.</p></div></div><form className="admin-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=>{const parent=store.categories.find(item=>String(item.id)===String(c.parent_category_id||''));return <option key={c.id} value={c.id}>{parent?`${parent.name} / ${c.name}`:`${c.name} — Main category`}</option>})}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Product Type<select value={form.productType} onChange={e=>setForm({...form,productType:e.target.value})}><option value="general">General</option><option value="shirt">Shirt / T-shirt</option><option value="stitched_suit">Stitched Suit</option><option value="unstitched_suit">Unstitched Suit</option><option value="trousers">Pants / Trousers</option><option value="accessory">Accessory</option></select></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><div className="span-2 hm-product-type-hint"><strong>{({shirt:"Shirt / T-shirt",stitched_suit:"Stitched Suit",unstitched_suit:"Unstitched Suit",trousers:"Pants / Trousers",accessory:"Accessory",general:"General"})[form.productType] || "Product"} setup</strong><p>Use custom variant entries for color, size, fit, material, pattern, pieces, fabric length, price, stock and image. Each variant can have its own price and stock.</p></div><label className="span-2">Variants JSON (color, size, price, stock, image)<textarea rows="6" value={form.variantsText} onChange={e=>setForm({...form,variantsText:e.target.value})} placeholder='[{"color":"Black","size":"M","price":1200,"stock":5,"image":"https://..."}]'/></label><label className="span-2">Specifications / Attributes JSON<textarea rows="4" value={form.attributesText} onChange={e=>setForm({...form,attributesText:e.target.value})} placeholder='{"material":"Cotton","fit":"Regular","pattern":"Plain"}'/></label><label className="span-2">Product Highlights JSON array<textarea rows="3" value={form.highlightsText} onChange={e=>setForm({...form,highlightsText:e.target.value})} placeholder='["Soft fabric","Everyday wear"]'/></label><label>Size Guide<textarea rows="3" value={form.sizeGuide} onChange={e=>setForm({...form,sizeGuide:e.target.value})}/></label><label>Return Policy<select value={form.returnPolicy} onChange={e=>setForm({...form,returnPolicy:e.target.value})}><option value="">Use store policy</option><option value="change_of_mind">Change of Mind</option><option value="easy_returns">Easy Returns</option><option value="no_returns">No Returns</option></select></label><label>Warranty Information<input value={form.warrantyInfo} onChange={e=>setForm({...form,warrantyInfo:e.target.value})} placeholder="Warranty available / Not available"/></label><label>Product Video URL<input value={form.videoUrl} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="https://..."/></label><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
 
 function AdminCategories() {
   const { store, refresh } = useStore();
@@ -5957,8 +6095,8 @@ function AdminCategories() {
     const children = store.categories.filter(c => String(c.parent_category_id || '') === String(category.id));
     if (children.length) { alert('Is main category ki subcategories pehle move ya delete karein. Parent ko abhi delete nahi kiya ja sakta.'); return; }
     const productCount = store.products.filter(p => String(p.categoryId) === String(category.id)).length;
-    if (productCount) { alert(`Is category se ${productCount} product(s) linked hain. Pehle products ko doosri category mein move karein.`); return; }
-    if (!confirm(`"${category.name}" delete karni hai?`)) return;
+    if (productCount) { alert(`Is category se ${productCount} product(s)  are linked. Move products to another category first.`); return; }
+    if (!confirm(`"${category.name}" Do you want to delete this category?`)) return;
     const { error } = await supabase.from('categories').delete().eq('id', category.id);
     if (error) { alert(getFriendlyErrorMessage(error)); return; }
     await refresh();
@@ -5997,7 +6135,7 @@ function AdminCategories() {
             );
           })}
         </div>
-      ) : <EmptyState title="No Categories Yet" text="Upar se apni first main category create karein." icon={Tag}/>}
+      ) : <EmptyState title="No Categories Yet" text="Create your first main category to get started." icon={Tag}/>}
     </AdminLayout>
   );
 }
@@ -6248,7 +6386,7 @@ function AdminNotifications(){
     const payload=recipients.map(u=>({recipient_user_id:u.id,type:form.type,title:form.title.trim(),message:form.message.trim(),priority:form.priority,is_read:false}));
     const {error}=await supabase.from('notifications').insert(payload);
     if(error) alert(getFriendlyErrorMessage(error));
-    else {setForm({audience:'all',userId:'',type:'announcement',title:'',message:'',priority:'normal'});alert('Notification send ho gayi.');}
+    else {setForm({audience:'all',userId:'',type:'announcement',title:'',message:'',priority:'normal'});alert('Notification sent.');}
     setBusy(false);
   };
 
@@ -6331,7 +6469,7 @@ function AdminReviews(){
 
 function AdminSettings(){
   const { user }=useAuth();
-  const { update }=useStore();
+  const { update, store }=useStore();
   const [settings,setSettings]=useState(DEFAULT_ADMIN_SETTINGS);
   const [saved,setSaved]=useState(DEFAULT_ADMIN_SETTINGS);
   const [section,setSection]=useState('general');
@@ -6340,32 +6478,32 @@ function AdminSettings(){
   const [notice,setNotice]=useState('');
 
   const sections=[
-    ['general','General',Store],['shipping','Shipping',Truck],['storefront','Storefront',Megaphone],
+    ['general','General',Store],['shipping','Shipping',Truck],['charges','Charges & Fees',DollarSign],['storefront','Storefront',Megaphone],
     ['payments','Payments',CreditCard],['policies','Policies & Legal',FileText],['notifications','Notifications',Bell],
     ['inventory','Inventory',Boxes],['content','Content',Sparkles],['users','Users & Roles',Users],['reports','Reports & Data',BarChart3],['security','Security',ShieldCheck]
   ];
 
-  useEffect(()=>{let active=true;(async()=>{setLoading(true);try{const {data,error}=await supabase.from('admin_store_settings').select('settings').eq('id','default').maybeSingle();if(error)throw error;const merged=mergeAdminSettings(DEFAULT_ADMIN_SETTINGS,data?.settings||{});if(active){setSettings(merged);setSaved(merged);setNotice('');}}catch(error){if(active)setNotice(getFriendlyErrorMessage(error,'Admin settings load nahi ho sakin.'));}finally{if(active)setLoading(false)}})();return()=>{active=false}},[]);
+  useEffect(()=>{let active=true;(async()=>{setLoading(true);try{const {data,error}=await supabase.from('admin_store_settings').select('settings').eq('id','default').maybeSingle();if(error)throw error;const merged=mergeAdminSettings(DEFAULT_ADMIN_SETTINGS,data?.settings||{});if(active){setSettings(merged);setSaved(merged);setNotice('');}}catch(error){if(active)setNotice(getFriendlyErrorMessage(error,'Admin settings could not be loaded.'));}finally{if(active)setLoading(false)}})();return()=>{active=false}},[]);
 
   const setField=(group,key,value)=>setSettings(s=>({...s,[group]:{...s[group],[key]:value}}));
-  const save=async e=>{e.preventDefault();setSaving(true);setNotice('');try{const payload={id:'default',settings,updated_at:new Date().toISOString(),updated_by:user?.id||null};const {error}=await supabase.from('admin_store_settings').upsert(payload,{onConflict:'id'});if(error)throw error;setSaved(settings);update({adminSettings:settings});setNotice('Settings successfully saved.')}catch(error){setNotice(`Save failed: ${getFriendlyErrorMessage(error)}`)}finally{setSaving(false)}};
+  const save=async e=>{e.preventDefault();setSaving(true);setNotice('');try{const payload={id:'default',settings,updated_at:new Date().toISOString(),updated_by:user?.id||null};const {error}=await supabase.from('admin_store_settings').upsert(payload,{onConflict:'id'});if(error)throw error;setSaved(settings);update({adminSettings:settings});try{window.__HAFIZ_STORE_SETTINGS__=settings;}catch{}setNotice('Settings saved successfully.')}catch(error){setNotice(`Save failed: ${getFriendlyErrorMessage(error)}`)}finally{setSaving(false)}};
   const field=(label,value,onChange,type='text')=><label className="settings-field"><span>{label}</span><input type={type} min={type==='number'?0:undefined} value={value??''} onChange={e=>onChange(e.target.value)}/></label>;
   const area=(label,value,onChange)=> <label className="settings-field settings-field-wide"><span>{label}</span><textarea rows="4" value={value??''} onChange={e=>onChange(e.target.value)}/></label>;
   const toggle=(label,value,onChange,hint='')=> <label className="settings-toggle"><span><strong>{label}</strong>{hint&&<small>{hint}</small>}</span><input type="checkbox" checked={!!value} onChange={e=>onChange(e.target.checked)}/><i/></label>;
   const current=settings[section]||{};
 
-  return <AdminLayout><div className="admin-head settings-page-head"><div><p className="eyebrow">STORE CONTROL CENTRE</p><h1>Admin Settings</h1><p>Store, users, payments, notifications aur reporting controls.</p></div><span className="settings-save-state"><ShieldCheck size={16}/> Supabase-backed</span></div><div className="settings-layout"><aside className="settings-tabs">{sections.map(([id,label,Icon])=><button type="button" className={`settings-tab ${section===id?'active':''}`} key={id} onClick={()=>{setSection(id);setNotice('')}}><Icon size={17}/><span>{label}</span></button>)}</aside><form className="settings-panel" onSubmit={save}>
-    {loading?<div className="settings-loading"><LoaderCircle size={22}/><span>Settings load ho rahi hain...</span></div>:<>
+  return <AdminLayout><div className="admin-head settings-page-head"><div><p className="eyebrow">STORE CONTROL CENTRE</p><h1>Admin Settings</h1><p>Manage store details, users, payments, notifications, and reports.</p></div><span className="settings-save-state"><ShieldCheck size={16}/> Supabase-backed</span></div><div className="settings-layout"><aside className="settings-tabs">{sections.map(([id,label,Icon])=><button type="button" className={`settings-tab ${section===id?'active':''}`} key={id} onClick={()=>{setSection(id);setNotice('')}}><Icon size={17}/><span>{label}</span></button>)}</aside><form className="settings-panel" onSubmit={save}>
+    {loading?<div className="settings-loading"><LoaderCircle size={22}/><span>Loading settings...</span></div>:<>
       <div className="settings-panel-heading"><div><p className="eyebrow">SETTINGS / {section.toUpperCase()}</p><h2>{sections.find(x=>x[0]===section)?.[1]}</h2></div></div>
       {section==='general'&&<div className="settings-grid">{field('Store name',current.storeName,v=>setField('general','storeName',v))}{field('Tagline',current.tagline,v=>setField('general','tagline',v))}{field('Support email',current.supportEmail,v=>setField('general','supportEmail',v),'email')}{field('Support phone',current.supportPhone,v=>setField('general','supportPhone',v))}{field('WhatsApp number',current.whatsapp,v=>setField('general','whatsapp',v))}{field('Currency',current.currency,v=>setField('general','currency',v))}{field('Timezone',current.timezone,v=>setField('general','timezone',v))}{field('Facebook URL',current.facebook,v=>setField('general','facebook',v))}{field('Instagram URL',current.instagram,v=>setField('general','instagram',v))}{field('TikTok URL',current.tiktok,v=>setField('general','tiktok',v))}{field('YouTube URL',current.youtube,v=>setField('general','youtube',v))}{area('Store address',current.address,v=>setField('general','address',v))}</div>}
       {section==='shipping'&&<div className="settings-stack">{toggle('Shipping enabled',current.enabled,v=>setField('shipping','enabled',v))}<div className="settings-grid">{field('Default delivery fee (PKR)',current.defaultRate,v=>setField('shipping','defaultRate',v),'number')}{field('Free delivery threshold (PKR)',current.freeDeliveryThreshold,v=>setField('shipping','freeDeliveryThreshold',v),'number')}{field('Minimum delivery days',current.minDays,v=>setField('shipping','minDays',v),'number')}{field('Maximum delivery days',current.maxDays,v=>setField('shipping','maxDays',v),'number')}</div><div className="settings-subheading"><div><h3>City-wise rates</h3><p>Multan Rs.270; fallback default Rs.300.</p></div></div><div className="settings-city-list">{(current.cityRates||[]).map((row,i)=><div className="settings-city-row" key={i}>{field('City',row.city,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,city:v}:r)}})))}{field('Rate (PKR)',row.rate,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,rate:v}:r)}})),'number')}<button type="button" className="settings-remove" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.filter((_,j)=>j!==i)}}))} aria-label={`Remove city rate ${row.city || i+1}`} title="Remove city"><Trash2 aria-hidden="true" size={15}/></button></div>)}</div><button type="button" className="ghost-btn" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:[...(x.shipping.cityRates||[]),{city:'',rate:x.shipping.defaultRate||300}]}}))}><Plus size={15}/> Add city</button></div>}
-      {section==='storefront'&&<div className="settings-stack">{toggle('Announcement bar',current.announcementEnabled,v=>setField('storefront','announcementEnabled',v))}<div className="settings-grid">{area('Announcement text',current.announcementText,v=>setField('storefront','announcementText',v))}{field('Button text',current.announcementButton,v=>setField('storefront','announcementButton',v))}{field('Button link',current.announcementLink,v=>setField('storefront','announcementLink',v))}<label className="settings-field"><span>Theme</span><select value={current.announcementTheme||'gold'} onChange={e=>setField('storefront','announcementTheme',e.target.value)}><option value="gold">Gold</option><option value="dark">Dark</option><option value="light">Light</option></select></label></div>{toggle('Maintenance mode',current.maintenanceMode,v=>setField('storefront','maintenanceMode',v),'Customer storefront ko maintenance screen dikhayega.')}{area('Maintenance message',current.maintenanceMessage,v=>setField('storefront','maintenanceMessage',v))}</div>}
+      {section==='charges'&&<div className="settings-stack"><div className="settings-info-card"><DollarSign size={22}/><div><strong>Cash Handling Charges</strong><p>Configure the fee shown between Discount and Delivery at checkout. Existing orders retain their saved fee.</p></div></div>{toggle('Enable cash handling charges',current.cashHandlingEnabled,v=>setField('charges','cashHandlingEnabled',v))}<label className="settings-field"><span>Charge calculation</span><select value={current.cashHandlingMode||'fixed'} onChange={e=>setField('charges','cashHandlingMode',e.target.value)}><option value="fixed">Fixed amount (PKR)</option><option value="percentage">Percentage of discounted subtotal</option></select></label>{field(current.cashHandlingMode==='percentage'?'Percentage (%)':'Amount (PKR)',current.cashHandlingValue,v=>setField('charges','cashHandlingValue',v),'number')}{toggle('Apply only to Cash on Delivery',current.cashHandlingCodOnly!==false,v=>setField('charges','cashHandlingCodOnly',v),'Recommended: keep enabled unless your policy applies this fee to every payment method.')}</div>}{section==='storefront'&&<div className="settings-stack">{toggle('Announcement bar',current.announcementEnabled,v=>setField('storefront','announcementEnabled',v))}<div className="settings-grid">{area('Announcement text',current.announcementText,v=>setField('storefront','announcementText',v))}{field('Button text',current.announcementButton,v=>setField('storefront','announcementButton',v))}{field('Button link',current.announcementLink,v=>setField('storefront','announcementLink',v))}<label className="settings-field"><span>Theme</span><select value={current.announcementTheme||'gold'} onChange={e=>setField('storefront','announcementTheme',e.target.value)}><option value="gold">Gold</option><option value="dark">Dark</option><option value="light">Light</option></select></label></div>{toggle('Maintenance mode',current.maintenanceMode,v=>setField('storefront','maintenanceMode',v),'Customer storefront ko maintenance screen dikhayega.')}{area('Maintenance message',current.maintenanceMessage,v=>setField('storefront','maintenanceMessage',v))}</div>}
       {section==='payments'&&<div className="settings-stack">{toggle('Cash on Delivery',current.codEnabled,v=>setField('payments','codEnabled',v))}{toggle('Online payments',current.onlinePaymentsEnabled,v=>setField('payments','onlinePaymentsEnabled',v),'Gateway integration complete hone ke baad enable karein.')}<div className="settings-info-card"><CreditCard size={22}/><div><strong>Payment & Transaction tracking</strong><p>Failed payments, refunds aur commission ko Admin → Transactions se track karein. Real gateway data provider integration par depend karega.</p><span className="settings-status-pill">GATEWAY DEPENDENT</span></div></div></div>}
       {section==='policies'&&<div className="settings-stack"><div className="settings-grid">{field('Cancellation window (hours)',current.cancellationWindowHours,v=>setField('policies','cancellationWindowHours',v),'number')}{field('Return window (days)',current.returnWindowDays,v=>setField('policies','returnWindowDays',v),'number')}</div>{area('Returns & refunds policy',current.returnsPolicy,v=>setField('policies','returnsPolicy',v))}{area('Shipping policy',current.shippingPolicy,v=>setField('policies','shippingPolicy',v))}{area('Privacy policy',current.privacyPolicy,v=>setField('policies','privacyPolicy',v))}{area('Terms & conditions',current.terms,v=>setField('policies','terms',v))}</div>}
-      {section==='notifications'&&<div className="settings-stack">{toggle('In-app notifications',current.inAppEnabled,v=>setField('notifications','inAppEnabled',v),'Sidebar badge unread notifications ko count karega.')}{toggle('Email notification plan',current.emailEnabled,v=>setField('notifications','emailEnabled',v),'SMTP/provider integration required.')}{toggle('WhatsApp notification plan',current.whatsappEnabled,v=>setField('notifications','whatsappEnabled',v),'WhatsApp Business provider required.')}{toggle('Notify admin on new order',current.notifyOnNewOrder,v=>setField('notifications','notifyOnNewOrder',v))}{toggle('Notify admin on new customer',current.notifyOnNewCustomer,v=>setField('notifications','notifyOnNewCustomer',v))}{toggle('Notify admin on complaint',current.notifyOnComplaint,v=>setField('notifications','notifyOnComplaint',v))}{toggle('Notify admin on review',current.notifyOnReview,v=>setField('notifications','notifyOnReview',v))}{toggle('Notify admin on transaction failure',current.notifyOnTransactionFailure,v=>setField('notifications','notifyOnTransactionFailure',v))}{toggle('Notify admin on refund',current.notifyOnRefund,v=>setField('notifications','notifyOnRefund',v))}{toggle('Notify admin on low stock',current.notifyOnLowStock,v=>setField('notifications','notifyOnLowStock',v))}{toggle('Notify customer on order status',current.notifyOnOrderStatus,v=>setField('notifications','notifyOnOrderStatus',v))}{toggle('Notify customer on complaint response',current.notifyOnComplaintResponse,v=>setField('notifications','notifyOnComplaintResponse',v))}<div className="settings-info-card"><Bell size={22}/><div><strong>Unread badge behavior</strong><p>Notification ko open/seen karne tak NEW badge aur unread count rahega.</p></div></div></div>}
-      {section==='inventory'&&<div className="settings-stack"><div className="settings-grid">{field('Low-stock threshold',current.lowStockThreshold,v=>setField('inventory','lowStockThreshold',v),'number')}{field('Maximum review images',current.maxReviewImages,v=>setField('inventory','maxReviewImages',v),'number')}</div>{toggle('Hide out-of-stock products',current.hideOutOfStock,v=>setField('inventory','hideOutOfStock',v))}{toggle('Allow backorders',current.allowBackorders,v=>setField('inventory','allowBackorders',v))}{toggle('Reviews require approval',current.reviewsRequireApproval,v=>setField('inventory','reviewsRequireApproval',v),'OFF rakhen to reviews immediately public list mein show hongi.')}</div>}
-      {section==='content'&&<div className="settings-stack"><div className="settings-info-card"><Sparkles size={22}/><div><strong>Content Management</strong><p>Banners aur categories database-backed hain; app update ke baghair content manage kar sakte hain.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/banners"><Sparkles size={15}/> Manage Banners</Link><Link className="ghost-btn" to="/admin/categories"><Tag size={15}/> Manage Categories</Link><Link className="ghost-btn" to="/admin/products"><Package size={15}/> Manage Products</Link></div></div></div>{toggle('Show categories on home',current.showCategoriesOnHome,v=>setField('content','showCategoriesOnHome',v))}{toggle('Show deals section',current.showDealsSection,v=>setField('content','showDealsSection',v))}{field('Featured products limit',current.featuredProductsLimit,v=>setField('content','featuredProductsLimit',v),'number')}</div>}
-      {section==='users'&&<div className="settings-stack"><div className="settings-info-card"><Users size={22}/><div><strong>User Management & Roles</strong><p>Customers ko verify/block/manage karein aur team accounts ko role + granular permissions dein.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/customers"><Users size={15}/> Open User Management</Link></div></div></div>{toggle('Require manual customer verification',current.requireManualVerification,v=>setField('users','requireManualVerification',v))}{toggle('Allow guest checkout',current.allowGuestCheckout,v=>setField('users','allowGuestCheckout',v))}<label className="settings-field"><span>Default account status</span><select value={current.defaultAccountStatus||'active'} onChange={e=>setField('users','defaultAccountStatus',e.target.value)}><option value="active">Active</option><option value="blocked">Blocked</option></select></label><div className="settings-permission-list"><h3>Team roles</h3><p>Actual team membership Users screen se manage hoga.</p><div><span>Owner — full access</span><span>Manager — selected operational access</span><span>Content Editor — products/categories/banners</span><span>Support — orders/complaints/notifications</span></div></div></div>}
+      {section==='notifications'&&<div className="settings-stack">{toggle('In-app notifications',current.inAppEnabled,v=>setField('notifications','inAppEnabled',v),'Sidebar badge unread notifications ko count karega.')}{toggle('Email notification plan',current.emailEnabled,v=>setField('notifications','emailEnabled',v),'SMTP/provider integration required.')}{toggle('WhatsApp notification plan',current.whatsappEnabled,v=>setField('notifications','whatsappEnabled',v),'WhatsApp Business provider required.')}{toggle('Notify admin on new order',current.notifyOnNewOrder,v=>setField('notifications','notifyOnNewOrder',v))}{toggle('Notify admin on new customer',current.notifyOnNewCustomer,v=>setField('notifications','notifyOnNewCustomer',v))}{toggle('Notify admin on complaint',current.notifyOnComplaint,v=>setField('notifications','notifyOnComplaint',v))}{toggle('Notify admin on review',current.notifyOnReview,v=>setField('notifications','notifyOnReview',v))}{toggle('Notify admin on transaction failure',current.notifyOnTransactionFailure,v=>setField('notifications','notifyOnTransactionFailure',v))}{toggle('Notify admin on refund',current.notifyOnRefund,v=>setField('notifications','notifyOnRefund',v))}{toggle('Notify admin on low stock',current.notifyOnLowStock,v=>setField('notifications','notifyOnLowStock',v))}{toggle('Notify customer on order status',current.notifyOnOrderStatus,v=>setField('notifications','notifyOnOrderStatus',v))}{toggle('Notify customer on complaint response',current.notifyOnComplaintResponse,v=>setField('notifications','notifyOnComplaintResponse',v))}<div className="settings-info-card"><Bell size={22}/><div><strong>Unread badge behavior</strong><p>The NEW badge and unread count remain until the notification is opened.</p></div></div></div>}
+      {section==='inventory'&&<div className="settings-stack"><div className="settings-grid">{field('Low-stock threshold',current.lowStockThreshold,v=>setField('inventory','lowStockThreshold',v),'number')}{field('Maximum review images',current.maxReviewImages,v=>setField('inventory','maxReviewImages',v),'number')}</div>{toggle('Hide out-of-stock products',current.hideOutOfStock,v=>setField('inventory','hideOutOfStock',v))}{toggle('Allow backorders',current.allowBackorders,v=>setField('inventory','allowBackorders',v))}{toggle('Reviews require approval',current.reviewsRequireApproval,v=>setField('inventory','reviewsRequireApproval',v),'When disabled, reviews appear in the public list immediately.')}</div>}
+      {section==='content'&&<div className="settings-stack"><div className="settings-info-card"><Sparkles size={22}/><div><strong>Content Management</strong><p>Manage homepage sections, banners, categories, and storefront content without changing application code.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/banners"><Sparkles size={15}/> Manage Banners</Link><Link className="ghost-btn" to="/admin/categories"><Tag size={15}/> Manage Categories</Link><Link className="ghost-btn" to="/admin/products"><Package size={15}/> Manage Products</Link></div></div></div>{toggle('Show categories on home',current.showCategoriesOnHome,v=>setField('content','showCategoriesOnHome',v))}<div className="hm-section-manager"><div className="hm-section-manager-head"><strong>Homepage Section Manager</strong><button type="button" className="ghost-btn" onClick={()=>setField('content','homepageSections',[...(current.homepageSections||[]),{id:`custom-${Date.now()}`,title:'New Section',type:'selected_products',visible:true,order:(current.homepageSections||[]).length+1,productIds:[],categoryId:''}])}><Plus size={14}/> Add section</button></div><p>Manage section titles, visibility, placement order, section type and optional product/category selections.</p>{(current.homepageSections||[]).map((item,index)=><div className="hm-section-manager-row" key={item.id||index}><label>Title<input value={item.title||''} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,title:e.target.value}:row))}/></label><label>Type<select value={item.type||'selected_products'} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,type:e.target.value}:row))}><option value="new_arrivals">New Arrivals</option><option value="popular_products">Popular Products</option><option value="product_collection">Product Collection</option><option value="category_collection">Category Collection</option><option value="selected_products">Selected Products</option></select></label><label>Order<input type="number" min="1" value={item.order??index+1} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,order:Number(e.target.value)}:row))}/></label><label>Category<select value={item.categoryId||''} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,categoryId:e.target.value}:row))}><option value="">No category</option>{store.categories.map(category=><option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Product IDs<input value={(item.productIds||[]).join(',')} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,productIds:e.target.value.split(',').map(value=>value.trim()).filter(Boolean)}:row))} placeholder="ID, ID, ID"/></label><label>Desktop columns<input type="number" min="1" max="6" value={item.desktopColumns||4} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,desktopColumns:Number(e.target.value)}:row))}/></label><label>Mobile columns<input type="number" min="1" max="2" value={item.mobileColumns||2} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,mobileColumns:Number(e.target.value)}:row))}/></label><label className="hm-section-visible"><input type="checkbox" checked={item.visible!==false} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,visible:e.target.checked}:row))}/> Visible</label><button type="button" className="row-actions" aria-label={`Delete ${item.title||'section'}`} onClick={()=>setField('content','homepageSections',current.homepageSections.filter((_,i)=>i!==index))}><Trash2 size={16}/></button></div>)}</div>{toggle('Show deals section',current.showDealsSection,v=>setField('content','showDealsSection',v))}{field('Featured products limit',current.featuredProductsLimit,v=>setField('content','featuredProductsLimit',v),'number')}</div>}
+      {section==='users'&&<div className="settings-stack"><div className="settings-info-card"><Users size={22}/><div><strong>User Management & Roles</strong><p>Verify and manage customers, team roles, and granular permissions.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/customers"><Users size={15}/> Open User Management</Link></div></div></div>{toggle('Require manual customer verification',current.requireManualVerification,v=>setField('users','requireManualVerification',v))}{toggle('Allow guest checkout',current.allowGuestCheckout,v=>setField('users','allowGuestCheckout',v))}<label className="settings-field"><span>Default account status</span><select value={current.defaultAccountStatus||'active'} onChange={e=>setField('users','defaultAccountStatus',e.target.value)}><option value="active">Active</option><option value="blocked">Blocked</option></select></label><div className="settings-permission-list"><h3>Team roles</h3><p>Actual team membership Users screen se manage hoga.</p><div><span>Owner — full access</span><span>Manager — selected operational access</span><span>Content Editor — products/categories/banners</span><span>Support — orders/complaints/notifications</span></div></div></div>}
       {section==='security'&&<div className="settings-stack"><div className="settings-info-card"><ShieldCheck size={22}/><div><strong>Security & Audit</strong><p>Admin access permissions aur database RLS se protected hain. API keys, SMTP passwords aur WhatsApp secrets yahan store na karein.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/customers"><Users size={15}/> Manage Roles</Link><Link className="ghost-btn" to="/admin/notifications"><Bell size={15}/> Notification Center</Link></div></div></div><div className="settings-permission-list"><h3>Security controls</h3><p>Owner ko full access dein; team members ko minimum required permissions dein.</p><div><span>Permission-based admin routes</span><span>Admin action audit log</span><span>Protected database writes</span></div></div></div>}
       {section==='reports'&&<div className="settings-stack"><div className="settings-info-card"><BarChart3 size={22}/><div><strong>Business Reports</strong><p>Revenue, orders, customers aur delivery metrics generate aur CSV export kar sakte hain.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/reports"><BarChart3 size={15}/> Open Reports</Link></div></div></div><label className="settings-field"><span>Default report period</span><select value={current.defaultRange||'30'} onChange={e=>setField('reports','defaultRange',e.target.value)}><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option></select></label>{toggle('Include customer phone in exported reports',current.includeCustomerPhone,v=>setField('reports','includeCustomerPhone',v),'Sirf zaroorat par enable karein.')}</div>}
       {notice&&<div className="settings-notice"><Check size={16}/><span>{notice}</span></div>}<div className="settings-actions"><button type="button" className="ghost-btn" onClick={()=>{setSettings(saved);setNotice('Unsaved changes discarded.')}}><RotateCcw size={15}/> Discard</button><button className="gold-btn" disabled={saving}>{saving?'Saving...':'Save settings'} <Save size={16}/></button></div>
@@ -6387,7 +6525,7 @@ function MaintenancePage(){
 function MobileZoomLock(){
   useEffect(()=>{
     const viewport=document.querySelector('meta[name="viewport"]') || document.createElement('meta');
-    const content='width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+    const content='width=device-width, initial-scale=1, viewport-fit=cover';
     viewport.setAttribute('name','viewport');
     viewport.setAttribute('content',content);
     if(!viewport.parentNode) document.head.appendChild(viewport);
@@ -6448,7 +6586,7 @@ function AdminMfaSecurityPage() {
       setFactorId(verified?.id || '');
       setCurrentLevel(assuranceData?.currentLevel || 'aal1');
     } catch (error) {
-      setNotice(getFriendlyErrorMessage(error, 'MFA status load nahi ho saka.')); 
+      setNotice(getFriendlyErrorMessage(error, 'MFA status could not be loaded.')); 
     }
   };
   useEffect(() => { if (user) void refreshStatus(); }, [user?.id]);
@@ -6465,26 +6603,26 @@ function AdminMfaSecurityPage() {
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Hafiz Mart Admin' });
       if (error) throw error;
       setFactorId(data.id); setQrCode(data.totp?.qr_code || ''); setManualSecret(data.totp?.secret || '');
-      setNotice('Authenticator app se QR scan karein, phir 6-digit code enter karein.');
-    } catch (error) { setNotice(getFriendlyErrorMessage(error, 'MFA setup shuru nahi ho saka.')); }
+      setNotice('Scan the QR code with your authenticator app, then enter the 6-digit code.');
+    } catch (error) { setNotice(getFriendlyErrorMessage(error, 'MFA setup could not be started.')); }
     finally { setBusy(false); }
   };
 
   const verifyCode = async event => {
     event.preventDefault();
     const cleanCode = code.replace(/\D/g, '').slice(0, 6);
-    if (!factorId || cleanCode.length !== 6) { setNotice('Authenticator app ka 6-digit code enter karein.'); return; }
+    if (!factorId || cleanCode.length !== 6) { setNotice('Enter the 6-digit code from your authenticator app.'); return; }
     setBusy(true); setNotice('');
     try {
       const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId });
       if (challengeError) throw challengeError;
       const { error: verifyError } = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.id, code: cleanCode });
       if (verifyError) throw verifyError;
-      setCode(''); setQrCode(''); setManualSecret(''); setNotice('MFA verify ho gayi. Admin access ke liye session refresh ho raha hai.');
+      setCode(''); setQrCode(''); setManualSecret(''); setNotice('MFA verified. Refreshing the session for admin access.');
       await refreshStatus();
       // Supabase returns an AAL2 session after successful verification. Reload ensures all queries use the upgraded JWT.
       window.location.reload();
-    } catch (error) { setNotice(getFriendlyErrorMessage(error, 'Code verify nahi hua. Naya code try karein.')); }
+    } catch (error) { setNotice(getFriendlyErrorMessage(error, 'The code could not be verified. Please try a new code.')); }
     finally { setBusy(false); }
   };
 
@@ -6498,13 +6636,25 @@ function AdminMfaSecurityPage() {
     <p className="hm-security-note">Agar authenticator lose ho jaye to Supabase dashboard ke documented recovery options use karein. MFA recovery codes ko secure offline jagah par rakhein.</p></section></AdminLayout>;
 }
 
+function storeSocialLinks() {
+  const general = DEFAULT_ADMIN_SETTINGS.general;
+  let configured = general;
+  try { const raw = window.__HAFIZ_STORE_SETTINGS__; if (raw && raw.general) configured = { ...general, ...raw.general }; } catch {}
+  const links = [];
+  if (configured.facebook && isSafeHttpUrl(configured.facebook)) links.push({label:'Facebook',url:configured.facebook,icon:<Users size={17}/>});
+  if (configured.instagram && isSafeHttpUrl(configured.instagram)) links.push({label:'Instagram',url:configured.instagram,icon:<Heart size={17}/>});
+  if (configured.youtube && isSafeHttpUrl(configured.youtube)) links.push({label:'YouTube',url:configured.youtube,icon:<ImageIcon size={17}/>});
+  const wa = getStoreWhatsAppNumber(configured.whatsapp || import.meta.env.VITE_WHATSAPP_NUMBER);
+  links.push({label:'WhatsApp',url:`https://wa.me/${wa}`,icon:<MessageCircle size={17}/>});
+  return links;
+}
 function AppRoutes(){
   const {store}=useStore(); const {profile}=useAuth(); const location=useLocation();
   const maintenance=Boolean(store.adminSettings?.storefront?.maintenanceMode); const isAdmin=profile?.role==='admin';
   const authAllowed=['/login','/forgot-password','/reset-password'].includes(location.pathname); const adminAllowed=location.pathname.startsWith('/admin'); const bypass=isAdmin||adminAllowed||authAllowed;
-  return <><Navbar/>{(!maintenance||bypass)&&<AnnouncementBar/>}{maintenance&&!bypass?<MaintenancePage/>:<Routes>
+  try { window.__HAFIZ_STORE_SETTINGS__ = store.adminSettings || DEFAULT_ADMIN_SETTINGS; } catch {} return <><Navbar/>{(!maintenance||bypass)&&<AnnouncementBar/>}{maintenance&&!bypass?<MaintenancePage/>:<Routes>
     <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/store-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/publisher-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/contact-us" element={<ContactUsPage/>}/><Route path="/contact" element={<ContactUsPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
-    <Route path="/admin/security/mfa" element={<AdminMfaSecurityPage/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="Yeh page exist nahi karta." action="Back Home" to="/"/></main>}/>
-  </Routes>}<WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><div className="footer-center"><span>© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span><nav className="footer-links" aria-label="Footer links"><Link to="/faq">FAQ</Link><Link to="/privacy-policy">Privacy Policy</Link><Link to="/track-order">Track Order</Link><Link to="/complaints">Support</Link></nav></div></div></footer></>;
+    <Route path="/admin/security/mfa" element={<AdminMfaSecurityPage/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="This page does not exist." action="Back Home" to="/"/></main>}/>
+  </Routes>}<WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><div className="footer-center"><div className="footer-support"><nav className="footer-links" aria-label="Footer links"><Link to="/faq">FAQ</Link><Link to="/privacy-policy">Privacy Policy</Link><Link to="/track-order">Track Order</Link><Link to="/complaints">Support</Link></nav><nav className="footer-socials" aria-label="Social media">{storeSocialLinks().map(item=><a key={item.label} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</nav></div><span className="footer-copyright">© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></div></footer></>;
 }
-export default function App(){ return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
+export default function App(){ useEffect(()=>{ try { document.documentElement.removeAttribute('data-theme'); localStorage.removeItem('hafiz-mart-theme'); } catch {} },[]); return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
