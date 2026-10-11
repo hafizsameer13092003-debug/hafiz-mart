@@ -342,7 +342,7 @@ function getCategoryPathNames(categories = [], categoryId) {
 }
 
 function mapCategory(c) { const clean = sanitiseStoreContent(c); return { ...clean, image: clean.image_url || '', createdAt: clean.created_at }; }
-function mapBanner(b) { const clean = sanitiseStoreContent(b); return { ...clean, buttonText: clean.button_text || '', buttonLink: clean.button_link || '/deals', startDate: clean.start_date || '', endDate: clean.end_date || '', imageUrl: clean.image_url || '', productIds: Array.isArray(clean.product_ids) ? clean.product_ids.map(String) : [], createdAt: clean.created_at }; }
+function mapBanner(b) { const clean = sanitiseStoreContent(b); return { ...clean, buttonText: clean.button_text || '', buttonLink: clean.button_link || '', startDate: clean.start_date || '', endDate: clean.end_date || '', imageUrl: clean.image_url || '', productIds: Array.isArray(clean.product_ids) ? clean.product_ids.map(String) : [], createdAt: clean.created_at }; }
 
 function getCategoryDescendantIds(categories, categoryId) {
   const result = new Set([String(categoryId)]);
