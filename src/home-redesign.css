@@ -397,3 +397,11 @@ body:has(.hm-reference-home) .hm-full-footer .footer-inner{grid-template-columns
 .cart-layout .summary .summary-total strong { color: #f0c96a !important; }
 .cart-layout .cart-row .remove-btn { color: #f0d5d5 !important; border-color: #704949 !important; }
 .cart-layout .cart-row .remove-btn:hover, .cart-layout .cart-row .remove-btn:focus-visible { color: #fff !important; background: #682b2b !important; outline: 2px solid #c77a7a; outline-offset: 2px; }
+
+@media (max-width: 700px) {
+  body:has(.hm-reference-home) .footer-inner { gap: 16px !important; }
+  body:has(.hm-reference-home) .hm-footer-brand { gap: 10px !important; }
+  body:has(.hm-reference-home) .hm-footer-columns { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px !important; }
+  body:has(.hm-reference-home) .hm-footer-bottom { gap: 8px !important; margin-top: 8px !important; padding-top: 8px !important; }
+  body:has(.hm-reference-home) .footer-copyright { padding-top: 8px !important; }
+}
