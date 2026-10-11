@@ -367,6 +367,20 @@ function getCategoryProductCount(categories, products, categoryId) {
   return products.filter(product => product.status !== 'inactive' && ids.has(String(product.categoryId))).length;
 }
 
+function pickCategory(categories = [], products = [], name = '', id = '') {
+  if (id) {
+    const byId = categories.find(item => String(item.id) === String(id));
+    if (byId && (!name || String(byId.name) === String(name))) return byId;
+  }
+  if (!name) return undefined;
+  const matches = categories.filter(item => String(item.name) === String(name));
+  if (matches.length <= 1) return matches[0];
+  // Same name used in more than one place: prefer the one that actually has products.
+  return matches
+    .map(item => ({ item, count: getCategoryProductCount(categories, products, item.id) }))
+    .sort((a, b) => b.count - a.count)[0].item;
+}
+
 function categoryOrder(name = '') {
   const n = String(name).trim().toLowerCase().replace(/[’']/g, '').replace(/\s+/g, ' ');
   const preferred = [
@@ -1590,6 +1604,7 @@ function ProductCard({ product, onToast }) {
   </motion.article>;
 }
 
+<<<<<<< HEAD
 function Home() {
   const { store } = useStore();
   const contentSettings = store.adminSettings?.content || DEFAULT_ADMIN_SETTINGS.content || {};
@@ -1687,6 +1702,180 @@ function Home() {
   </>;
 }
 
+=======
+function HomeExtraSections({ products, categories, excludeIds, settings, onToast }) {
+  const shipping = (settings && settings.shipping) || DEFAULT_ADMIN_SETTINGS.shipping;
+  const policies = (settings && settings.policies) || DEFAULT_ADMIN_SETTINGS.policies;
+  const payments = (settings && settings.payments) || DEFAULT_ADMIN_SETTINGS.payments;
+  const threshold = Number(shipping.freeDeliveryThreshold || 0);
+  const returnDays = Number(policies.returnWindowDays || 0);
+  const discountOf = product => {
+    const regular = Number(product.price || 0);
+    const sale = Number(product.salePrice || 0);
+    return regular > 0 && sale > 0 && sale < regular ? (regular - sale) / regular : 0;
+  };
+  const time = product => Date.parse(product.createdAt) || 0;
+  const skip = new Set((excludeIds || []).map(String));
+  const deals = products.filter(product => discountOf(product) > 0).sort((a, b) => discountOf(b) - discountOf(a)).slice(0, 5);
+  const newArrivals = products.filter(product => !skip.has(String(product.id))).sort((a, b) => time(b) - time(a)).slice(0, 5);
+  const showcases = sortMainCategories(categories || []).slice(0, 3).map(root => {
+    const ids = new Set(getCategoryDescendantIds(categories, root.id));
+    const hasChildren = categories.some(item => String(item.parent_category_id || '') === String(root.id));
+    return { root, hasChildren, items: products.filter(product => ids.has(String(product.categoryId))).slice(0, 5) };
+  }).filter(entry => entry.items.length > 0);
+  const offerParts = [];
+  if (payments.codEnabled !== false) offerParts.push('Cash on Delivery');
+  if (returnDays > 0) offerParts.push(`${returnDays}-day easy returns`);
+  offerParts.push('Secure checkout');
+  const steps = [
+    ['1', 'Browse & Choose', 'Explore categories and pick the products you love.'],
+    ['2', 'Add to Cart', 'Select your size or colour and add it to your cart.'],
+    ['3', 'Place Your Order', 'Checkout in a minute or order directly on WhatsApp.'],
+    ['4', 'Get It Delivered', 'We bring your order right to your doorstep.']
+  ];
+  const grid = list => <div className="home-product-grid hm-featured-grid">{list.map(product => <ProductCard key={product.id} product={product} onToast={onToast}/>)}</div>;
+  return <>
+    {deals.length > 0 && <section className="home-section hm-deals-section">
+      <div className="container">
+        <div className="home-section-heading"><div><p className="eyebrow">LIMITED TIME</p><h2>Hot Deals</h2><p className="hm-section-subtitle">Biggest savings on our products right now</p></div><Link className="text-link" to="/deals">View All Deals <ArrowRight size={15}/></Link></div>
+        {grid(deals)}
+      </div>
+    </section>}
+
+    <section className="container hm-offer-wrap" aria-label="Delivery offer">
+      <div className="hm-offer-banner">
+        <div>
+          <p className="eyebrow">{threshold > 0 && shipping.enabled !== false ? 'FREE DELIVERY' : 'SHOP SMART'}</p>
+          <h2>{threshold > 0 && shipping.enabled !== false ? `Free delivery on orders over Rs. ${threshold.toLocaleString()}` : 'Quality products at the best prices'}</h2>
+          <p>{offerParts.join('  •  ')}</p>
+        </div>
+        <Link to="/shop" className="hm-offer-btn">Start Shopping <ArrowRight size={16}/></Link>
+      </div>
+    </section>
+
+    {newArrivals.length > 0 && <section className="home-section hm-arrivals-section">
+      <div className="container">
+        <div className="home-section-heading"><div><p className="eyebrow">JUST LANDED</p><h2>New Arrivals</h2><p className="hm-section-subtitle">Fresh additions to the store</p></div><Link className="text-link" to="/shop">Shop Latest <ArrowRight size={15}/></Link></div>
+        {grid(newArrivals)}
+      </div>
+    </section>}
+
+    {showcases.map(entry => <section className="home-section hm-showcase-section" key={entry.root.id}>
+      <div className="container">
+        <div className="home-section-heading"><div><p className="eyebrow">COLLECTION</p><h2>{entry.root.name}</h2><p className="hm-section-subtitle">Popular picks from {entry.root.name}</p></div><Link className="text-link" to={entry.hasChildren ? `/categories?category=${encodeURIComponent(entry.root.name)}&categoryId=${encodeURIComponent(entry.root.id)}` : `/shop?category=${encodeURIComponent(entry.root.name)}&categoryId=${encodeURIComponent(entry.root.id)}`}>View All <ArrowRight size={15}/></Link></div>
+        {grid(entry.items)}
+      </div>
+    </section>)}
+
+    <section className="home-section hm-steps-section">
+      <div className="container">
+        <div className="home-section-heading hm-centered-heading"><div><p className="eyebrow">EASY &amp; SIMPLE</p><h2>How It Works</h2><p className="hm-section-subtitle">Shopping with Hafiz Mart takes just four steps.</p></div></div>
+        <ol className="hm-steps-grid">
+          {steps.map(([number, title, text]) => <li key={number}><span className="hm-step-number" aria-hidden="true">{number}</span><strong>{title}</strong><p>{text}</p></li>)}
+        </ol>
+      </div>
+    </section>
+  </>;
+}
+
+function Home() {
+  const { store } = useStore();
+  const contentSettings = store.adminSettings?.content || DEFAULT_ADMIN_SETTINGS.content || {};
+  const [toast, setToast] = useState("");
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterBusy, setNewsletterBusy] = useState(false);
+  const [newsletterMessage, setNewsletterMessage] = useState("");
+  const activeProducts = store.products.filter(p => p.status !== "inactive");
+  const categories = sortMainCategories(store.categories);
+  const featured = activeProducts.slice(0, 5);
+  const categoryNames = [
+    { name: 'Mens', emoji: '👔', mode: 'category' },
+    { name: 'Womens', emoji: '👗', mode: 'category' },
+    { name: 'Fragrances', emoji: '🌸', mode: 'category' },
+    { name: 'Other Categories', emoji: '▦', mode: 'all' }
+  ];
+  const normaliseCategoryName = value => String(value||'').toLowerCase().replace(/[^a-z0-9]/g,''); const categoryFor = name => categories.find(c => normaliseCategoryName(c.name) === normaliseCategoryName(name)) || categories.find(c => {const actual=normaliseCategoryName(c.name);const wanted=normaliseCategoryName(name);return actual.includes(wanted)||wanted.includes(actual)||(wanted==='mens'&&actual==='men')||(wanted==='womens'&&actual==='women');});
+  const categoryHref = name => {
+    const found = categoryFor(name);
+    return found ? `/categories?category=${encodeURIComponent(found.name)}` : "/categories";
+  };
+  const heroProductIds = Array.isArray(contentSettings.heroProductIds) ? contentSettings.heroProductIds.map(String) : [];
+  const collage = (heroProductIds.length ? heroProductIds.map(id => activeProducts.find(p => String(p.id) === id)).filter(Boolean) : activeProducts).slice(0, 4);
+  return <>
+    <SaleBanner />
+    <main className="home-page hm-reference-home">
+      <section className="home-hero hm-reference-hero">
+        <div className="container home-hero-grid">
+          <motion.div className="home-hero-copy" initial={{opacity:0,x:-20}} animate={{opacity:1,x:0}} transition={{duration:.5}}>
+            <p className="eyebrow hm-sale-pill"><Sparkles size={14}/> {contentSettings.heroEyebrow || 'MEGA SALE'} <span>• LIMITED TIME OFFERS</span></p>
+            <h1>{(contentSettings.heroHeadline || 'Upgrade Your Lifestyle Today').split(' ').slice(0,2).join(' ')} <span>{(contentSettings.heroHeadline || 'Upgrade Your Lifestyle Today').split(' ').slice(2).join(' ')}</span></h1>
+            <p>{contentSettings.heroDescription || 'Discover the best products at unbeatable prices. Shop smarter, live better!'}</p>
+            <div className="hero-buttons">
+              <Link className="gold-btn" to="/shop">Shop Now <ArrowRight size={17}/></Link>
+              <Link className="ghost-btn" to="/categories">Explore Categories</Link>
+            </div>
+            <div className="hm-hero-benefits">
+              <div><span>✓</span><strong>Best Prices</strong></div>
+              <div><span>✓</span><strong>Secure Payment</strong></div>
+              <div><span>✓</span><strong>Fast Delivery</strong></div>
+            </div>
+          </motion.div>
+          <motion.div className="home-hero-visual hm-reference-collage" initial={{opacity:0,scale:.97}} animate={{opacity:1,scale:1}} transition={{duration:.6}}>
+            <div className="hm-collage-orbit"></div>
+            {collage[0] && <Link to={`/product/${collage[0].id}`} className="hm-collage-item hm-collage-main"><img src={collage[0].image || logo} alt={collage[0].name}/><span>{collage[0].name}</span></Link>}
+            {collage[1] && <Link to={`/product/${collage[1].id}`} className="hm-collage-item hm-collage-top"><img src={collage[1].image || logo} alt={collage[1].name}/></Link>}
+            {collage[2] && <Link to={`/product/${collage[2].id}`} className="hm-collage-item hm-collage-left"><img src={collage[2].image || logo} alt={collage[2].name}/></Link>}
+            {collage[3] && <Link to={`/product/${collage[3].id}`} className="hm-collage-item hm-collage-bottom"><img src={collage[3].image || logo} alt={collage[3].name}/></Link>}
+            {!collage.length && <div className="hm-collage-fallback"><span>HAFIZ MART</span><strong>Everyday essentials.<br/>Extraordinary value.</strong><ShoppingBag size={100}/></div>}
+            <div className="hm-floating-sale">MEGA<br/><strong>SALE</strong><span>UP TO 50% OFF</span></div>
+          </motion.div>
+        </div>
+      </section>
+
+      <section className="hm-benefit-strip container" aria-label="Shopping benefits">
+        <div><span className="hm-benefit-icon">🚚</span><span><strong>Fast Delivery</strong><small>Quick delivery across Pakistan</small></span></div>
+        <div><span className="hm-benefit-icon">🔒</span><span><strong>Secure Payment</strong><small>Safe & trusted checkout</small></span></div>
+        <div><span className="hm-benefit-icon">↩</span><span><strong>Easy Returns</strong><small>Shopping without worries</small></span></div>
+        <div><span className="hm-benefit-icon">💬</span><span><strong>24/7 Support</strong><small>We're here to help</small></span></div>
+      </section>
+
+      <section className="home-section hm-reference-categories">
+        <div className="container">
+          <div className="home-section-heading"><div><p className="eyebrow">FIND YOUR FAVOURITES</p><h2>Shop by Category</h2><p className="hm-section-subtitle">Explore our wide range of products</p></div><Link className="text-link" to="/categories">View All Categories <ArrowRight size={15}/></Link></div>
+          <div className="hm-category-reference-grid">
+            {categoryNames.map((item,index)=>{const found=categories.find(c=>c.name.toLowerCase()===item.name.toLowerCase());const href=item.mode==='all'?'/categories':found?categoryHref(found.name):'/categories';return <Link className="hm-category-reference-card" key={item.name} to={href}><span className={`hm-category-emoji hm-category-tone-${index%4}`}>{item.emoji}</span><strong>{item.name}</strong></Link>;})}
+          </div>
+        </div>
+      </section>
+
+      <section className="home-section hm-reference-products home-section-dark">
+        <div className="container">
+          <div className="home-section-heading"><div><p className="eyebrow">HANDPICKED FOR YOU</p><h2>Featured Products</h2><p className="hm-section-subtitle">Our top picks, just for you</p></div><Link className="text-link" to="/shop">View All Products <ArrowRight size={15}/></Link></div>
+          {featured.length ? <div className="home-product-grid hm-featured-grid">{featured.map(product=><ProductCard key={product.id} product={product} onToast={setToast}/>)}</div> : <EmptyState title="Products Coming Soon" text="We're getting our best picks ready for you. Check back soon." action="Browse Shop" to="/shop"/>}
+        </div>
+      </section>
+
+      <HomeExtraSections products={activeProducts} categories={store.categories} excludeIds={featured.map(item => item.id)} settings={store.adminSettings} onToast={setToast}/>
+
+      <section className="home-section hm-reference-why">
+        <div className="container"><div className="home-section-heading hm-centered-heading"><div><p className="eyebrow">THE HAFIZ MART PROMISE</p><h2>Why Choose Hafiz Mart?</h2><p className="hm-section-subtitle">A better way to shop, every single day.</p></div></div>
+          <div className="hm-why-grid">
+            <div><span>🚚</span><strong>Fast & Reliable Delivery</strong><p>Your favourite products delivered right to your doorstep.</p></div>
+            <div><span>🛡️</span><strong>Secure Shopping</strong><p>Your privacy and payments are treated with care.</p></div>
+            <div><span>💬</span><strong>Customer Support</strong><p>Friendly help whenever you need a hand.</p></div>
+            <div><span>🏷️</span><strong>Best Deals & Offers</strong><p>Great value and exciting deals on everyday favourites.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="home-section home-newsletter-section hm-reference-newsletter"><div className="container"><div className="home-newsletter"><div className="home-newsletter-content"><p className="eyebrow">STAY IN THE LOOP</p><h2>Get the Best Deals First</h2><p>Subscribe for new arrivals, exclusive offers and special discounts from Hafiz Mart.</p></div><div className="newsletter-form-area"><form className="home-newsletter-form" onSubmit={async e=>{e.preventDefault();const email=newsletterEmail.trim().toLowerCase();if(!email)return;setNewsletterBusy(true);setNewsletterMessage("");try{const {error}=await supabase.from("newsletter_subscribers").insert({email});if(error){setNewsletterMessage(error.code==="23505"?"You're already subscribed. Thank you!":"Something went wrong. Please try again.");}else{setNewsletterMessage("Thank you for subscribing!");setNewsletterEmail("");}}catch(error){logSafeError("Newsletter subscription error:",error);setNewsletterMessage("Something went wrong. Please try again.");}finally{setNewsletterBusy(false);}}}><input type="email" value={newsletterEmail} onChange={e=>{setNewsletterEmail(e.target.value);setNewsletterMessage("");}} placeholder="Enter your email address" required/><button type="submit" className="gold-btn" disabled={newsletterBusy}>{newsletterBusy?"Subscribing...":"Subscribe"}</button></form>{newsletterMessage&&<p className="newsletter-message" role="status">{newsletterMessage}</p>}<div className="newsletter-socials" aria-label="Follow Hafiz Mart"><div>{storeSocialLinks().filter(item=>["Facebook","WhatsApp","Instagram"].includes(item.label)).map(item=><a key={item.label} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</div></div></div></div></div></section>
+      <HomeTestimonials/>
+    </main>
+    <Toast message={toast} onClose={()=>setToast("")}/>
+  </>;
+}
+
+>>>>>>> d74b85b (UI Design 3)
 function StarRating({value=0,size=16}){
   return <span className="stars" role="img" aria-label={`${value} out of 5 stars`}>{[1,2,3,4,5].map(n=><Star key={n} size={size} fill={n<=Math.round(value)?"currentColor":"none"}/>)}</span>;
 }
@@ -2377,7 +2566,7 @@ function Categories() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const selectedName = params.get('category') || '';
-  const selected = store.categories.find(item => String(item.name) === selectedName);
+  const selected = pickCategory(store.categories, store.products, selectedName, params.get('categoryId') || '');
   const mainCategories = sortMainCategories(store.categories);
   const visibleCategories = selected
     ? store.categories.filter(item => String(item.parent_category_id || '') === String(selected.id))
@@ -2454,9 +2643,11 @@ function Shop() {
 
   const params = new URLSearchParams(location.search);
 
-  const category = params.get("category") || "";
+  const categoryParam = params.get("category") || "";
+  const categoryIdParam = params.get("categoryId") || "";
   const urlSearch = params.get("search") || "";
-  const selectedCategory = store.categories.find(item => item.name === category);
+  const selectedCategory = pickCategory(store.categories, store.products, categoryParam, categoryIdParam);
+  const category = categoryParam || (selectedCategory ? selectedCategory.name : "");
   const selectedCategoryIds = selectedCategory
     ? new Set(getCategoryDescendantIds(store.categories, selectedCategory.id))
     : null;
@@ -6391,6 +6582,220 @@ function storeSocialLinks() {
   links.push({label:'WhatsApp',url:`https://wa.me/${wa}`,icon:<MessageCircle size={17}/>});
   return links;
 }
+/* ===== Hafiz Mart footer (home = full footer, other pages = compact footer) ===== */
+const HMF_ICON_PATHS = {
+  phone: <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>,
+  mail: <><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></>,
+  pin: <><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></>,
+  device: <><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 18h.01"/></>,
+  hanger: <><path d="M12 9V7.5a2.5 2.5 0 1 0-2.5-2.5"/><path d="M12 9 3 15.5a1.5 1.5 0 0 0 .9 2.7h16.2a1.5 1.5 0 0 0 .9-2.7L12 9Z"/></>,
+  home: <><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></>,
+  lotus: <><path d="M12 21c-4-3-7-6-7-10 3 0 5 1 7 3 2-2 4-3 7-3 0 4-3 7-7 10Z"/><path d="M12 14V6"/></>,
+  dumbbell: <path d="M6 7v10M3 9.5v5M18 7v10M21 9.5v5M6 12h12"/>,
+  gamepad: <><rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 10.5v4M5 12.5h4"/><circle cx="16" cy="11.5" r=".7" fill="currentColor"/><circle cx="18" cy="13.5" r=".7" fill="currentColor"/></>,
+  book: <><path d="M12 6v14"/><path d="M12 6C10 4.5 6.5 4 3 4v14c3.5 0 7 .5 9 2 2-1.5 5.5-2 9-2V4c-3.5 0-7 .5-9 2Z"/></>,
+  grid: <><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,
+  truck: <><path d="M2 6h11v10H2z"/><path d="M13 9h4l3 3v4h-7"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/></>,
+  shield: <><path d="M12 3 4 6v6c0 4.5 3.3 8 8 9 4.7-1 8-4.5 8-9V6l-8-3Z"/><path d="m9 12 2.2 2.2L15.5 10"/></>,
+  refresh: <><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4.5h-4.5"/></>,
+  headset: <><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/><path d="M19 20c0 1.2-1.5 2-4 2h-2"/></>,
+  chevron: <path d="m9 6 6 6-6 6"/>,
+  arrow: <path d="M5 12h14M13 6l6 6-6 6"/>,
+  heart: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/>,
+  facebook: <path fill="currentColor" stroke="none" d="M13.5 21v-7.5H16l.5-3h-3V8.8c0-.9.3-1.5 1.6-1.5h1.5V4.6c-.3 0-1.2-.1-2.2-.1-2.3 0-3.9 1.4-3.9 4v2H8v3h2.5V21h3Z"/>,
+  instagram: <><rect x="4" y="4" width="16" height="16" rx="4.5"/><circle cx="12" cy="12" r="3.6"/><circle cx="16.8" cy="7.2" r=".9" fill="currentColor" stroke="none"/></>,
+  youtube: <><rect x="3" y="6" width="18" height="12" rx="3.5"/><path fill="currentColor" stroke="none" d="M10.5 9.6v4.8l4.2-2.4Z"/></>,
+  tiktok: <><path d="M14 4v10.3a3.3 3.3 0 1 1-3.3-3.3"/><path d="M14 4c.3 2.5 1.9 4.1 4.5 4.3"/></>
+};
+
+function HmfIcon({ name, size = 20 }) {
+  return <svg className="hmf-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{HMF_ICON_PATHS[name] || null}</svg>;
+}
+
+function HmfBag() {
+  return <svg className="hmf-bag" viewBox="0 0 64 72" aria-hidden="true" focusable="false">
+    <defs><linearGradient id="hmfBagGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#d9a73f"/><stop offset="1" stopColor="#a8741f"/></linearGradient></defs>
+    <path d="M22 26v-6a10 10 0 0 1 20 0v6" fill="none" stroke="#b98524" strokeWidth="4" strokeLinecap="round"/>
+    <rect x="8" y="24" width="48" height="44" rx="8" fill="url(#hmfBagGradient)"/>
+    <path d="M19 38h4l3.5 12h17l3-9H25" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="29.5" cy="57" r="2.6" fill="#fff"/><circle cx="41.5" cy="57" r="2.6" fill="#fff"/>
+  </svg>;
+}
+
+function HmfLogo() {
+  return <Link to="/" className="hmf-logo" aria-label="Hafiz Mart home">
+    <HmfBag/>
+    <span className="hmf-logo-text"><strong>Hafiz <em>Mart</em></strong><small>Shop More <i aria-hidden="true">•</i> Save More</small></span>
+  </Link>;
+}
+
+function HmfPayments() {
+  return <ul className="hmf-pay" aria-label="Accepted payment methods">
+    <li className="hmf-pay-visa">VISA</li>
+    <li className="hmf-pay-mc" aria-label="Mastercard"><span/><span/></li>
+    <li className="hmf-pay-jazz">Jazz<b>Cash</b></li>
+    <li className="hmf-pay-easy">easypaisa</li>
+    <li className="hmf-pay-paypal"><b>P</b>ayPal</li>
+  </ul>;
+}
+
+function hmfSocialLinks(settings) {
+  const general = { ...DEFAULT_ADMIN_SETTINGS.general, ...((settings && settings.general) || {}) };
+  return [['Facebook', 'facebook'], ['Instagram', 'instagram'], ['YouTube', 'youtube'], ['TikTok', 'tiktok']]
+    .filter(([, key]) => general[key] && isSafeHttpUrl(general[key]))
+    .map(([label, key]) => ({ label, url: general[key], icon: key }));
+}
+
+function hmfCategoryIcon(name) {
+  const value = String(name || '').toLowerCase();
+  if (/electron|mobile|phone|gadget/.test(value)) return 'device';
+  if (/fashion|cloth|wear|men|women|kid/.test(value)) return 'hanger';
+  if (/home|living|furniture|kitchen/.test(value)) return 'home';
+  if (/beauty|care|fragrance|perfume|cosmetic/.test(value)) return 'lotus';
+  if (/sport|fitness|gym/.test(value)) return 'dumbbell';
+  if (/toy|game/.test(value)) return 'gamepad';
+  if (/book|station/.test(value)) return 'book';
+  return 'grid';
+}
+
+function HmfCategoryNode({ category, categories, depth, trail }) {
+  const [open, setOpen] = useState(false);
+  const children = categories
+    .filter(item => String(item.parent_category_id || '') === String(category.id) && !trail.includes(String(item.id)))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  const href = `/shop?category=${encodeURIComponent(category.name)}&categoryId=${encodeURIComponent(category.id)}`;
+  const icon = depth === 0 ? <HmfIcon name={hmfCategoryIcon(category.name)} size={20}/> : null;
+  if (!children.length) {
+    return <li className="hmf-node"><Link to={href}>{icon}<span>{category.name}</span></Link></li>;
+  }
+  const nextTrail = [...trail, String(category.id)];
+  return <li className={`hmf-node has-children${open ? ' is-open' : ''}`}>
+    <button type="button" className="hmf-node-toggle" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+      {icon}<span>{category.name}</span><HmfIcon name="chevron" size={16}/>
+    </button>
+    {open && <ul className="hmf-sub">
+      <li><Link to={href} className="hmf-all">View all {category.name}</Link></li>
+      {children.map(child => <HmfCategoryNode key={child.id} category={child} categories={categories} depth={depth + 1} trail={nextTrail}/>)}
+    </ul>}
+  </li>;
+}
+
+function HafizFooter() {
+  const location = useLocation();
+  const { store } = useStore();
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const path = location.pathname;
+  const year = new Date().getFullYear();
+  const settings = store.adminSettings;
+  const general = { ...DEFAULT_ADMIN_SETTINGS.general, ...((settings && settings.general) || {}) };
+  const socials = hmfSocialLinks(settings);
+  const phone = String(general.supportPhone || STORE_SUPPORT_PHONE_LOCAL).trim();
+  const phoneHref = phone.replace(/[^\d+]/g, '');
+  const supportEmail = String(general.supportEmail || '').trim();
+  const address = String(general.address || '').trim() || 'Pakistan';
+  const categories = sortMainCategories(store.categories || []).slice(0, 8);
+
+  const submitNewsletter = async event => {
+    event.preventDefault();
+    const clean = email.trim().toLowerCase();
+    if (!clean) return;
+    setBusy(true); setMessage('');
+    try {
+      const { error } = await supabase.from('newsletter_subscribers').insert({ email: clean });
+      if (error) setMessage(error.code === '23505' ? "You're already subscribed. Thank you!" : 'Something went wrong. Please try again.');
+      else { setMessage('Thank you for subscribing!'); setEmail(''); }
+    } catch (error) {
+      logSafeError('Newsletter subscription error:', error);
+      setMessage('Something went wrong. Please try again.');
+    } finally { setBusy(false); }
+  };
+
+  const socialList = socials.length > 0 && <ul className="hmf-socials" aria-label="Social media">
+    {socials.map(item => <li key={item.label}><a href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}><HmfIcon name={item.icon} size={18}/></a></li>)}
+  </ul>;
+
+  if (path === '/') {
+    const quickLinks = [['Home', '/'], ['Shop', '/shop'], ['About Us', '/contact-us'], ['Contact Us', '/contact-us'], ['Track Order', '/track-order'], ['FAQs', '/faq']];
+    const trust = [['truck', 'Fast & Reliable Delivery'], ['refresh', 'Easy Returns & Exchanges'], ['shield', 'Secure Payments'], ['headset', '24/7 Customer Support']];
+    return <footer className="hmf hmf-full" aria-label="Hafiz Mart footer">
+      <div className="hmf-wrap">
+        <div className="hmf-grid">
+          <div className="hmf-brand">
+            <HmfLogo/>
+            <p className="hmf-about">Hafiz Mart is your one-stop online store for quality products, best prices and a smooth shopping experience. We bring your favorite things right to your doorstep.</p>
+            <ul className="hmf-trust">
+              {trust.map(([icon, text]) => <li key={text}><HmfIcon name={icon} size={30}/><span>{text}</span></li>)}
+            </ul>
+          </div>
+          <nav className="hmf-col" aria-label="Quick links">
+            <h2 className="hmf-title">Quick Links</h2>
+            <ul className="hmf-list">
+              {quickLinks.map(([label, to]) => <li key={label}><Link to={to} className={path === to ? 'is-active' : ''} aria-current={path === to ? 'page' : undefined}><HmfIcon name="chevron" size={15}/>{label}</Link></li>)}
+            </ul>
+          </nav>
+          <nav className="hmf-col" aria-label="Shop by category">
+            <h2 className="hmf-title">Shop By Category</h2>
+            <ul className="hmf-list hmf-cats">
+              {categories.map(category => <HmfCategoryNode key={category.id || category.name} category={category} categories={store.categories || []} depth={0} trail={[]}/>)}
+              <li><Link to="/categories"><HmfIcon name="grid" size={20}/>More Categories</Link></li>
+            </ul>
+          </nav>
+          <div className="hmf-col hmf-connect">
+            <h2 className="hmf-title">Stay Connected</h2>
+            <p className="hmf-note">Get the latest deals, new arrivals and exclusive offers straight to your inbox.</p>
+            <form className="hmf-news" onSubmit={submitNewsletter}>
+              <HmfIcon name="mail" size={18}/>
+              <input type="email" value={email} onChange={event => { setEmail(event.target.value); setMessage(''); }} placeholder="Enter your email address" aria-label="Email address" autoComplete="email" required/>
+              <button type="submit" disabled={busy} aria-label={busy ? 'Subscribing' : 'Subscribe'}><HmfIcon name="arrow" size={18}/></button>
+            </form>
+            {message && <p className="hmf-news-message" role="status">{message}</p>}
+            <h2 className="hmf-title hmf-title-sm">Contact Us</h2>
+            <ul className="hmf-contact">
+              <li><HmfIcon name="phone" size={18}/><a href={`tel:${phoneHref}`}>{phone}</a></li>
+              {supportEmail && <li><HmfIcon name="mail" size={18}/><a href={`mailto:${supportEmail}`}>{supportEmail}</a></li>}
+              <li><HmfIcon name="pin" size={18}/><span>{address}</span></li>
+            </ul>
+            {socials.length > 0 && <><h2 className="hmf-title hmf-title-sm">Follow Us</h2>{socialList}</>}
+          </div>
+        </div>
+        <div className="hmf-bottom">
+          <p className="hmf-thanks"><span className="hmf-script">Thank you</span><small>For choosing Hafiz Mart <HmfIcon name="heart" size={16}/></small></p>
+          <p className="hmf-copy">© {year} Hafiz Mart. All Rights Reserved.</p>
+          <HmfPayments/>
+        </div>
+      </div>
+      <div className="hmf-goldbar" aria-hidden="true"/>
+    </footer>;
+  }
+
+  const L = {
+    home: ['Home', '/'], shop: ['Shop', '/shop'], categories: ['Categories', '/categories'],
+    about: ['About Us', '/contact-us'], contact: ['Contact', '/contact-us'], track: ['Track Order', '/track-order'], faq: ['FAQs', '/faq']
+  };
+  const isShopPage = path === '/shop' || path === '/categories' || path === '/deals' || path.startsWith('/campaign/');
+  const isProductPage = path.startsWith('/product/');
+  const isInfoPage = ['/contact', '/contact-us', '/faq', '/privacy-policy', '/store-privacy-policy', '/publisher-privacy-policy'].includes(path);
+  let items;
+  if (isShopPage || isProductPage) items = [L.home, L.shop, L.categories, L.about, L.contact];
+  else if (isInfoPage) items = [L.home, L.shop, L.about, L.contact, L.faq];
+  else items = [L.home, L.shop, L.about, L.contact, L.track];
+  const activeFor = ([label, to]) => (label === 'Home' && path === '/') || (label === 'Shop' && path === '/shop') || (label === 'Categories' && path === '/categories');
+
+  return <footer className="hmf hmf-compact" aria-label="Hafiz Mart footer">
+    <div className="hmf-bar">
+      <HmfLogo/>
+      <nav className="hmf-nav" aria-label="Footer navigation">
+        <ul>{items.map(item => <li key={item[0]}><Link to={item[1]} className={activeFor(item) ? 'is-active' : ''} aria-current={activeFor(item) ? 'page' : undefined}>{item[0]}</Link></li>)}</ul>
+      </nav>
+      {socialList}
+      <HmfPayments/>
+      <p className="hmf-copy">© {year} Hafiz Mart. All rights reserved.</p>
+    </div>
+  </footer>;
+}
+
 function AppRoutes(){
   const {store}=useStore(); const {profile}=useAuth(); const location=useLocation();
   const maintenance=Boolean(store.adminSettings?.storefront?.maintenanceMode); const isAdmin=profile?.role==='admin';
@@ -6398,6 +6803,10 @@ function AppRoutes(){
   try { window.__HAFIZ_STORE_SETTINGS__ = store.adminSettings || DEFAULT_ADMIN_SETTINGS; } catch {} return <><Navbar/>{(!maintenance||bypass)&&<AnnouncementBar/>}{maintenance&&!bypass?<MaintenancePage/>:<Routes>
     <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/campaign/:id" element={<CampaignProducts/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/store-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/publisher-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/contact-us" element={<ContactUsPage/>}/><Route path="/contact" element={<ContactUsPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
     <Route path="/admin/security/mfa" element={<AdminMfaSecurityPage/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="This page does not exist." action="Back Home" to="/"/></main>}/>
+<<<<<<< HEAD
   </Routes>}<WhatsAppButton/><footer className="footer hm-full-footer" aria-label="Hafiz Mart footer"><div className="container hm-footer-shell"><div className="hm-footer-main"><div className="hm-footer-brand"><Link to="/" aria-label="Hafiz Mart home" className="hm-footer-logo"><img src={logo} alt="Hafiz Mart"/><span><strong>Hafiz Mart</strong><small>Shop Smart, Live Better</small></span></Link></div><div className="hm-footer-columns"><div><strong>Shop</strong><nav className="footer-links" aria-label="Shop"><Link to="/shop">Men</Link><Link to="/shop">Women</Link><Link to="/shop">Fragrances</Link></nav></div><div><strong>Quick Links</strong><nav className="footer-links" aria-label="Quick links"><Link to="/">Home</Link><Link to="/contact-us">About Us</Link><Link to="/contact-us">Contact</Link></nav></div><div><strong>Support</strong><nav className="footer-links" aria-label="Support"><Link to="/faq">FAQs</Link><Link to="/track-order">Shipping</Link><Link to="/contact-us">Return &amp; Refund</Link></nav></div><div><strong>Follow Us</strong><nav className="footer-socials" aria-label="Social media">{storeSocialLinks().filter(item=>item.label!=='WhatsApp').map(item=><a key={item.label} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</nav></div></div></div><div className="hm-footer-bottom"><div className="hm-footer-trust"><span><Truck aria-hidden="true"/>Cash on Delivery</span><i aria-hidden="true"/><span><ShieldCheck aria-hidden="true"/>Hafiz Mart</span></div><div className="hm-footer-legal"><span className="footer-copyright">© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span><div className="hm-payment-methods" aria-label="Payment methods"><span className="hm-pay-visa">VISA</span><span className="hm-pay-mastercard"><i/><i/></span><span className="hm-pay-jazzcash">JazzCash</span><span className="hm-pay-easypaisa">easypaisa</span></div></div></div></div></footer></>;
+=======
+  </Routes>}<WhatsAppButton/><HafizFooter/></>;
+>>>>>>> d74b85b (UI Design 3)
 }
 export default function App(){ useEffect(()=>{ try { document.documentElement.removeAttribute('data-theme'); localStorage.removeItem('hafiz-mart-theme'); } catch {} },[]); return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
