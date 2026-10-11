@@ -1594,466 +1594,103 @@ function Home() {
   const { store } = useStore();
   const [toast, setToast] = useState("");
   const [newsletterEmail, setNewsletterEmail] = useState("");
-const [newsletterBusy, setNewsletterBusy] = useState(false);
-const [newsletterMessage, setNewsletterMessage] = useState("");
-
-  const activeProducts = store.products.filter(
-    p => p.status !== "inactive"
-  );
-  const contentSettings = store.adminSettings?.content || DEFAULT_ADMIN_SETTINGS.content;
-  const featuredLimit = Math.max(0, Number(contentSettings.featuredProductsLimit || 8));
-
-  // Keep the homepage sections mutually exclusive while making
-  // New Arrivals truly represent the newest products from Supabase.
-  // Products are already ordered newest-first in StoreProvider.refresh().
-  // A new product therefore appears in New Arrivals immediately after refresh.
-  const newArrivalsLimit = 4;
-  const newArrivals = activeProducts.slice(0, newArrivalsLimit);
-  const productsAfterNewArrivals = activeProducts.slice(newArrivals.length);
-  const trendingProducts = productsAfterNewArrivals.slice(0, 8);
-  const featuredProducts = productsAfterNewArrivals.slice(8, 8 + featuredLimit);
-  const heroProduct = activeProducts[0] || null;
-  const homepageSections = [...(contentSettings.homepageSections || [])].filter(section => section && section.visible !== false && !['new-arrivals','popular-products','featured-products'].includes(section.id)).sort((a,b)=>Number(a.order||0)-Number(b.order||0));
-
-
-const mainCategories = sortMainCategories(store.categories);
-const categoryCards = mainCategories.map(category => {
-  const descendants = new Set(getCategoryDescendantIds(store.categories, category.id));
-  const productCount = getCategoryProductCount(store.categories, activeProducts, category.id);
-  const childCategories = store.categories.filter(child => String(child.parent_category_id || '') === String(category.id));
-  const firstChildImage = childCategories.find(child => child.image)?.image || '';
-  const productImage = activeProducts.find(product => descendants.has(String(product.categoryId)) && product.image)?.image || '';
-  return {
-    ...category,
-    image: category.image || firstChildImage || productImage || '',
-    productCount,
-    childCount: childCategories.length
+  const [newsletterBusy, setNewsletterBusy] = useState(false);
+  const [newsletterMessage, setNewsletterMessage] = useState("");
+  const activeProducts = store.products.filter(p => p.status !== "inactive");
+  const categories = sortMainCategories(store.categories);
+  const featured = activeProducts.slice(0, 5);
+  const categoryNames = [
+    { name: "Mobiles & Tablets", emoji: "📱" },
+    { name: "Laptops & Computers", emoji: "💻" },
+    { name: "Fashion & Clothing", emoji: "👕" },
+    { name: "Home & Kitchen", emoji: "🏠" },
+    { name: "Beauty & Personal Care", emoji: "✨" },
+    { name: "Sports & Outdoors", emoji: "⚽" },
+    { name: "Toys & Games", emoji: "🎮" },
+    { name: "Books & Stationery", emoji: "📚" }
+  ];
+  const categoryFor = name => categories.find(c => c.name.toLowerCase() === name.toLowerCase()) || categories.find(c => c.name.toLowerCase().includes(name.split(/[ &]/)[0].toLowerCase()));
+  const categoryHref = name => {
+    const found = categoryFor(name);
+    return found ? `/categories?category=${encodeURIComponent(found.name)}` : "/categories";
   };
-});
-
-const availableCats = categoryCards.slice(0, 3);
-
-  return (
-    <>
-      <SaleBanner />
-
-      <main className="home-page">
-
-        {/* HERO */}
-        <section className="home-hero">
-          <div className="container home-hero-grid">
-
-            <motion.div
-              className="home-hero-copy"
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              <p className="eyebrow">WELCOME TO HAFIZ MART</p>
-
-              <h1>
-                Better shopping.
-                <span> Simply better.</span>
-              </h1>
-
-              <p>
-                Discover quality products, fresh arrivals and exclusive
-                offers — all in one place.
-              </p>
-
-              <div className="hero-buttons">
-                <Link className="gold-btn" to="/shop">
-                  Shop Now
-                  <ArrowRight size={17} />
-                </Link>
-
-                <Link className="ghost-btn" to="/categories">
-                  Explore Categories
-                </Link>
-              </div>
-            </motion.div>
-
-            <motion.div
-              className="home-hero-visual"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.7 }}
-            >
-              <div className="home-hero-product-stage">
-                <span className="home-hero-product-kicker">HAFIZ MART EDIT</span>
-                <img
-                  src={heroProduct?.image || logo}
-                  alt={heroProduct?.name || "Hafiz Mart"}
-                />
-                {heroProduct && (
-                  <div className="home-hero-product-tag">
-                    <strong>{heroProduct.name}</strong>
-                    <span>Rs. {Number(heroProduct.salePrice || heroProduct.price || 0).toLocaleString()}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="hero-visual-info">
-                <span>HAFIZ MART</span>
-                <strong>
-                  {activeProducts.length
-                    ? `${activeProducts.length} products available`
-                    : "Your shopping destination"}
-                </strong>
-              </div>
-            </motion.div>
-
-          </div>
-        </section>
-
-        {/* CATEGORIES */}
-        {contentSettings.showCategoriesOnHome !== false && <section className="home-section">
-          <div className="container">
-
-            <div className="home-section-heading">
-              <div>
-                <p className="eyebrow">EXPLORE</p>
-                <h2>Shop by Category</h2>
-              </div>
-
-              {(availableCats.length > 0) && (
-                <Link className="text-link" to="/categories">
-                  View All Categories <ArrowRight size={15} />
-                </Link>
-              )}
+  const collage = activeProducts.slice(0, 4);
+  return <>
+    <SaleBanner />
+    <main className="home-page hm-reference-home">
+      <section className="home-hero hm-reference-hero">
+        <div className="container home-hero-grid">
+          <motion.div className="home-hero-copy" initial={{opacity:0,x:-20}} animate={{opacity:1,x:0}} transition={{duration:.5}}>
+            <p className="eyebrow hm-sale-pill"><Sparkles size={14}/> MEGA SALE <span>• LIMITED TIME OFFERS</span></p>
+            <h1>Upgrade Your <span>Lifestyle Today</span></h1>
+            <p>Discover the best products at unbeatable prices. Shop smarter, live better!</p>
+            <div className="hero-buttons">
+              <Link className="gold-btn" to="/shop">Shop Now <ArrowRight size={17}/></Link>
+              <Link className="ghost-btn" to="/categories">Explore Categories</Link>
             </div>
-{availableCats.length ? (
-  <div className="home-category-grid">
-    {availableCats.map((c, index) => (
-      <Link
-        className="home-category-card"
-        key={c.id}
-        to={`/categories?category=${encodeURIComponent(c.name)}`}
-        aria-label={`Explore ${c.name} subcategories`}
-      >
-        <CategoryArtwork category={c} image={c.image} />
-        <div className="home-category-copy">
-          <span className="category-card-kicker">COLLECTION {String(index + 1).padStart(2, "0")}</span>
-          <strong>{c.name}</strong>
-          <span>
-            {c.productCount > 0
-              ? `${c.productCount} ${c.productCount === 1 ? "product" : "products"}`
-              : c.childCount > 0
-                ? `${c.childCount} ${c.childCount === 1 ? "collection" : "collections"}`
-                : "Coming soon"}
-          </span>
+            <div className="hm-hero-benefits">
+              <div><span>✓</span><strong>Best Prices</strong></div>
+              <div><span>✓</span><strong>Secure Payment</strong></div>
+              <div><span>✓</span><strong>Fast Delivery</strong></div>
+            </div>
+          </motion.div>
+          <motion.div className="home-hero-visual hm-reference-collage" initial={{opacity:0,scale:.97}} animate={{opacity:1,scale:1}} transition={{duration:.6}}>
+            <div className="hm-collage-orbit"></div>
+            {collage[0] && <Link to={`/product/${collage[0].id}`} className="hm-collage-item hm-collage-main"><img src={collage[0].image || logo} alt={collage[0].name}/><span>{collage[0].name}</span></Link>}
+            {collage[1] && <Link to={`/product/${collage[1].id}`} className="hm-collage-item hm-collage-top"><img src={collage[1].image || logo} alt={collage[1].name}/></Link>}
+            {collage[2] && <Link to={`/product/${collage[2].id}`} className="hm-collage-item hm-collage-left"><img src={collage[2].image || logo} alt={collage[2].name}/></Link>}
+            {collage[3] && <Link to={`/product/${collage[3].id}`} className="hm-collage-item hm-collage-bottom"><img src={collage[3].image || logo} alt={collage[3].name}/></Link>}
+            {!collage.length && <div className="hm-collage-fallback"><span>HAFIZ MART</span><strong>Everyday essentials.<br/>Extraordinary value.</strong><ShoppingBag size={100}/></div>}
+            <div className="hm-floating-sale">MEGA<br/><strong>SALE</strong><span>UP TO 50% OFF</span></div>
+          </motion.div>
         </div>
-        <span className="category-card-arrow"><ArrowRight aria-hidden="true" size={17} /></span>
-      </Link>
-    ))}
-    <Link className="home-category-card home-category-all-card" to="/categories" aria-label="View all categories">
-      <div className="home-category-all-art"><Boxes size={42} strokeWidth={1.4}/><span>{mainCategories.length}+</span></div>
-      <div className="home-category-copy">
-        <span className="category-card-kicker">EXPLORE EVERYTHING</span>
-        <strong>View All Categories</strong>
-        <span className="home-category-all-caption">Browse every collection and subcategory</span>
-      </div>
-      <span className="category-card-arrow"><ArrowRight aria-hidden="true" size={17}/></span>
-    </Link>
-  </div>
-) : (
-  <div className="home-category-coming-soon">
-    <span className="category-more-icon" aria-hidden="true">+</span>
-    <strong>Categories Coming Soon</strong>
-    <span>
-      New categories will appear here as they are added.
-    </span>
-  </div>
-)}
+      </section>
 
+      <section className="hm-benefit-strip container" aria-label="Shopping benefits">
+        <div><span className="hm-benefit-icon">🚚</span><span><strong>Fast Delivery</strong><small>Quick delivery across Pakistan</small></span></div>
+        <div><span className="hm-benefit-icon">🔒</span><span><strong>Secure Payment</strong><small>Safe & trusted checkout</small></span></div>
+        <div><span className="hm-benefit-icon">↩</span><span><strong>Easy Returns</strong><small>Shopping without worries</small></span></div>
+        <div><span className="hm-benefit-icon">💬</span><span><strong>24/7 Support</strong><small>We're here to help</small></span></div>
+      </section>
+
+      <section className="home-section hm-reference-categories">
+        <div className="container">
+          <div className="home-section-heading"><div><p className="eyebrow">FIND YOUR FAVOURITES</p><h2>Shop by Category</h2><p className="hm-section-subtitle">Explore our wide range of products</p></div><Link className="text-link" to="/categories">View All Categories <ArrowRight size={15}/></Link></div>
+          <div className="hm-category-reference-grid">
+            {categoryNames.map((item,index)=>{const found=categoryFor(item.name);return <Link className="hm-category-reference-card" key={item.name} to={categoryHref(item.name)}><span className={`hm-category-emoji hm-category-tone-${index%4}`}>{item.emoji}</span><strong>{found?.name || item.name}</strong><span>Explore collection <ArrowRight size={14}/></span></Link>;})}
           </div>
-        </section>}
+        </div>
+      </section>
 
-        {/* NEW ARRIVALS */}
-        {newArrivals.length > 0 && (store.adminSettings?.content?.homepageSections || []).find(section => section.id === 'new-arrivals')?.visible !== false && (
-          <section className="home-section">
-            <div className="container">
+      <section className="home-section hm-reference-products home-section-dark">
+        <div className="container">
+          <div className="home-section-heading"><div><p className="eyebrow">HANDPICKED FOR YOU</p><h2>Featured Products</h2><p className="hm-section-subtitle">Our top picks, just for you</p></div><Link className="text-link" to="/shop">View All Products <ArrowRight size={15}/></Link></div>
+          {featured.length ? <div className="home-product-grid hm-featured-grid">{featured.map(product=><ProductCard key={product.id} product={product} onToast={setToast}/>)}</div> : <EmptyState title="Products Coming Soon" text="We're getting our best picks ready for you. Check back soon." action="Browse Shop" to="/shop"/>}
+        </div>
+      </section>
 
-              <div className="home-section-heading">
-                <div>
-                  <p className="eyebrow">JUST IN</p>
-                  <h2>New Arrivals</h2>
-                </div>
+      <section className="hm-promo-duo container">
+        <article className="hm-promo-tile hm-promo-gaming"><div className="hm-promo-art" aria-hidden="true">🎮</div><p className="eyebrow">POWER UP YOUR PLAY</p><h2>Gaming Zone</h2><p>Level Up Your Play</p><span>Best Gaming Gear at Best Prices</span><Link to="/shop" className="hm-promo-link">Explore Gaming <ArrowRight size={15}/></Link></article>
+        <article className="hm-promo-tile hm-promo-fashion"><div className="hm-promo-art" aria-hidden="true">✦</div><p className="eyebrow">YOUR STYLE, YOUR STORY</p><h2>Fashion Trends</h2><p>Look Good, Feel Great</p><span>Trendy Styles for Every You</span><Link to="/shop" className="hm-promo-link">Shop Fashion <ArrowRight size={15}/></Link></article>
+      </section>
 
-                <Link className="text-link" to="/shop">
-                  View All <ArrowRight size={15} />
-                </Link>
-              </div>
-
-              <div className="home-product-grid">
-                {newArrivals.map(product => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onToast={setToast}
-                  />
-                ))}
-              </div>
-
-            </div>
-          </section>
-        )}
-
-        {/* TRENDING */}
-        <section className="home-section home-section-dark">
-          <div className="container">
-
-            <div className="home-section-heading">
-              <div>
-                <p className="eyebrow">TRENDING NOW</p>
-                <h2>Popular Products</h2>
-              </div>
-
-              {trendingProducts.length > 0 && (store.adminSettings?.content?.homepageSections || []).find(section => section.id === 'popular-products')?.visible !== false && (
-                <Link className="text-link" to="/shop">
-                  Shop more <ArrowRight size={15}/>
-                </Link>
-              )}
-            </div>
-
-            {trendingProducts.length ? (
-              <div className="home-product-grid">
-                {trendingProducts.map(product => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onToast={setToast}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="More Products Coming Soon"
-                text="As the catalog grows, additional products will appear in Popular Products."
-              />
-            )}
-
+      <section className="home-section hm-reference-why">
+        <div className="container"><div className="home-section-heading hm-centered-heading"><div><p className="eyebrow">THE HAFIZ MART PROMISE</p><h2>Why Choose Hafiz Mart?</h2><p className="hm-section-subtitle">A better way to shop, every single day.</p></div></div>
+          <div className="hm-why-grid">
+            <div><span>🚚</span><strong>Fast & Reliable Delivery</strong><p>Your favourite products delivered right to your doorstep.</p></div>
+            <div><span>🛡️</span><strong>Secure Shopping</strong><p>Your privacy and payments are treated with care.</p></div>
+            <div><span>💬</span><strong>Customer Support</strong><p>Friendly help whenever you need a hand.</p></div>
+            <div><span>🏷️</span><strong>Best Deals & Offers</strong><p>Great value and exciting deals on everyday favourites.</p></div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* PROMO */}
-        {contentSettings.showDealsSection !== false && <section className="home-promo-section">
-          <div className="container">
-
-            <div className="home-promo">
-              <div>
-                <p className="eyebrow">SPECIAL OFFER</p>
-
-                <h2>Good products.<br />Better prices.</h2>
-
-                <p>
-                  Explore our latest offers and discover something
-                  worth adding to your cart.
-                </p>
-
-                <Link className="gold-btn" to="/deals">
-                  View Deals
-                  <ArrowRight size={17} />
-                </Link>
-              </div>
-
-              <div className="promo-badge">
-                <strong>DEALS</strong>
-                <span>FOR YOU</span>
-              </div>
-            </div>
-
-          </div>
-        </section>}
-
-        {/* FEATURED */}
-        {featuredProducts.length > 0 && (store.adminSettings?.content?.homepageSections || []).find(section => section.id === 'featured-products')?.visible !== false && (
-          <section className="home-section home-section-dark">
-            <div className="container">
-
-              <div className="home-section-heading">
-                <div>
-                  <p className="eyebrow">OUR PICKS</p>
-                  <h2>Featured Products</h2>
-                </div>
-
-                <Link className="text-link" to="/shop">
-                  View All <ArrowRight size={15} />
-                </Link>
-              </div>
-
-              <div className="home-product-grid featured-grid">
-                {featuredProducts.map(product => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onToast={setToast}
-                  />
-                ))}
-              </div>
-
-            </div>
-          </section>
-        )}
-                {homepageSections.map(section => {
-          const categoryIds = section.categoryId ? getCategoryDescendantIds(store.categories, section.categoryId).map(String) : [];
-          const explicitIds = (section.productIds || []).map(String);
-          let selectedProducts = [];
-          if (section.type === 'new_arrivals') selectedProducts = activeProducts.slice(0, 8);
-          else if (section.type === 'popular_products') selectedProducts = activeProducts.slice(0, 8);
-          else if (section.type === 'category_collection') selectedProducts = activeProducts.filter(product => categoryIds.includes(String(product.categoryId)));
-          else if (section.type === 'selected_products' || section.type === 'product_collection') selectedProducts = activeProducts.filter(product => explicitIds.includes(String(product.id)) || categoryIds.includes(String(product.categoryId)));
-          const selectedCategories = section.type === 'category_collection' ? store.categories.filter(category => String(category.parent_category_id || '') === String(section.categoryId || '')) : [];
-          return <section className="home-section hm-custom-home-section" key={section.id || section.title} style={{"--hm-section-desktop-columns":Math.max(1,Math.min(6,Number(section.desktopColumns||4))),"--hm-section-mobile-columns":Math.max(1,Math.min(2,Number(section.mobileColumns||2)))}}>
-            <div className="container">
-              <div className="home-section-heading"><div><p className="eyebrow">HAFIZ MART COLLECTION</p><h2>{section.title || 'Featured Collection'}</h2></div><Link className="text-link" to={section.categoryId && store.categories.find(c=>String(c.id)===String(section.categoryId)) ? `/shop?category=${encodeURIComponent(store.categories.find(c=>String(c.id)===String(section.categoryId)).name)}` : '/shop'}>View All <ArrowRight size={15}/></Link></div>
-              {selectedCategories.length ? <div className="home-category-grid">{selectedCategories.map(category => <Link className="home-category-card" key={category.id} to={`/categories?category=${encodeURIComponent(category.name)}`}><CategoryArtwork category={category} image={category.image}/><div className="home-category-copy"><strong>{category.name}</strong><span>Explore collection</span></div><span className="category-card-arrow"><ArrowRight size={17}/></span></Link>)}</div>
-                : selectedProducts.length ? <div className="home-product-grid">{selectedProducts.map(product => <ProductCard key={product.id} product={product} onToast={setToast}/>)}</div>
-                : <div className="home-category-coming-soon"><strong>No products selected yet</strong><span>Choose products or a category in the Homepage Section Manager.</span></div>}
-            </div>
-          </section>;
-        })}
-
-        {/* STAY UPDATED */}
-        <section className="home-section home-newsletter-section">
-          <div className="container">
-
-            <div className="home-newsletter">
-              <div className="home-newsletter-content">
-                <p className="eyebrow">STAY CONNECTED</p>
-
-                <h2>Stay Updated</h2>
-
-                <p>
-                  Get updates about new products, special offers
-                  and the latest deals from Hafiz Mart.
-                </p>
-              </div>
-
-              <div className="newsletter-form-area">
-              <form
-  className="home-newsletter-form"
-  onSubmit={async (e) => {
-    e.preventDefault();
-
-    const email = newsletterEmail.trim().toLowerCase();
-
-    if (!email) return;
-
-    setNewsletterBusy(true);
-    setNewsletterMessage("");
-
-    const { error } = await supabase
-      .from("newsletter_subscribers")
-      .insert({
-        email
-      });
-
-    if (error) {
-
-      if (error.code === "23505") {
-        setNewsletterMessage(
-          "You're already subscribed. Thank you!"
-        );
-      } else {
-        logSafeError('Newsletter subscription error:', error);
-
-        setNewsletterMessage(
-          "Something went wrong. Please try again."
-        );
-      }
-
-    } else {
-
-      setNewsletterMessage(
-        "Thank you for subscribing!"
-      );
-
-      setNewsletterEmail("");
-    }
-
-    setNewsletterBusy(false);
-  }}
->
-  <input
-    type="email"
-    value={newsletterEmail}
-    onChange={(e) => {
-      setNewsletterEmail(e.target.value);
-      setNewsletterMessage("");
-    }}
-    placeholder="Enter your email address"
-    required
-  />
-
-  <button
-    type="submit"
-    className="gold-btn"
-    disabled={newsletterBusy}
-  >
-    {newsletterBusy
-      ? "Subscribing..."
-      : "Subscribe"}
-  </button>
-</form>
-
-<div className="newsletter-socials" aria-label="Follow Hafiz Mart">
-  <div>{storeSocialLinks().filter(item => ['Facebook','WhatsApp','Instagram'].includes(item.label)).map(item => <a key={item.label} href={item.url} target="_blank" rel="noreferrer" className={`newsletter-social-link social-${item.label.toLowerCase()}`} aria-label={`Open Hafiz Mart on ${item.label}`} title={item.label}>{item.icon}</a>)}</div>
-</div>
-
-{newsletterMessage && (
-  <p className="newsletter-message" role="status" aria-live="polite">
-    {newsletterMessage}
-  </p>
-)}
-              </div>
-            </div>
-
-          </div>
-        </section>
-                <HomeTestimonials />
-
-        {/* TRUST */}
-        <section className="home-trust">
-          <div className="container home-trust-grid">
-
-            <div className="home-trust-item">
-              <div>🚚</div>
-              <strong>Fast Delivery</strong>
-              <span>
-                Reliable delivery across Pakistan.
-              </span>
-            </div>
-
-            <div className="home-trust-item">
-              <div>🔒</div>
-              <strong>Secure Shopping</strong>
-              <span>
-                Your shopping experience stays simple and secure.
-              </span>
-            </div>
-
-            <div className="home-trust-item">
-              <div>💬</div>
-              <strong>WhatsApp Support</strong>
-              <span>
-                Get help and order assistance through WhatsApp.
-              </span>
-            </div>
-
-          </div>
-        </section>
-
-      </main>
-
-      <Toast
-        message={toast}
-        onClose={() => setToast("")}
-      />
-    </>
-  );
+      <section className="home-section home-newsletter-section hm-reference-newsletter"><div className="container"><div className="home-newsletter"><div className="home-newsletter-content"><p className="eyebrow">STAY IN THE LOOP</p><h2>Get the Best Deals First</h2><p>Subscribe for new arrivals, exclusive offers and special discounts from Hafiz Mart.</p></div><div className="newsletter-form-area"><form className="home-newsletter-form" onSubmit={async e=>{e.preventDefault();const email=newsletterEmail.trim().toLowerCase();if(!email)return;setNewsletterBusy(true);setNewsletterMessage("");try{const {error}=await supabase.from("newsletter_subscribers").insert({email});if(error){setNewsletterMessage(error.code==="23505"?"You're already subscribed. Thank you!":"Something went wrong. Please try again.");}else{setNewsletterMessage("Thank you for subscribing!");setNewsletterEmail("");}}catch(error){logSafeError("Newsletter subscription error:",error);setNewsletterMessage("Something went wrong. Please try again.");}finally{setNewsletterBusy(false);}}}><input type="email" value={newsletterEmail} onChange={e=>{setNewsletterEmail(e.target.value);setNewsletterMessage("");}} placeholder="Enter your email address" required/><button type="submit" className="gold-btn" disabled={newsletterBusy}>{newsletterBusy?"Subscribing...":"Subscribe"}</button></form>{newsletterMessage&&<p className="newsletter-message" role="status">{newsletterMessage}</p>}<div className="newsletter-socials" aria-label="Follow Hafiz Mart"><div>{storeSocialLinks().filter(item=>["Facebook","WhatsApp","Instagram"].includes(item.label)).map(item=><a key={item.label} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</div></div></div></div></div></section>
+      <HomeTestimonials/>
+    </main>
+    <Toast message={toast} onClose={()=>setToast("")}/>
+  </>;
 }
-
 
 function StarRating({value=0,size=16}){
   return <span className="stars" role="img" aria-label={`${value} out of 5 stars`}>{[1,2,3,4,5].map(n=><Star key={n} size={size} fill={n<=Math.round(value)?"currentColor":"none"}/>)}</span>;
@@ -6764,6 +6401,6 @@ function AppRoutes(){
   try { window.__HAFIZ_STORE_SETTINGS__ = store.adminSettings || DEFAULT_ADMIN_SETTINGS; } catch {} return <><Navbar/>{(!maintenance||bypass)&&<AnnouncementBar/>}{maintenance&&!bypass?<MaintenancePage/>:<Routes>
     <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/store-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/publisher-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/contact-us" element={<ContactUsPage/>}/><Route path="/contact" element={<ContactUsPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
     <Route path="/admin/security/mfa" element={<AdminMfaSecurityPage/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="This page does not exist." action="Back Home" to="/"/></main>}/>
-  </Routes>}<WhatsAppButton/><footer className="footer"><div className="container footer-inner"><img src={logo} alt="Hafiz Mart"/><div className="footer-center"><div className="footer-support"><nav className="footer-links" aria-label="Footer links"><Link to="/faq">FAQ</Link><Link to="/privacy-policy">Privacy Policy</Link><Link to="/track-order">Track Order</Link><Link to="/complaints">Support</Link></nav><nav className="footer-socials" aria-label="Social media">{storeSocialLinks().map(item=><a key={item.label} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</nav></div><span className="footer-copyright">© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span></div></div></footer></>;
+  </Routes>}<WhatsAppButton/><footer className="footer hm-full-footer"><div className="container footer-inner"><div className="hm-footer-brand"><img src={logo} alt="Hafiz Mart"/><p>Your everyday shopping destination. Discover great products, great prices, and a better way to shop.</p><nav className="footer-socials" aria-label="Social media">{storeSocialLinks().map(item=><a key={item.label} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</nav></div><div className="footer-center"><div className="hm-footer-columns"><div><strong>Quick Links</strong><nav className="footer-links" aria-label="Quick links"><Link to="/shop">Shop All</Link><Link to="/deals">Deals & Offers</Link><Link to="/categories">Categories</Link><Link to="/cart">Shopping Cart</Link><Link to="/wishlist">My Wishlist</Link></nav></div><div><strong>Categories</strong><nav className="footer-links" aria-label="Product categories"><Link to="/categories?category=Mobiles">Mobiles & Tablets</Link><Link to="/categories?category=Laptops">Laptops & Computers</Link><Link to="/categories?category=Fashion">Fashion & Clothing</Link><Link to="/categories?category=Home">Home & Kitchen</Link><Link to="/categories">All Categories</Link></nav></div><div><strong>Customer Service</strong><nav className="footer-links" aria-label="Customer service"><Link to="/track-order">Track Your Order</Link><Link to="/faq">FAQs</Link><Link to="/complaints">Help & Support</Link><Link to="/contact-us">Contact Us</Link><Link to="/privacy-policy">Privacy Policy</Link></nav></div></div><div className="hm-footer-bottom"><span className="footer-copyright">© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span><div className="hm-payment-methods" aria-label="Payment methods"><span>COD</span><span>VISA</span><span>Mastercard</span><span>Bank Transfer</span></div></div></div></div></footer></>;
 }
 export default function App(){ useEffect(()=>{ try { document.documentElement.removeAttribute('data-theme'); localStorage.removeItem('hafiz-mart-theme'); } catch {} },[]); return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
