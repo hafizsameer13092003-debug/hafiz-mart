@@ -10156,3 +10156,25 @@ body:has(.hm-product-breadcrumb) .container:has(> .product-reviews), body:has(.h
 [data-theme="light"] .detail-description { color: #68645d !important; }
 [data-theme="light"] .detail-price strong { color: #22211e !important; }
 [data-theme="light"] .review-form-wrap { background: linear-gradient(110deg, #faf7f1, #fff 65%, #f8f8f0) !important; }
+
+
+/* Product detail route uses an editorial ivory canvas; the global site header/footer retain their dark brand treatment. */
+.page:has(.hm-product-breadcrumb) {
+  background: #fff !important;
+  color: #292722 !important;
+}
+.page:has(.hm-product-breadcrumb) .container { color: #292722; }
+.page:has(.hm-product-breadcrumb) .eyebrow { color: #b78320; }
+.page:has(.hm-product-breadcrumb) h2,
+.page:has(.hm-product-breadcrumb) h3 { color: #292722; }
+.page:has(.hm-product-breadcrumb) .muted { color: #6c675e; }
+.page:has(.hm-product-breadcrumb) .review-form input,
+.page:has(.hm-product-breadcrumb) .review-form textarea {
+  color: #292722;
+  background: #fff;
+  border-color: #e3ddd2;
+}
+.page:has(.hm-product-breadcrumb) .review-form input::placeholder,
+.page:has(.hm-product-breadcrumb) .review-form textarea::placeholder { color: #918a80; }
+.page:has(.hm-product-breadcrumb) .review-login a,
+.page:has(.hm-product-breadcrumb) .review-login button { color: #19150d !important; }
