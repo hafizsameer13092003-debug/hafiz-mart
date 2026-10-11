@@ -335,3 +335,5 @@ body:has(.hm-reference-home) .hm-full-footer .footer-inner{grid-template-columns
 @media(max-width:900px){.category-directory-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:620px){.category-directory-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.category-directory-card{padding:14px 10px}.category-directory-card .category-artwork{width:60px;height:60px;min-height:60px}}
 
 .hm-product-form{background:#f8faf6!important;color:#203b2b!important;border-color:#dce5d7!important}.hm-product-form .form-grid{gap:18px}.hm-product-form .form-grid label{color:#344c3a!important}.hm-product-form .hm-product-type-hint{background:#eaf2e4!important;border:1px solid #d4e2cd!important;color:#31523a!important;border-radius:12px;padding:16px}.hm-product-form .hm-product-type-hint strong{color:#1d4b30!important}.hm-product-form .hm-product-type-hint p{color:#617663!important}.hm-product-form .upload-head strong,.hm-product-form .upload-head small{color:#203b2b!important}.hm-product-form .upload-empty svg{color:#497d50!important}
+
+.hm-video-uploader{grid-column:span 2}@media(max-width:700px){.hm-video-uploader{grid-column:1/-1}}
