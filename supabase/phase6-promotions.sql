@@ -47,9 +47,10 @@ create unique index if not exists coupons_code_uidx on public.coupons(code);
 create index if not exists coupons_status_idx on public.coupons(status);
 
 -- =========================
--- PROMOTIONAL BANNER IMAGE
+-- PROMOTIONAL BANNER IMAGE + SELECTED CAMPAIGN PRODUCTS
 -- =========================
 alter table public.banners add column if not exists image_url text;
+alter table public.banners add column if not exists product_ids text[] not null default '{}'::text[];
 
 -- =========================
 -- RLS
