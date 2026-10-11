@@ -10834,3 +10834,60 @@ body:has(.hm-reference-home) .hm-full-footer .footer-inner{grid-template-columns
 .page .cart-layout .summary .whatsapp-order{background:#fff!important;color:#1d2230!important;border:1px solid #d9d2c1!important}
 .page .cart-layout .summary .whatsapp-order:hover{border-color:#b8862b!important;color:#9a6d1c!important}
 .page .cart-layout .summary .gold-btn{color:#1a1405!important}
+
+/* ==========================================================================
+   v3 additions (appended; nothing above was edited)
+   1) Breadcrumbs: current page name was #ddd on a light page (invisible)
+   2) Categories page redesign (.hmc-*)
+   ========================================================================== */
+
+/* 1) Breadcrumbs (categories + product pages) */
+.page .hm-category-breadcrumb,.page .hm-product-breadcrumb{color:#6b7280!important;font-size:13px}
+.page .hm-category-breadcrumb a,.page .hm-product-breadcrumb a{color:#9a6d1c!important;font-weight:600;text-decoration:none}
+.page .hm-category-breadcrumb a:hover,.page .hm-product-breadcrumb a:hover{text-decoration:underline}
+.page .hm-category-breadcrumb span,.page .hm-product-breadcrumb span{color:#1d2230!important;font-weight:700}
+.page .hm-category-breadcrumb svg,.page .hm-product-breadcrumb svg{color:#a8a08c}
+.page .category-leaf-panel{background:#fff!important;border:1px solid #e4dfd3!important}
+.page .category-leaf-panel p{color:#5c6275!important}
+
+/* 2) Categories page */
+.hmc-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hmc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin-top:8px}
+.hmc-card{--accent:#2f6b4d;--tint:#e6f0e3;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid #e4dfd3;border-radius:20px;color:#1d2230;text-decoration:none;transition:transform .25s,box-shadow .25s,border-color .25s}
+.hmc-card:hover{transform:translateY(-4px);border-color:#c9a45a;box-shadow:0 20px 40px rgba(40,30,10,.12)}
+.hmc-card:focus-visible{outline:3px solid #b98b2a;outline-offset:3px}
+.hmc-media{position:relative;display:grid;place-items:center;height:176px;background:linear-gradient(135deg,var(--tint),#fff 130%);background-size:cover;background-position:center;color:var(--accent)}
+.hmc-media.has-image::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 50%,rgba(0,0,0,.32))}
+.hmc-media>svg{opacity:.9}
+.hmc-badge{position:absolute;left:14px;top:14px;z-index:1;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.94);color:#2b3144;font-size:11px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.hmc-body{display:flex;flex-direction:column;flex:1;gap:8px;padding:20px 22px 22px}
+.hmc-body h2{margin:0;font:600 24px/1.15 Georgia,"Times New Roman",serif;letter-spacing:-.4px;color:#1d2230}
+.hmc-body p{margin:0;font-size:13px;color:#667085}
+.hmc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.hmc-chips span{padding:5px 11px;border-radius:999px;background:var(--tint);color:var(--accent);font-size:11px;font-weight:700}
+.hmc-cta{display:inline-flex;align-items:center;gap:8px;margin-top:auto;padding-top:14px;font-size:13px;font-weight:800;color:#9a6d1c}
+.hmc-cta svg{transition:transform .2s}
+.hmc-card:hover .hmc-cta svg{transform:translateX(4px)}
+.hmc-card.is-empty .hmc-cta{color:#98a0ae}
+.hmc-card.is-empty .hmc-media{filter:saturate(.55)}
+.hmc-t-women,.hmc-t-custom-rose{--accent:#b4476b;--tint:#fbe8ee}
+.hmc-t-men{--accent:#2f5d8a;--tint:#e5eef8}
+.hmc-t-fragrance{--accent:#8a5fb0;--tint:#f1e8f8}
+.hmc-t-home{--accent:#a8742a;--tint:#f8eddc}
+.hmc-t-tech{--accent:#3f6f73;--tint:#e2f0f0}
+.hmc-t-cosmetics{--accent:#c0577a;--tint:#fce9ef}
+.hmc-t-jewelry,.hmc-t-custom-sand{--accent:#9a7a3c;--tint:#f8efd8}
+.hmc-t-islamic,.hmc-t-custom-sage{--accent:#2f6b4d;--tint:#e3f1e8}
+.hmc-t-bags{--accent:#8a5a3b;--tint:#f4e9df}
+.hmc-t-other{--accent:#5d6e60;--tint:#eaeee6}
+.hmc-t-custom-blue{--accent:#3f6a9a;--tint:#e4edf7}
+.hmc-t-custom-lilac{--accent:#7a63a8;--tint:#eee8f7}
+@media (max-width:1000px){.hmc-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}}
+@media (max-width:620px){
+  .hmc-grid{grid-template-columns:1fr;gap:14px}
+  .hmc-media{height:140px}
+  .hmc-body h2{font-size:22px}
+  .hmc-actions{width:100%}
+}
+.page .hmc-actions .ghost-btn{background:#fff!important;color:#1d2230!important;border:1px solid #d9d2c1!important}
+.page .hmc-actions .ghost-btn:hover{border-color:#b8862b!important;color:#9a6d1c!important}

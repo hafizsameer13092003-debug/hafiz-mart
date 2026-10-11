@@ -2479,32 +2479,44 @@ function Categories() {
     breadcrumbs.unshift(cursor);
     cursor = store.categories.find(item => String(item.id) === String(cursor.parent_category_id || ''));
   }
+  const categoryPath = category => `/categories?category=${encodeURIComponent(category.name)}&categoryId=${encodeURIComponent(category.id)}`;
+  const shopPath = category => `/shop?category=${encodeURIComponent(category.name)}&categoryId=${encodeURIComponent(category.id)}`;
   const categoryCard = category => {
-    const children = store.categories.filter(child => String(child.parent_category_id || '') === String(category.id));
+    const children = store.categories
+      .filter(child => String(child.parent_category_id || '') === String(category.id))
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
     const count = getCategoryProductCount(store.categories, store.products, category.id);
     const descendants = new Set(getCategoryDescendantIds(store.categories, category.id));
     const image = category.image || children.find(child => child.image)?.image || store.products.find(product => descendants.has(String(product.categoryId)) && product.image)?.image || '';
-    const nextPath = children.length
-      ? `/categories?category=${encodeURIComponent(category.name)}`
-      : `/shop?category=${encodeURIComponent(category.name)}`;
-    return <Link className="category-directory-card" key={category.id} to={nextPath}>
-      <CategoryArtwork category={category} image={image} />
-      <div className="category-directory-copy">
-        <span className="category-directory-kicker">{children.length ? 'COLLECTION' : 'SHOP CATEGORY'}</span>
+    const { theme, Icon } = getCategoryArtworkInfo(category.name);
+    const isCollection = children.length > 0;
+    const productText = count === 0 ? 'No products yet' : `${count} ${count === 1 ? 'product' : 'products'}`;
+    const badge = isCollection ? `${children.length} ${children.length === 1 ? 'subcategory' : 'subcategories'}` : productText;
+    const cta = isCollection ? 'Explore collection' : count > 0 ? 'Shop now' : 'Coming soon';
+    return <Link className={`hmc-card hmc-t-${theme}${!isCollection && count === 0 ? ' is-empty' : ''}`} key={category.id} to={isCollection ? categoryPath(category) : shopPath(category)}>
+      <div className={`hmc-media${image ? ' has-image' : ''}`} style={image ? { backgroundImage: `url(${JSON.stringify(image)})` } : undefined}>
+        {!image && <Icon size={56} strokeWidth={1.3} aria-hidden="true"/>}
+        <span className="hmc-badge">{badge}</span>
+      </div>
+      <div className="hmc-body">
         <h2>{category.name}</h2>
-        <p>{children.length ? `${children.length} subcategories` : `${count} ${count === 1 ? 'product' : 'products'} available`}</p>
-        {children.length > 0 && <div className="category-directory-subcats">{children.slice(0, 3).map(child => <span key={child.id}>{child.name}</span>)}{children.length > 3 && <span>+{children.length - 3} more</span>}</div>}
-        <span className="category-directory-arrow"><ArrowRight size={17} /></span>
+        <p>{isCollection ? productText : 'Browse this category'}</p>
+        {isCollection && <div className="hmc-chips">{children.slice(0, 4).map(child => <span key={child.id}>{child.name}</span>)}{children.length > 4 && <span>+{children.length - 4} more</span>}</div>}
+        <span className="hmc-cta">{cta} <ArrowRight size={16}/></span>
       </div>
     </Link>;
   };
+  const parentCategory = breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2] : null;
   return <main className="page"><div className="container">
     <div className="page-head"><div><p className="eyebrow">DISCOVER</p><h1>{selected ? selected.name : 'Categories'}</h1><p>{selected ? 'Explore this collection and choose a subcategory.' : 'Explore all Hafiz Mart collections.'}</p></div>
-      {selected && <Link className="ghost-btn" to={breadcrumbs.length > 1 ? `/categories?category=${encodeURIComponent(breadcrumbs[breadcrumbs.length - 2].name)}` : '/categories'}>Back to {breadcrumbs.length > 1 ? breadcrumbs[breadcrumbs.length - 2].name : 'all categories'}</Link>}
+      {selected && <div className="hmc-actions">
+        <Link className="ghost-btn" to={parentCategory ? categoryPath(parentCategory) : '/categories'}>Back to {parentCategory ? parentCategory.name : 'all categories'}</Link>
+        <Link className="gold-btn" to={shopPath(selected)}>Shop all {selected.name} <ArrowRight size={16}/></Link>
+      </div>}
     </div>
-    {selected && <nav className="hm-category-breadcrumb" aria-label="Breadcrumb"><Link to="/categories">Categories</Link>{breadcrumbs.map((item, index) => <React.Fragment key={item.id}><ChevronRight size={14}/>{index === breadcrumbs.length - 1 ? <span>{item.name}</span> : <Link to={`/categories?category=${encodeURIComponent(item.name)}`}>{item.name}</Link>}</React.Fragment>)}</nav>}
-    {visibleCategories.length ? <div className="category-grid large category-directory-grid">{visibleCategories.map(categoryCard)}</div> :
-      selected ? <div className="category-leaf-panel"><p>This category has no subcategories.</p><Link className="gold-btn" to={`/shop?category=${encodeURIComponent(selected.name)}`}>View Products <ArrowRight size={16}/></Link></div> :
+    {selected && <nav className="hm-category-breadcrumb" aria-label="Breadcrumb"><Link to="/categories">Categories</Link>{breadcrumbs.map((item, index) => <React.Fragment key={item.id}><ChevronRight size={14}/>{index === breadcrumbs.length - 1 ? <span aria-current="page">{item.name}</span> : <Link to={categoryPath(item)}>{item.name}</Link>}</React.Fragment>)}</nav>}
+    {visibleCategories.length ? <div className="hmc-grid">{visibleCategories.map(categoryCard)}</div> :
+      selected ? <div className="category-leaf-panel"><p>This category has no subcategories.</p><Link className="gold-btn" to={shopPath(selected)}>View Products <ArrowRight size={16}/></Link></div> :
       <EmptyState title="Categories Coming Soon" text="New collections will appear here as they are added." icon={Tag}/>}
     {!selected && mainCategories.length > 3 && <p className="hm-category-note">Showing the full category directory. Choose a collection to explore its subcategories.</p>}
   </div></main>;
