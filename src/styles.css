@@ -10116,8 +10116,6 @@ body:has(.hm-product-breadcrumb) .container:has(> .product-reviews), body:has(.h
 .hm-video-uploader .upload-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; min-height: 42px !important; opacity: 1 !important; visibility: visible !important; cursor: pointer !important; }
 .hm-video-uploader .upload-btn svg { display: inline-block !important; opacity: 1 !important; visibility: visible !important; flex: 0 0 auto; }
 .hm-video-uploader .upload-btn:hover, .hm-video-uploader .upload-btn:focus-visible { filter: brightness(1.12); outline: 2px solid #e5c36e; outline-offset: 2px; }
-<<<<<<< HEAD
-=======
 /* Targeted usability fixes: preserve existing layout widths; reduce footer height only. */
 .hm-full-footer { padding-top: 22px !important; padding-bottom: 10px !important; }
 .hm-full-footer .footer-inner { align-items: start !important; gap: 24px !important; }
@@ -10836,4 +10834,3 @@ body:has(.hm-reference-home) .hm-full-footer .footer-inner{grid-template-columns
 .page .cart-layout .summary .whatsapp-order{background:#fff!important;color:#1d2230!important;border:1px solid #d9d2c1!important}
 .page .cart-layout .summary .whatsapp-order:hover{border-color:#b8862b!important;color:#9a6d1c!important}
 .page .cart-layout .summary .gold-btn{color:#1a1405!important}
->>>>>>> d74b85b (UI Design 3)

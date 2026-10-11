@@ -1604,105 +1604,6 @@ function ProductCard({ product, onToast }) {
   </motion.article>;
 }
 
-<<<<<<< HEAD
-function Home() {
-  const { store } = useStore();
-  const contentSettings = store.adminSettings?.content || DEFAULT_ADMIN_SETTINGS.content || {};
-  const [toast, setToast] = useState("");
-  const [newsletterEmail, setNewsletterEmail] = useState("");
-  const [newsletterBusy, setNewsletterBusy] = useState(false);
-  const [newsletterMessage, setNewsletterMessage] = useState("");
-  const activeProducts = store.products.filter(p => p.status !== "inactive");
-  const categories = sortMainCategories(store.categories);
-  const featured = activeProducts.slice(0, 5);
-  const categoryNames = [
-    { name: 'Mens', emoji: '👔', mode: 'category' },
-    { name: 'Womens', emoji: '👗', mode: 'category' },
-    { name: 'Fragrances', emoji: '🌸', mode: 'category' },
-    { name: 'Other Categories', emoji: '▦', mode: 'all' }
-  ];
-  const normaliseCategoryName = value => String(value||'').toLowerCase().replace(/[^a-z0-9]/g,''); const categoryFor = name => categories.find(c => normaliseCategoryName(c.name) === normaliseCategoryName(name)) || categories.find(c => {const actual=normaliseCategoryName(c.name);const wanted=normaliseCategoryName(name);return actual.includes(wanted)||wanted.includes(actual)||(wanted==='mens'&&actual==='men')||(wanted==='womens'&&actual==='women');});
-  const categoryHref = name => {
-    const found = categoryFor(name);
-    return found ? `/categories?category=${encodeURIComponent(found.name)}` : "/categories";
-  };
-  const heroProductIds = Array.isArray(contentSettings.heroProductIds) ? contentSettings.heroProductIds.map(String) : [];
-  const collage = (heroProductIds.length ? heroProductIds.map(id => activeProducts.find(p => String(p.id) === id)).filter(Boolean) : activeProducts).slice(0, 4);
-  return <>
-    <SaleBanner />
-    <main className="home-page hm-reference-home">
-      <section className="home-hero hm-reference-hero">
-        <div className="container home-hero-grid">
-          <motion.div className="home-hero-copy" initial={{opacity:0,x:-20}} animate={{opacity:1,x:0}} transition={{duration:.5}}>
-            <p className="eyebrow hm-sale-pill"><Sparkles size={14}/> {contentSettings.heroEyebrow || 'MEGA SALE'} <span>• LIMITED TIME OFFERS</span></p>
-            <h1>{(contentSettings.heroHeadline || 'Upgrade Your Lifestyle Today').split(' ').slice(0,2).join(' ')} <span>{(contentSettings.heroHeadline || 'Upgrade Your Lifestyle Today').split(' ').slice(2).join(' ')}</span></h1>
-            <p>{contentSettings.heroDescription || 'Discover the best products at unbeatable prices. Shop smarter, live better!'}</p>
-            <div className="hero-buttons">
-              <Link className="gold-btn" to="/shop">Shop Now <ArrowRight size={17}/></Link>
-              <Link className="ghost-btn" to="/categories">Explore Categories</Link>
-            </div>
-            <div className="hm-hero-benefits">
-              <div><span>✓</span><strong>Best Prices</strong></div>
-              <div><span>✓</span><strong>Secure Payment</strong></div>
-              <div><span>✓</span><strong>Fast Delivery</strong></div>
-            </div>
-          </motion.div>
-          <motion.div className="home-hero-visual hm-reference-collage" initial={{opacity:0,scale:.97}} animate={{opacity:1,scale:1}} transition={{duration:.6}}>
-            <div className="hm-collage-orbit"></div>
-            {collage[0] && <Link to={`/product/${collage[0].id}`} className="hm-collage-item hm-collage-main"><img src={collage[0].image || logo} alt={collage[0].name}/><span>{collage[0].name}</span></Link>}
-            {collage[1] && <Link to={`/product/${collage[1].id}`} className="hm-collage-item hm-collage-top"><img src={collage[1].image || logo} alt={collage[1].name}/></Link>}
-            {collage[2] && <Link to={`/product/${collage[2].id}`} className="hm-collage-item hm-collage-left"><img src={collage[2].image || logo} alt={collage[2].name}/></Link>}
-            {collage[3] && <Link to={`/product/${collage[3].id}`} className="hm-collage-item hm-collage-bottom"><img src={collage[3].image || logo} alt={collage[3].name}/></Link>}
-            {!collage.length && <div className="hm-collage-fallback"><span>HAFIZ MART</span><strong>Everyday essentials.<br/>Extraordinary value.</strong><ShoppingBag size={100}/></div>}
-            <div className="hm-floating-sale">MEGA<br/><strong>SALE</strong><span>UP TO 50% OFF</span></div>
-          </motion.div>
-        </div>
-      </section>
-
-      <section className="hm-benefit-strip container" aria-label="Shopping benefits">
-        <div><span className="hm-benefit-icon">🚚</span><span><strong>Fast Delivery</strong><small>Quick delivery across Pakistan</small></span></div>
-        <div><span className="hm-benefit-icon">🔒</span><span><strong>Secure Payment</strong><small>Safe & trusted checkout</small></span></div>
-        <div><span className="hm-benefit-icon">↩</span><span><strong>Easy Returns</strong><small>Shopping without worries</small></span></div>
-        <div><span className="hm-benefit-icon">💬</span><span><strong>24/7 Support</strong><small>We're here to help</small></span></div>
-      </section>
-
-      <section className="home-section hm-reference-categories">
-        <div className="container">
-          <div className="home-section-heading"><div><p className="eyebrow">FIND YOUR FAVOURITES</p><h2>Shop by Category</h2><p className="hm-section-subtitle">Explore our wide range of products</p></div><Link className="text-link" to="/categories">View All Categories <ArrowRight size={15}/></Link></div>
-          <div className="hm-category-reference-grid">
-            {categoryNames.map((item,index)=>{const found=categories.find(c=>c.name.toLowerCase()===item.name.toLowerCase());const href=item.mode==='all'?'/categories':found?categoryHref(found.name):'/categories';return <Link className="hm-category-reference-card" key={item.name} to={href}><span className={`hm-category-emoji hm-category-tone-${index%4}`}>{item.emoji}</span><strong>{item.name}</strong></Link>;})}
-          </div>
-        </div>
-      </section>
-
-      <section className="home-section hm-reference-products home-section-dark">
-        <div className="container">
-          <div className="home-section-heading"><div><p className="eyebrow">HANDPICKED FOR YOU</p><h2>Featured Products</h2><p className="hm-section-subtitle">Our top picks, just for you</p></div><Link className="text-link" to="/shop">View All Products <ArrowRight size={15}/></Link></div>
-          {featured.length ? <div className="home-product-grid hm-featured-grid">{featured.map(product=><ProductCard key={product.id} product={product} onToast={setToast}/>)}</div> : <EmptyState title="Products Coming Soon" text="We're getting our best picks ready for you. Check back soon." action="Browse Shop" to="/shop"/>}
-        </div>
-      </section>
-
-      <section className="hm-promo-duo container">{(Array.isArray(contentSettings.promoCards) ? contentSettings.promoCards : []).filter(card=>card.visible!==false).map((card,index)=><article className={`hm-promo-tile hm-promo-${card.theme || (index%2?'fashion':'summer')}`} key={card.id||index}><div className="hm-promo-art" aria-hidden="true">{card.theme==='fashion'?'✦':card.theme==='winter'?'❄':'☀'}</div><p className="eyebrow">{card.eyebrow||'SPECIAL OFFER'}</p><h2>{card.title}</h2><p>{card.subtitle}</p><span>{card.description}</span><Link to={card.buttonLink||'/deals'} className="hm-promo-link">{card.buttonText||'Shop Now'} <ArrowRight size={15}/></Link></article>)}</section>
-
-      <section className="home-section hm-reference-why">
-        <div className="container"><div className="home-section-heading hm-centered-heading"><div><p className="eyebrow">THE HAFIZ MART PROMISE</p><h2>Why Choose Hafiz Mart?</h2><p className="hm-section-subtitle">A better way to shop, every single day.</p></div></div>
-          <div className="hm-why-grid">
-            <div><span>🚚</span><strong>Fast & Reliable Delivery</strong><p>Your favourite products delivered right to your doorstep.</p></div>
-            <div><span>🛡️</span><strong>Secure Shopping</strong><p>Your privacy and payments are treated with care.</p></div>
-            <div><span>💬</span><strong>Customer Support</strong><p>Friendly help whenever you need a hand.</p></div>
-            <div><span>🏷️</span><strong>Best Deals & Offers</strong><p>Great value and exciting deals on everyday favourites.</p></div>
-          </div>
-        </div>
-      </section>
-
-      <section className="home-section home-newsletter-section hm-reference-newsletter"><div className="container"><div className="home-newsletter"><div className="home-newsletter-content"><p className="eyebrow">STAY IN THE LOOP</p><h2>Get the Best Deals First</h2><p>Subscribe for new arrivals, exclusive offers and special discounts from Hafiz Mart.</p></div><div className="newsletter-form-area"><form className="home-newsletter-form" onSubmit={async e=>{e.preventDefault();const email=newsletterEmail.trim().toLowerCase();if(!email)return;setNewsletterBusy(true);setNewsletterMessage("");try{const {error}=await supabase.from("newsletter_subscribers").insert({email});if(error){setNewsletterMessage(error.code==="23505"?"You're already subscribed. Thank you!":"Something went wrong. Please try again.");}else{setNewsletterMessage("Thank you for subscribing!");setNewsletterEmail("");}}catch(error){logSafeError("Newsletter subscription error:",error);setNewsletterMessage("Something went wrong. Please try again.");}finally{setNewsletterBusy(false);}}}><input type="email" value={newsletterEmail} onChange={e=>{setNewsletterEmail(e.target.value);setNewsletterMessage("");}} placeholder="Enter your email address" required/><button type="submit" className="gold-btn" disabled={newsletterBusy}>{newsletterBusy?"Subscribing...":"Subscribe"}</button></form>{newsletterMessage&&<p className="newsletter-message" role="status">{newsletterMessage}</p>}<div className="newsletter-socials" aria-label="Follow Hafiz Mart"><div>{storeSocialLinks().filter(item=>["Facebook","WhatsApp","Instagram"].includes(item.label)).map(item=><a key={item.label} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</div></div></div></div></div></section>
-      <HomeTestimonials/>
-    </main>
-    <Toast message={toast} onClose={()=>setToast("")}/>
-  </>;
-}
-
-=======
 function HomeExtraSections({ products, categories, excludeIds, settings, onToast }) {
   const shipping = (settings && settings.shipping) || DEFAULT_ADMIN_SETTINGS.shipping;
   const policies = (settings && settings.policies) || DEFAULT_ADMIN_SETTINGS.policies;
@@ -1875,7 +1776,6 @@ function Home() {
   </>;
 }
 
->>>>>>> d74b85b (UI Design 3)
 function StarRating({value=0,size=16}){
   return <span className="stars" role="img" aria-label={`${value} out of 5 stars`}>{[1,2,3,4,5].map(n=><Star key={n} size={size} fill={n<=Math.round(value)?"currentColor":"none"}/>)}</span>;
 }
@@ -6803,10 +6703,6 @@ function AppRoutes(){
   try { window.__HAFIZ_STORE_SETTINGS__ = store.adminSettings || DEFAULT_ADMIN_SETTINGS; } catch {} return <><Navbar/>{(!maintenance||bypass)&&<AnnouncementBar/>}{maintenance&&!bypass?<MaintenancePage/>:<Routes>
     <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/campaign/:id" element={<CampaignProducts/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/store-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/publisher-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/contact-us" element={<ContactUsPage/>}/><Route path="/contact" element={<ContactUsPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
     <Route path="/admin/security/mfa" element={<AdminMfaSecurityPage/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="This page does not exist." action="Back Home" to="/"/></main>}/>
-<<<<<<< HEAD
-  </Routes>}<WhatsAppButton/><footer className="footer hm-full-footer" aria-label="Hafiz Mart footer"><div className="container hm-footer-shell"><div className="hm-footer-main"><div className="hm-footer-brand"><Link to="/" aria-label="Hafiz Mart home" className="hm-footer-logo"><img src={logo} alt="Hafiz Mart"/><span><strong>Hafiz Mart</strong><small>Shop Smart, Live Better</small></span></Link></div><div className="hm-footer-columns"><div><strong>Shop</strong><nav className="footer-links" aria-label="Shop"><Link to="/shop">Men</Link><Link to="/shop">Women</Link><Link to="/shop">Fragrances</Link></nav></div><div><strong>Quick Links</strong><nav className="footer-links" aria-label="Quick links"><Link to="/">Home</Link><Link to="/contact-us">About Us</Link><Link to="/contact-us">Contact</Link></nav></div><div><strong>Support</strong><nav className="footer-links" aria-label="Support"><Link to="/faq">FAQs</Link><Link to="/track-order">Shipping</Link><Link to="/contact-us">Return &amp; Refund</Link></nav></div><div><strong>Follow Us</strong><nav className="footer-socials" aria-label="Social media">{storeSocialLinks().filter(item=>item.label!=='WhatsApp').map(item=><a key={item.label} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</nav></div></div></div><div className="hm-footer-bottom"><div className="hm-footer-trust"><span><Truck aria-hidden="true"/>Cash on Delivery</span><i aria-hidden="true"/><span><ShieldCheck aria-hidden="true"/>Hafiz Mart</span></div><div className="hm-footer-legal"><span className="footer-copyright">© {new Date().getFullYear()} Hafiz Mart. All rights reserved.</span><div className="hm-payment-methods" aria-label="Payment methods"><span className="hm-pay-visa">VISA</span><span className="hm-pay-mastercard"><i/><i/></span><span className="hm-pay-jazzcash">JazzCash</span><span className="hm-pay-easypaisa">easypaisa</span></div></div></div></div></footer></>;
-=======
   </Routes>}<WhatsAppButton/><HafizFooter/></>;
->>>>>>> d74b85b (UI Design 3)
 }
 export default function App(){ useEffect(()=>{ try { document.documentElement.removeAttribute('data-theme'); localStorage.removeItem('hafiz-mart-theme'); } catch {} },[]); return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
