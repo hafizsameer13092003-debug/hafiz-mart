@@ -1592,6 +1592,7 @@ function ProductCard({ product, onToast }) {
 
 function Home() {
   const { store } = useStore();
+  const contentSettings = store.adminSettings?.content || DEFAULT_ADMIN_SETTINGS.content || {};
   const [toast, setToast] = useState("");
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterBusy, setNewsletterBusy] = useState(false);
