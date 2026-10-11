@@ -1,11 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
-const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+const supabaseAnonKey = String(
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  ''
+).trim();
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  // Do not silently fall back to a hard-coded credential. Configure Vite/GitHub Actions env vars.
-  throw new Error('Supabase configuration missing: set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+  // Both Supabase's legacy anon key and its newer publishable key are safe for browser use.
+  // Never use a service-role/secret key in frontend code.
+  throw new Error(
+    'Supabase configuration missing: set VITE_SUPABASE_URL and either VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_PUBLISHABLE_KEY in your deployment environment.'
+  );
 }
 if (!/^https:\/\//i.test(supabaseUrl)) {
   throw new Error('VITE_SUPABASE_URL must be an HTTPS URL in production.');
