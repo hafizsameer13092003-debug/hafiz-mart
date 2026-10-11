@@ -405,3 +405,9 @@ body:has(.hm-reference-home) .hm-full-footer .footer-inner{grid-template-columns
   body:has(.hm-reference-home) .hm-footer-bottom { gap: 8px !important; margin-top: 8px !important; padding-top: 8px !important; }
   body:has(.hm-reference-home) .footer-copyright { padding-top: 8px !important; }
 }
+
+.hm-product-form .hm-custom-option > label { color: #2c4733 !important; }
+.hm-product-form .hm-custom-option input { background: #fff !important; border-color: #a8b7a3 !important; color: #1c3324 !important; }
+.hm-product-form .hm-custom-option .ghost-btn { color: #204d30 !important; border-color: #8da888 !important; background: #f6faf3 !important; }
+.hm-product-form .hm-custom-option-chip { color: #204d30; background: #e5f1db; border-color: #8cae82; }
+.hm-product-form .hm-custom-option-chip button { color: #204d30; }
