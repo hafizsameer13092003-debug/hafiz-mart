@@ -411,3 +411,43 @@ body:has(.hm-reference-home) .hm-full-footer .footer-inner{grid-template-columns
 .hm-product-form .hm-custom-option .ghost-btn { color: #204d30 !important; border-color: #8da888 !important; background: #f6faf3 !important; }
 .hm-product-form .hm-custom-option-chip { color: #204d30; background: #e5f1db; border-color: #8cae82; }
 .hm-product-form .hm-custom-option-chip button { color: #204d30; }
+
+
+/* Reference-matched compact Hafiz Mart footer, shared across every route. */
+.hm-full-footer{display:block!important;width:100%;padding:0!important;margin:0!important;background:#f6f9fa!important;color:#17243a!important;border-top:0!important;font-family:Inter,system-ui,sans-serif!important}
+.hm-footer-shell{width:min(1770px,calc(100% - 7.6%))!important;margin-inline:auto!important}
+.hm-footer-main{min-height:190px;display:grid;grid-template-columns:minmax(260px,1fr) minmax(600px,1.15fr);align-items:center;gap:48px;padding:28px 0 26px}
+.hm-footer-logo{display:inline-flex;align-items:center;gap:13px;color:#17243a!important;text-decoration:none!important}
+.hm-footer-logo img{display:block;width:42px!important;height:52px;max-height:52px!important;object-fit:contain;object-position:center}
+.hm-footer-logo span{display:flex;flex-direction:column;gap:4px}
+.hm-footer-logo strong{font-size:30px;line-height:1.1;letter-spacing:-.6px;color:#17243a!important;font-weight:750}
+.hm-footer-logo small{font-size:15px;color:#64748b!important;line-height:1.35;white-space:nowrap}
+.hm-full-footer .hm-footer-columns{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px!important;align-items:start}
+.hm-full-footer .hm-footer-columns>div{min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+.hm-full-footer .hm-footer-columns>div>strong{font-size:16px;font-weight:750;color:#17243a!important;margin:0 0 17px!important;line-height:1.25}
+.hm-full-footer .footer-links{display:flex;flex-direction:column;align-items:flex-start;gap:10px!important}
+.hm-full-footer .footer-links a{font-size:14px;color:#64748b!important;line-height:1.3!important;white-space:normal}
+.hm-full-footer .footer-links a:hover,.hm-full-footer .footer-links a:focus-visible{color:#173f31!important;text-decoration:underline;outline-offset:3px}
+.hm-full-footer .footer-socials{display:flex!important;align-items:center;justify-content:flex-start!important;gap:13px!important;flex-wrap:wrap}
+.hm-full-footer .footer-socials a{display:inline-flex!important;align-items:center;justify-content:center;width:24px!important;height:24px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:#101820!important}
+.hm-full-footer .footer-socials a svg{width:20px;height:20px}
+.hm-full-footer .footer-socials a:hover,.hm-full-footer .footer-socials a:focus-visible{color:#168451!important;transform:translateY(-1px)}
+.hm-full-footer .hm-footer-bottom{min-height:70px;display:flex;align-items:center;justify-content:space-between;gap:20px;border-top:1px solid #dce4e9;margin:0!important;padding:12px 0 16px!important}
+.hm-footer-trust,.hm-footer-legal,.hm-payment-methods{display:flex;align-items:center;gap:12px;min-width:0}
+.hm-footer-trust>span{display:inline-flex;align-items:center;gap:10px;color:#17243a;font-size:14px;font-weight:600;white-space:nowrap}
+.hm-footer-trust svg{width:25px;height:25px;color:#18a66a;stroke-width:2.5}
+.hm-footer-trust i{height:25px;width:1px;background:#cbd5df;margin:0 10px}
+.hm-footer-trust>span:last-child svg{color:#17243a}
+.hm-footer-legal{justify-content:flex-end;gap:24px}
+.hm-full-footer .footer-copyright{font-size:13px;color:#64748b!important;line-height:1.35!important;padding:0!important;white-space:nowrap}
+.hm-full-footer .hm-payment-methods{gap:8px!important;margin:0!important;flex-wrap:nowrap}
+.hm-payment-methods>span{height:35px;min-width:48px;padding:0 8px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;font-size:10px;font-weight:800;white-space:nowrap}
+.hm-payment-methods .hm-pay-visa{background:#fff;color:#174ea6;font-size:16px;font-style:italic}
+.hm-payment-methods .hm-pay-mastercard{background:#fff;flex-direction:row;min-width:50px;gap:0}
+.hm-pay-mastercard i{display:block;width:17px;height:17px;border-radius:50%;background:#eb1c2d}
+.hm-pay-mastercard i+i{background:#f6a800;margin-left:-5px;mix-blend-mode:multiply}
+.hm-payment-methods .hm-pay-jazzcash{background:#101010;color:#f5c342;font-size:9px}
+.hm-payment-methods .hm-pay-easypaisa{background:#101010;color:#e5f4e9;font-size:9px}
+@media(max-width:1050px){.hm-footer-main{grid-template-columns:1fr;gap:28px;padding:28px 0}.hm-full-footer .hm-footer-columns{gap:20px!important}.hm-footer-logo strong{font-size:26px}}
+@media(max-width:700px){.hm-footer-shell{width:calc(100% - 32px)!important}.hm-footer-main{min-height:0;gap:25px;padding:24px 0 22px}.hm-footer-logo img{width:36px!important;height:44px}.hm-footer-logo strong{font-size:24px}.hm-footer-logo small{font-size:13px}.hm-full-footer .hm-footer-columns{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 18px!important}.hm-full-footer .hm-footer-columns>div>strong{font-size:14px;margin-bottom:10px!important}.hm-full-footer .footer-links{gap:8px!important}.hm-full-footer .footer-links a{font-size:13px}.hm-full-footer .footer-socials{gap:10px!important}.hm-footer-bottom{align-items:flex-start!important;flex-direction:column;gap:13px!important;padding:14px 0 16px!important}.hm-footer-trust{width:100%;gap:8px}.hm-footer-trust>span{font-size:12px;gap:6px}.hm-footer-trust svg{width:20px;height:20px}.hm-footer-trust i{margin:0 4px}.hm-footer-legal{width:100%;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px!important}.hm-full-footer .footer-copyright{font-size:11px;white-space:normal}.hm-full-footer .hm-payment-methods{gap:5px!important}.hm-payment-methods>span{height:29px;min-width:39px;padding:0 5px;font-size:8px}.hm-payment-methods .hm-pay-visa{font-size:13px}}
+@media(max-width:380px){.hm-footer-trust>span{font-size:11px}.hm-footer-legal{flex-direction:column}.hm-full-footer .hm-footer-columns{gap:20px 12px!important}}
