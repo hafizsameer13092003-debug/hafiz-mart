@@ -78,7 +78,12 @@ create policy "Admins can delete coupons"
 on public.coupons for delete to authenticated
 using ((select public.is_admin()));
 
--- Ensure admins can manage banners (safe if these policies already exist).
+-- Ensure admins can view and manage banners (safe if these policies already exist).
+drop policy if exists "Admins can view banners" on public.banners;
+create policy "Admins can view banners"
+on public.banners for select to authenticated
+using ((select public.is_admin()));
+
 drop policy if exists "Admins can insert banners" on public.banners;
 create policy "Admins can insert banners"
 on public.banners for insert to authenticated
