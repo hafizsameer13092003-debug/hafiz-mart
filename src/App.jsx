@@ -1605,7 +1605,7 @@ function Home() {
     { name: 'Fragrances', emoji: '🌸', mode: 'category' },
     { name: 'Other Categories', emoji: '▦', mode: 'all' }
   ];
-  const categoryFor = name => categories.find(c => c.name.toLowerCase() === name.toLowerCase()) || categories.find(c => c.name.toLowerCase().includes(name.split(/[ &]/)[0].toLowerCase()));
+  const normaliseCategoryName = value => String(value||'').toLowerCase().replace(/[^a-z0-9]/g,''); const categoryFor = name => categories.find(c => normaliseCategoryName(c.name) === normaliseCategoryName(name)) || categories.find(c => {const actual=normaliseCategoryName(c.name);const wanted=normaliseCategoryName(name);return actual.includes(wanted)||wanted.includes(actual)||(wanted==='mens'&&actual==='men')||(wanted==='womens'&&actual==='women');});
   const categoryHref = name => {
     const found = categoryFor(name);
     return found ? `/categories?category=${encodeURIComponent(found.name)}` : "/categories";
