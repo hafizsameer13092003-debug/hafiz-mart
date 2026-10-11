@@ -10112,3 +10112,7 @@ body:has(.hm-product-breadcrumb) .container:has(> .product-reviews), body:has(.h
 .hm-campaign-product-list span { overflow-wrap: anywhere; font-size: 13px; }
 .hm-campaign-products .hm-campaign-warning { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; color: #ffe1a0; background: #38280e; border: 1px solid #70521e; }
 @media (max-width: 640px) { .hm-campaign-product-list { grid-template-columns: 1fr; } .hm-campaign-products { padding: 12px; } }
+
+.hm-video-uploader .upload-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; min-height: 42px !important; opacity: 1 !important; visibility: visible !important; cursor: pointer !important; }
+.hm-video-uploader .upload-btn svg { display: inline-block !important; opacity: 1 !important; visibility: visible !important; flex: 0 0 auto; }
+.hm-video-uploader .upload-btn:hover, .hm-video-uploader .upload-btn:focus-visible { filter: brightness(1.12); outline: 2px solid #e5c36e; outline-offset: 2px; }
