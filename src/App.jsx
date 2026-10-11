@@ -2615,20 +2615,32 @@ function ProductDetails() {
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [zoomOpen, setZoomOpen] = useState(false);
-  const [zoomPoint, setZoomPoint] = useState({ x: 50, y: 50 });
-  useEffect(() => { setSelectedVariant(null); setSelectedImage(0); setQty(1); }, [id]);
+  const [activeInfoTab, setActiveInfoTab] = useState("description");
+  useEffect(() => { setSelectedVariant(null); setSelectedImage(0); setQty(1); setActiveInfoTab("description"); }, [id]);
   if (!product) return <main className="page container"><EmptyState title="Product Not Found" text="This product is not available." action="Back to Shop" to="/shop"/></main>;
+
   const variants = Array.isArray(product.variants) ? product.variants : [];
   const colors = [...new Set(variants.map(v => v.color).filter(Boolean))];
   const sizes = [...new Set(variants.map(v => v.size).filter(Boolean))];
-  const gallery = [...(product.images || [])];
+  const gallery = [...(Array.isArray(product.images) ? product.images : [])];
   if (product.image && !gallery.includes(product.image)) gallery.unshift(product.image);
   variants.forEach(v => { if (v.image && !gallery.includes(v.image)) gallery.push(v.image); });
   const images = gallery.length ? gallery : [logo];
   const currentImage = selectedVariant?.image || images[Math.min(selectedImage, images.length - 1)];
-  const price = getEffectiveProductPrice(selectedVariant?.salePrice, selectedVariant?.sale_price, selectedVariant?.price, product.salePrice, product.price);
+  const price = Number(getEffectiveProductPrice(selectedVariant?.salePrice, selectedVariant?.sale_price, selectedVariant?.price, product.salePrice, product.price) || 0);
+  const originalPrice = Number(selectedVariant?.originalPrice ?? selectedVariant?.original_price ?? selectedVariant?.price ?? product.originalPrice ?? product.original_price ?? product.price ?? price);
+  const hasDiscount = originalPrice > price && price > 0;
+  const discountPercent = hasDiscount ? Math.round((1 - price / originalPrice) * 100) : 0;
   const stock = Number(selectedVariant?.stock ?? selectedVariant?.stock_quantity ?? product.stock ?? 0);
-  const wished = store.wishlist.includes(product.id);
+  const wished = store.wishlist.includes(product.id) || store.wishlist.includes(id);
+  const attributes = product.attributes && typeof product.attributes === "object" ? Object.entries(product.attributes).filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== "") : [];
+  const highlights = Array.isArray(product.highlights) ? product.highlights.filter(Boolean) : [];
+  const shortDescription = String(product.shortDescription || product.short_description || "").trim();
+  const fullDescription = String(product.description || "").trim();
+  const productSku = product.sku || product.SKU || String(product.id).slice(0, 12).toUpperCase();
+  const productBrand = product.brand || product.brandName || product.brand_name || "Hafiz Mart";
+  const productMaterial = product.material || product.fabric || product.material_type || "";
+  const productFit = product.fit || product.fit_type || product.silhouette || "";
   const selectVariant = (next) => {
     setSelectedVariant(next);
     if (next?.image) {
@@ -2637,37 +2649,95 @@ function ProductDetails() {
     }
     setQty(1);
   };
-  return <main className="page">
-    <div className="container hm-product-breadcrumb"><Link to="/">Home</Link><ChevronRight size={14}/><Link to="/shop">Shop</Link>{categoryTrail.map(category=><React.Fragment key={category.id}><ChevronRight size={14}/><Link to={`/categories?category=${encodeURIComponent(category.name)}`}>{category.name}</Link></React.Fragment>)}<ChevronRight size={14}/><span>{product.name}</span></div>
-    <div className="container product-detail">
-      <div className="detail-gallery">
-        <div className="detail-image hm-zoom-image" onClick={() => setZoomOpen(true)} role="button" tabIndex={0} onKeyDown={e => {if(e.key==='Enter'||e.key===' '){e.preventDefault();setZoomOpen(true);}}} aria-label="Open product image zoom">
-          <img src={currentImage} alt={product.name}/>
-          <span className="hm-zoom-hint"><Search size={13}/> Click to zoom</span>
-        </div>
-        {images.length>1&&<div className="thumbnail-row" aria-label={`${product.name} images`}>{images.map((src,i)=><button type="button" key={src+i} className={src===currentImage?'active':''} onClick={()=>{setSelectedImage(i);setSelectedVariant(null);}} aria-label={`View ${product.name} image ${i+1}`} aria-current={src===currentImage?'true':undefined}><img src={src} alt=""/></button>)}</div>}
-        {product.videoUrl && isSafeHttpUrl(product.videoUrl) && <a className="ghost-btn hm-video-link" href={product.videoUrl} target="_blank" rel="noreferrer"><ImageIcon size={16}/> Watch product video</a>}
-      </div>
-      <div className="detail-copy">
-        <p className="eyebrow">{product.category||"PRODUCT"}</p><h1>{product.name}</h1>
-        <p className="detail-description">{product.description||product.shortDescription||"Detailed product information will be added soon."}</p>
-        {colors.length>0&&<div className="hm-option-group"><strong>Color</strong><div className="hm-option-list">{colors.map(color=><button key={color} type="button" className={`hm-option-chip ${(selectedVariant?.color===color)?'active':''}`} onClick={()=>{const candidate=variants.find(v=>v.color===color&&(!selectedVariant?.size||v.size===selectedVariant.size))||variants.find(v=>v.color===color);selectVariant(candidate);}}>{color}</button>)}</div></div>}
-        {sizes.length>0&&<div className="hm-option-group"><strong>Size</strong><div className="hm-option-list">{sizes.map(size=><button key={size} type="button" className={`hm-option-chip ${selectedVariant?.size===size?'active':''}`} onClick={()=>{const candidate=variants.find(v=>v.size===size&&(!selectedVariant?.color||v.color===selectedVariant.color))||variants.find(v=>v.size===size);selectVariant(candidate);}}>{size}</button>)}</div></div>}
-        {product.attributes && Object.keys(product.attributes).length>0&&<div className="hm-spec-grid">{Object.entries(product.attributes).map(([key,value])=><div key={key}><span>{key.replace(/[_-]/g,' ')}</span><strong>{Array.isArray(value)?value.join(', '):String(value)}</strong></div>)}</div>}
-        {product.highlights?.length>0&&<div className="hm-highlights"><strong>Highlights</strong><ul>{product.highlights.map((item,i)=><li key={`${item}-${i}`}>{item}</li>)}</ul></div>}
-        <div className="hm-policy-grid">
-          <div><strong>Returns &amp; Store Policy</strong><span>{product.returnPolicy==='change_of_mind'?'Change of Mind':product.returnPolicy==='easy_returns'?'Easy Returns':product.returnPolicy==='no_returns'?'Returns not available':'See store return policy'}</span></div>
-          {product.warrantyInfo && <div><strong>Warranty</strong><span>{product.warrantyInfo}</span></div>}
-        </div>
-        <div className="stock-line">{stock>0?<><Check size={16}/> In stock — {stock} available</>:"Out of stock"}</div>
-        <div className="detail-actions"><div className="qty" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={()=>setQty(Math.max(1,qty-1))} aria-label="Decrease quantity"><Minus size={15}/></button><strong aria-live="polite">{qty}</strong><button type="button" onClick={()=>setQty(Math.min(Math.max(1,stock),qty+1))} aria-label="Increase quantity"><Plus size={15}/></button></div><button className="gold-btn" type="button" disabled={!stock} onClick={()=>{addToCart(product,qty,selectedVariant);setToast("Product added to cart");}}><ShoppingBag size={17}/> Add to Cart</button><button type="button" className={`icon-btn ${wished?"active":""}`} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={()=>update({wishlist:wished?store.wishlist.filter(x=>x!==id):[...store.wishlist,id]})}><Heart size={19} fill={wished?"currentColor":"none"}/></button></div>
-        {product.sizeGuide&&<details className="hm-size-guide"><summary>Size Guide</summary><p>{product.sizeGuide}</p></details>}
-        <Toast message={toast} onClose={()=>setToast("")}/>
-      </div>
+  const formatPrice = amount => `Rs. ${Number(amount || 0).toLocaleString("en-PK")}`;
+
+  return <main className="page hm-product-page">
+    <div className="container hm-product-breadcrumb" aria-label="Breadcrumb">
+      <Link to="/">Home</Link><ChevronRight size={13}/><Link to="/shop">Shop</Link>
+      {categoryTrail.map(category => <React.Fragment key={category.id}><ChevronRight size={13}/><Link to={`/categories?category=${encodeURIComponent(category.name)}`}>{category.name}</Link></React.Fragment>)}
+      <ChevronRight size={13}/><span aria-current="page">{product.name}</span>
     </div>
-    <div className="container"><ProductReviews productId={product.id}/></div>
-    {zoomOpen&&<div className="hm-lightbox" role="dialog" aria-modal="true" aria-label={`${product.name} image zoom`} onClick={()=>setZoomOpen(false)}><button type="button" aria-label="Close image zoom" onClick={()=>setZoomOpen(false)}><X size={22}/></button><img src={currentImage} alt={product.name} onClick={e=>e.stopPropagation()}/></div>}
+
+    <section className="container hm-product-main" aria-label="Product information">
+      <div className="hm-product-gallery">
+        <div className="hm-product-thumbnails" aria-label={`${product.name} image thumbnails`}>
+          {images.map((src, index) => <button type="button" key={src + index} className={src === currentImage ? "active" : ""} onClick={() => { setSelectedImage(index); setSelectedVariant(null); }} aria-label={`View product image ${index + 1}`} aria-pressed={src === currentImage}><img src={src} alt={`${product.name} view ${index + 1}`}/></button>)}
+        </div>
+        <div className="hm-product-image-stage" onClick={() => setZoomOpen(true)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setZoomOpen(true); } }} aria-label="Open product image zoom">
+          {hasDiscount && <span className="hm-product-image-badge">{discountPercent}% OFF</span>}
+          <img src={currentImage} alt={product.name}/>
+          <span className="hm-product-zoom-hint"><Search size={14}/> Click to zoom</span>
+          {images.length > 1 && <span className="hm-product-image-count">{Math.max(0, images.indexOf(currentImage)) + 1} / {images.length}</span>}
+        </div>
+        {product.videoUrl && isSafeHttpUrl(product.videoUrl) && <a className="ghost-btn hm-product-video-link" href={product.videoUrl} target="_blank" rel="noreferrer"><ImageIcon size={16}/> Watch product video</a>}
+      </div>
+
+      <div className="hm-product-summary">
+        <div className="hm-product-kicker-row"><p className="hm-product-kicker">{product.category || categoryTrail[categoryTrail.length - 1]?.name || "HAFIZ MART COLLECTION"}</p><span className={stock > 0 ? "hm-stock-pill is-in-stock" : "hm-stock-pill is-out-of-stock"}><span/> {stock > 0 ? "In stock" : "Out of stock"}</span></div>
+        <h1>{product.name}</h1>
+        <div className="hm-product-meta"><span>SKU: {productSku}</span><span className="hm-meta-dot">•</span><span>Brand: {productBrand}</span></div>
+        <div className="hm-product-price-row"><strong>{formatPrice(price)}</strong>{hasDiscount && <><del>{formatPrice(originalPrice)}</del><span className="hm-discount-pill">Save {discountPercent}%</span></>}</div>
+        {shortDescription && <p className="hm-product-short-description">{shortDescription}</p>}
+        {!shortDescription && <p className="hm-product-short-description">{fullDescription ? fullDescription.slice(0, 190) + (fullDescription.length > 190 ? "…" : "") : "A carefully selected product from Hafiz Mart. See the details below for more information."}</p>}
+
+        {colors.length > 0 && <div className="hm-product-choice"><div className="hm-choice-heading"><strong>Colour</strong><span>{selectedVariant?.color || "Choose a colour"}</span></div><div className="hm-product-swatches">{colors.map((color, index) => <button type="button" key={color} className={selectedVariant?.color === color ? "active" : ""} onClick={() => { const candidate = variants.find(v => v.color === color && (!selectedVariant?.size || v.size === selectedVariant.size)) || variants.find(v => v.color === color); selectVariant(candidate); }} aria-pressed={selectedVariant?.color === color} title={color}><span className={`hm-swatch hm-swatch-${index % 8}`}/><span>{color}</span></button>)}</div></div>}
+        {sizes.length > 0 && <div className="hm-product-choice"><div className="hm-choice-heading"><strong>Size &amp; Fit</strong><span>{selectedVariant?.size || "Select size"}</span></div><div className="hm-product-sizes">{sizes.map(size => <button type="button" key={size} className={selectedVariant?.size === size ? "active" : ""} onClick={() => { const candidate = variants.find(v => v.size === size && (!selectedVariant?.color || v.color === selectedVariant.color)) || variants.find(v => v.size === size); selectVariant(candidate); }} aria-pressed={selectedVariant?.size === size}>{size}</button>)}</div>{product.sizeGuide && <details className="hm-size-guide"><summary><RulerIconFallback/> Size guide</summary><p>{product.sizeGuide}</p></details>}</div>}
+        {sizes.length === 0 && product.sizeGuide && <details className="hm-size-guide"><summary>Size &amp; Fit guide</summary><p>{product.sizeGuide}</p></details>}
+
+        <div className="hm-product-buy-row">
+          <div className="hm-product-quantity" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={() => setQty(Math.max(1, qty - 1))} aria-label="Decrease quantity"><Minus size={15}/></button><span aria-live="polite">{qty}</span><button type="button" onClick={() => setQty(Math.min(Math.max(1, stock), qty + 1))} aria-label="Increase quantity" disabled={qty >= stock}><Plus size={15}/></button></div>
+          <button className="hm-add-cart-button" type="button" disabled={!stock} onClick={() => { addToCart(product, qty, selectedVariant); setToast("Product added to cart"); }}><ShoppingBag size={18}/> Add to Cart</button>
+          <button type="button" className={`hm-wishlist-button ${wished ? "active" : ""}`} aria-pressed={wished} aria-label={wished ? "Remove from wishlist" : "Add to wishlist"} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={() => update({ wishlist: wished ? store.wishlist.filter(x => String(x) !== String(product.id) && String(x) !== String(id)) : [...store.wishlist, product.id] })}><Heart size={20} fill={wished ? "currentColor" : "none"}/></button>
+        </div>
+        <p className="hm-product-stock-note">{stock > 0 ? <><Check size={15}/> {stock} available to order</> : "This item is currently unavailable."}</p>
+
+        <div className="hm-product-promises">
+          <div><span><Truck size={18}/></span><p><strong>Delivery</strong><small>Delivery options shown at checkout</small></p></div>
+          <div><span><RotateCcw size={18}/></span><p><strong>Returns</strong><small>{product.returnPolicy === "no_returns" ? "Returns are not available" : product.returnPolicy === "change_of_mind" ? "Change-of-mind policy applies" : product.returnPolicy === "easy_returns" ? "Easy returns policy applies" : "See store return policy"}</small></p></div>
+          <div><span><ShieldCheck size={18}/></span><p><strong>Secure checkout</strong><small>Protected checkout experience</small></p></div>
+        </div>
+        {product.warrantyInfo && <div className="hm-product-warranty"><ShieldCheck size={16}/><span><strong>Warranty:</strong> {product.warrantyInfo}</span></div>}
+        <Toast message={toast} onClose={() => setToast("")}/>
+      </div>
+    </section>
+
+    <section className="container hm-product-information" aria-label="Product details and specifications">
+      <div className="hm-product-info-main">
+        <div className="hm-product-info-tabs" role="tablist" aria-label="Product information tabs">
+          <button type="button" role="tab" aria-selected={activeInfoTab === "description"} className={activeInfoTab === "description" ? "active" : ""} onClick={() => setActiveInfoTab("description")}>Product Description</button>
+          <button type="button" role="tab" aria-selected={activeInfoTab === "specifications"} className={activeInfoTab === "specifications" ? "active" : ""} onClick={() => setActiveInfoTab("specifications")}>Specifications</button>
+          <button type="button" role="tab" aria-selected={activeInfoTab === "size"} className={activeInfoTab === "size" ? "active" : ""} onClick={() => setActiveInfoTab("size")}>Size &amp; Fit</button>
+        </div>
+        <div className="hm-product-info-panel" role="tabpanel">
+          {activeInfoTab === "description" && <div className="hm-full-description"><p className="hm-panel-eyebrow">ABOUT THIS PRODUCT</p><h2>Product Description</h2><p>{fullDescription || shortDescription || "Product description will be added soon."}</p>{highlights.length > 0 && <><h3>Why you'll love it</h3><ul className="hm-product-highlights">{highlights.map((item, index) => <li key={`${item}-${index}`}><Check size={16}/>{item}</li>)}</ul></>}</div>}
+          {activeInfoTab === "specifications" && <div className="hm-full-description"><p className="hm-panel-eyebrow">PRODUCT INFORMATION</p><h2>Specifications</h2>{attributes.length ? <dl className="hm-specification-list">{attributes.map(([key, value]) => <div key={key}><dt>{key.replace(/[_-]/g, " ").replace(/\b\w/g, letter => letter.toUpperCase())}</dt><dd>{Array.isArray(value) ? value.join(", ") : String(value)}</dd></div>)}</dl> : <p>Detailed specifications will be added as product information becomes available.</p>}</div>}
+          {activeInfoTab === "size" && <div className="hm-full-description"><p className="hm-panel-eyebrow">FIND YOUR FIT</p><h2>Size &amp; Fit</h2>{product.sizeGuide ? <p>{product.sizeGuide}</p> : <p>Please check the available size options above. Product-specific fit guidance will be shown here when provided.</p>}{productFit && <p><strong>Fit:</strong> {productFit}</p>}{productMaterial && <p><strong>Material:</strong> {productMaterial}</p>}{sizes.length > 0 && <div className="hm-available-sizes">{sizes.map(size => <span key={size}>{size}</span>)}</div>}</div>}
+        </div>
+      </div>
+      <aside className="hm-key-specs-card">
+        <p className="hm-panel-eyebrow">AT A GLANCE</p><h2>Key Specifications</h2>
+        <dl>
+          <div><dt>Brand</dt><dd>{productBrand}</dd></div>
+          <div><dt>SKU</dt><dd>{productSku}</dd></div>
+          {productMaterial && <div><dt>Material</dt><dd>{productMaterial}</dd></div>}
+          {productFit && <div><dt>Fit</dt><dd>{productFit}</dd></div>}
+          {attributes.slice(0, 6).map(([key, value]) => <div key={key}><dt>{key.replace(/[_-]/g, " ").replace(/\b\w/g, letter => letter.toUpperCase())}</dt><dd>{Array.isArray(value) ? value.join(", ") : String(value)}</dd></div>)}
+          <div><dt>Availability</dt><dd className={stock > 0 ? "is-available" : "is-unavailable"}>{stock > 0 ? "In stock" : "Out of stock"}</dd></div>
+        </dl>
+      </aside>
+    </section>
+
+    <section className="container hm-product-reviews-section" aria-label="Customer reviews">
+      <div className="hm-reviews-heading"><div><p className="hm-panel-eyebrow">CUSTOMER VOICE</p><h2>Customer Reviews</h2><p>Real feedback helps shoppers make confident decisions.</p></div><span><MessageSquare size={19}/> Customer reviews</span></div>
+      <ProductReviews productId={product.id}/>
+    </section>
+
+    {zoomOpen && <div className="hm-lightbox" role="dialog" aria-modal="true" aria-label={`${product.name} image zoom`} onClick={() => setZoomOpen(false)}><button type="button" aria-label="Close image zoom" onClick={() => setZoomOpen(false)}><X size={22}/></button><img src={currentImage} alt={product.name} onClick={e => e.stopPropagation()}/></div>}
   </main>;
+}
+
+function RulerIconFallback() {
+  return <span aria-hidden="true">↔</span>;
 }
 
 function Categories() {
