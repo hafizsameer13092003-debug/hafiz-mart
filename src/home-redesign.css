@@ -391,3 +391,9 @@ body:has(.hm-reference-home) .hm-full-footer .footer-inner{grid-template-columns
 .hm-video-uploader .upload-btn { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; min-height: 42px !important; opacity: 1 !important; visibility: visible !important; cursor: pointer !important; }
 .hm-video-uploader .upload-btn svg { display: inline-block !important; opacity: 1 !important; visibility: visible !important; flex: 0 0 auto; }
 .hm-video-uploader .upload-btn:hover, .hm-video-uploader .upload-btn:focus-visible { filter: brightness(1.12); outline: 2px solid #e5c36e; outline-offset: 2px; }
+
+/* Cart summary uses .summary in the current JSX, not .cart-summary. */
+.cart-layout .summary, .cart-layout .summary * { color: #f5f5f5 !important; }
+.cart-layout .summary .summary-total strong { color: #f0c96a !important; }
+.cart-layout .cart-row .remove-btn { color: #f0d5d5 !important; border-color: #704949 !important; }
+.cart-layout .cart-row .remove-btn:hover, .cart-layout .cart-row .remove-btn:focus-visible { color: #fff !important; background: #682b2b !important; outline: 2px solid #c77a7a; outline-offset: 2px; }
