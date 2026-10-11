@@ -296,3 +296,23 @@ body:has(.hm-reference-home) .footer-copyright:after { content:"  •  Secure pa
   body:has(.hm-reference-home) .footer-inner>img { width:140px; }
   body:has(.hm-reference-home) .footer-support { grid-template-columns:1fr; }
 }
+
+body:has(.hm-reference-home) .hm-full-footer .footer-inner { grid-template-columns: minmax(210px,.75fr) 2fr; gap:55px; }
+body:has(.hm-reference-home) .hm-footer-brand { display:grid; align-content:start; gap:19px; }
+body:has(.hm-reference-home) .hm-footer-brand p { max-width:260px; margin:0; color:#c4d4c5; font-size:11px; line-height:1.8; }
+body:has(.hm-reference-home) .hm-footer-brand .footer-socials { display:flex; }
+body:has(.hm-reference-home) .hm-footer-columns { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:28px; }
+body:has(.hm-reference-home) .hm-footer-columns>div { display:grid; align-content:start; gap:18px; }
+body:has(.hm-reference-home) .hm-footer-columns>div>strong { color:#fff; font-size:12px; }
+body:has(.hm-reference-home) .hm-footer-columns .footer-links { display:grid; align-content:start; gap:12px; }
+body:has(.hm-reference-home) .hm-footer-columns .footer-links a { color:#c4d4c5; font-size:11px; }
+body:has(.hm-reference-home) .hm-footer-bottom { display:flex; align-items:center; justify-content:space-between; gap:20px; border-top:1px solid #ffffff24; padding-top:20px; margin-top:30px; }
+body:has(.hm-reference-home) .hm-footer-bottom .footer-copyright { border:0; padding:0; }
+body:has(.hm-reference-home) .hm-footer-bottom .footer-copyright:after { content:""; }
+body:has(.hm-reference-home) .hm-payment-methods { display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+body:has(.hm-reference-home) .hm-payment-methods span { display:inline-flex; align-items:center; padding:6px 9px; border:1px solid #ffffff30; border-radius:5px; color:#e5efe3; font-size:8px; font-weight:800; letter-spacing:.3px; }
+@media(max-width:700px) {
+ body:has(.hm-reference-home) .hm-full-footer .footer-inner { grid-template-columns:1fr; gap:30px; }
+ body:has(.hm-reference-home) .hm-footer-columns { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px 16px; }
+ body:has(.hm-reference-home) .hm-footer-bottom { align-items:flex-start; flex-direction:column; }
+}
