@@ -500,7 +500,7 @@ function Toast({ message, onClose }) {
 function WhatsAppButton() {
   const { store } = useStore();
   const number = getStoreWhatsAppNumber(store.adminSettings?.general?.whatsapp || import.meta.env.VITE_WHATSAPP_NUMBER);
-  return <a className="whatsapp" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer" aria-label="Contact Hafiz Mart on WhatsApp" title="WhatsApp"><MessageCircle size={23}/></a>;
+  return <a className="whatsapp" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer" aria-label="Contact Hafiz Mart on WhatsApp" title="WhatsApp"><HmfIcon name="whatsapp" size={26}/></a>;
 }
 
 function ScrollToTop() {
@@ -1331,6 +1331,104 @@ function TurnstileWidget({ onToken }) {
   );
 }
 
+const HMM_COL_WIDTH = 250;
+function hmmChildren(categories, id) {
+  return categories
+    .filter(item => String(item.parent_category_id || '') === String(id))
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+}
+function hmmBrowsePath(category) { return `/categories?category=${encodeURIComponent(category.name)}&categoryId=${encodeURIComponent(category.id)}`; }
+function hmmShopPath(category) { return `/shop?category=${encodeURIComponent(category.name)}&categoryId=${encodeURIComponent(category.id)}`; }
+
+// How many columns the deepest category chain needs (root column included, capped at 4).
+function hmmColumnCount(categories) {
+  let max = 1;
+  const walk = (id, level, seen) => {
+    const kids = hmmChildren(categories, id).filter(item => !seen.includes(String(item.id)));
+    if (!kids.length) { max = Math.max(max, level); return; }
+    kids.forEach(kid => walk(kid.id, level + 1, [...seen, String(kid.id)]));
+  };
+  sortMainCategories(categories).forEach(root => walk(root.id, 1, [String(root.id)]));
+  return Math.min(max, 4);
+}
+
+function HmMegaMenu({ categories, products, onNavigate }) {
+  const roots = sortMainCategories(categories);
+  const firstWithChildren = roots.find(root => hmmChildren(categories, root.id).length > 0);
+  const defaultTrail = firstWithChildren ? [String(firstWithChildren.id)] : [];
+  const [trail, setTrail] = useState(defaultTrail);
+  const [place, setPlace] = useState({ side: 'left', offset: -12 });
+  const wrapRef = useRef(null);
+
+  const openMenu = () => {
+    setTrail(defaultTrail);
+    const wrap = wrapRef.current;
+    if (!wrap || typeof window === 'undefined') return;
+    const wrapLeft = wrap.getBoundingClientRect().left;
+    // The first column starts as close to the Categories button as possible and every
+    // deeper level opens to the RIGHT. Only if the full chain would not fit on screen is the
+    // whole panel shifted left (never the columns themselves).
+    const needed = HMM_COL_WIDTH * hmmColumnCount(categories) + 2;
+    const desired = Math.max(12, Math.min(wrapLeft - 12, window.innerWidth - 12 - needed));
+    setPlace({ side: 'left', offset: Math.round(desired - wrapLeft) });
+  };
+
+  const columns = [{ parent: null, items: roots }];
+  trail.forEach(id => {
+    const parent = categories.find(item => String(item.id) === String(id));
+    const kids = parent ? hmmChildren(categories, parent.id) : [];
+    if (kids.length) columns.push({ parent, items: kids });
+  });
+
+  const renderItem = (item, depth) => {
+    const kids = hmmChildren(categories, item.id);
+    const hasKids = kids.length > 0;
+    const count = getCategoryProductCount(categories, products, item.id);
+    const active = String(trail[depth] || '') === String(item.id);
+    const enter = () => setTrail(prev => hasKids ? [...prev.slice(0, depth), String(item.id)] : prev.slice(0, depth));
+    if (!hasKids && count === 0) {
+      return <span key={item.id} className="hmm-item is-soon" onMouseEnter={enter}><span>{item.name}</span><small>Coming Soon</small></span>;
+    }
+    return <Link key={item.id} className={`hmm-item${active ? ' is-active' : ''}`} to={hasKids ? hmmBrowsePath(item) : hmmShopPath(item)} onClick={onNavigate} onMouseEnter={enter} onFocus={enter}>
+      <span>{item.name}</span>{hasKids && <ChevronRight size={15} aria-hidden="true"/>}
+    </Link>;
+  };
+
+  return <div className="nav-dropdown hmm" ref={wrapRef} onMouseEnter={openMenu} onFocus={event => { if (event.target.tagName === 'BUTTON') openMenu(); }}>
+    <button type="button" aria-haspopup="true">Categories</button>
+    <div className={`hmm-panel${place.side === 'right' ? ' is-rtl' : ''}`} style={place.side === 'right' ? { right: place.offset, left: 'auto' } : { left: place.offset }}>
+      {columns.map((column, depth) => <div className="hmm-col" key={column.parent ? column.parent.id : 'root'}>
+        {column.parent
+          ? <Link className="hmm-viewall" to={hmmShopPath(column.parent)} onClick={onNavigate}>View all {column.parent.name} <ArrowRight size={14}/></Link>
+          : <p className="hmm-label">SHOP BY CATEGORY</p>}
+        {column.items.map(item => renderItem(item, depth))}
+      </div>)}
+      {roots.length === 0 && <p className="hmm-empty">Categories coming soon.</p>}
+    </div>
+  </div>;
+}
+
+function HmMobileCategoryNode({ category, categories, products, depth, trail, onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const kids = hmmChildren(categories, category.id).filter(item => !trail.includes(String(item.id)));
+  const count = getCategoryProductCount(categories, products, category.id);
+  if (!kids.length) {
+    if (count === 0) return <span className="hmm-m-row hmm-m-soon"><span>{category.name}</span><small>Coming Soon</small></span>;
+    return <Link className="hmm-m-row" to={hmmShopPath(category)} onClick={onNavigate}><span>{category.name}</span></Link>;
+  }
+  const nextTrail = [...trail, String(category.id)];
+  return <div className={`hmm-m-node${open ? ' is-open' : ''}`}>
+    <div className="hmm-m-row hmm-m-parent">
+      <Link to={hmmBrowsePath(category)} onClick={onNavigate}>{category.name}</Link>
+      <button type="button" aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} ${category.name}`} onClick={() => setOpen(value => !value)}><ChevronRight size={18}/></button>
+    </div>
+    {open && <div className="hmm-m-children">
+      <Link className="hmm-m-row hmm-m-all" to={hmmShopPath(category)} onClick={onNavigate}>View all {category.name}</Link>
+      {kids.map(child => <HmMobileCategoryNode key={child.id} category={child} categories={categories} products={products} depth={depth + 1} trail={nextTrail} onNavigate={onNavigate}/>)}
+    </div>}
+  </div>;
+}
+
 function Navbar() {
   const { store, cartItems } = useStore();
   const { user, profile } = useAuth();
@@ -1405,29 +1503,7 @@ function Navbar() {
               Shop
             </Link>
 
-            <div className="nav-dropdown">
-              <button type="button">
-                Categories
-              </button>
-
-              <div className="nav-dropdown-menu">
-                {menuGroups.map((group) => (
-                  <div className="nav-dropdown-column" key={group.id}>
-                    <Link className="nav-category-heading" to={group.path} onClick={closeMenu}>
-                      <strong>{group.title}</strong>
-                      {group.productCount === 0 && group.items.length === 0 && <small>Coming Soon</small>}
-                    </Link>
-                    {group.items.length > 0 ? group.items.map(item => (
-                      item.available ? (
-                        <Link key={item.id} to={item.path} onClick={closeMenu}>{item.label}</Link>
-                      ) : (
-                        <span key={item.id} className="category-menu-coming-soon">{item.label}<small>Coming Soon</small></span>
-                      )
-                    )) : <span className="category-menu-hint">Explore this collection</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <HmMegaMenu categories={store.categories} products={store.products} onNavigate={closeMenu}/>
 
             <Link to="/deals" onClick={closeMenu}>
               Deals
@@ -1525,19 +1601,9 @@ function Navbar() {
                   {user ? "My Account" : "Login / Sign Up"}
                 </Link>
 
-                {menuGroups.map(group => (
-                  <div className="mobile-menu-section" key={group.id}>
-                    <Link className="mobile-main-category" to={group.path} onClick={closeMenu}>
-                      {group.title}
-                      {group.productCount === 0 && group.items.length === 0 && <small>Coming Soon</small>}
-                    </Link>
-                    {group.items.map(item => item.available ? (
-                      <Link key={item.id} to={item.path} onClick={closeMenu}>{item.label}</Link>
-                    ) : (
-                      <span key={item.id} className="category-menu-coming-soon">{item.label}<small>Coming Soon</small></span>
-                    ))}
-                  </div>
-                ))}
+                <div className="hmm-m-tree">
+                  {sortMainCategories(store.categories).map(root => <HmMobileCategoryNode key={root.id} category={root} categories={store.categories} products={store.products} depth={0} trail={[]} onNavigate={closeMenu}/>)}
+                </div>
 
                 <Link to="/deals" onClick={closeMenu}>
                   Deals
@@ -1769,7 +1835,7 @@ function Home() {
         </div>
       </section>
 
-      <section className="home-section home-newsletter-section hm-reference-newsletter"><div className="container"><div className="home-newsletter"><div className="home-newsletter-content"><p className="eyebrow">STAY IN THE LOOP</p><h2>Get the Best Deals First</h2><p>Subscribe for new arrivals, exclusive offers and special discounts from Hafiz Mart.</p></div><div className="newsletter-form-area"><form className="home-newsletter-form" onSubmit={async e=>{e.preventDefault();const email=newsletterEmail.trim().toLowerCase();if(!email)return;setNewsletterBusy(true);setNewsletterMessage("");try{const {error}=await supabase.from("newsletter_subscribers").insert({email});if(error){setNewsletterMessage(error.code==="23505"?"You're already subscribed. Thank you!":"Something went wrong. Please try again.");}else{setNewsletterMessage("Thank you for subscribing!");setNewsletterEmail("");}}catch(error){logSafeError("Newsletter subscription error:",error);setNewsletterMessage("Something went wrong. Please try again.");}finally{setNewsletterBusy(false);}}}><input type="email" value={newsletterEmail} onChange={e=>{setNewsletterEmail(e.target.value);setNewsletterMessage("");}} placeholder="Enter your email address" required/><button type="submit" className="gold-btn" disabled={newsletterBusy}>{newsletterBusy?"Subscribing...":"Subscribe"}</button></form>{newsletterMessage&&<p className="newsletter-message" role="status">{newsletterMessage}</p>}<div className="newsletter-socials" aria-label="Follow Hafiz Mart"><div>{storeSocialLinks().filter(item=>["Facebook","WhatsApp","Instagram"].includes(item.label)).map(item=><a key={item.label} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</div></div></div></div></div></section>
+      <section className="home-section home-newsletter-section hm-reference-newsletter"><div className="container"><div className="home-newsletter"><div className="home-newsletter-content"><p className="eyebrow">STAY IN THE LOOP</p><h2>Get the Best Deals First</h2><p>Subscribe for new arrivals, exclusive offers and special discounts from Hafiz Mart.</p></div><div className="newsletter-form-area"><form className="home-newsletter-form" onSubmit={async e=>{e.preventDefault();const email=newsletterEmail.trim().toLowerCase();if(!email)return;setNewsletterBusy(true);setNewsletterMessage("");try{const {error}=await supabase.from("newsletter_subscribers").insert({email});if(error){setNewsletterMessage(error.code==="23505"?"You're already subscribed. Thank you!":"Something went wrong. Please try again.");}else{setNewsletterMessage("Thank you for subscribing!");setNewsletterEmail("");}}catch(error){logSafeError("Newsletter subscription error:",error);setNewsletterMessage("Something went wrong. Please try again.");}finally{setNewsletterBusy(false);}}}><input type="email" value={newsletterEmail} onChange={e=>{setNewsletterEmail(e.target.value);setNewsletterMessage("");}} placeholder="Enter your email address" required/><button type="submit" className="gold-btn" disabled={newsletterBusy}>{newsletterBusy?"Subscribing...":"Subscribe"}</button></form>{newsletterMessage&&<p className="newsletter-message" role="status">{newsletterMessage}</p>}<div className="newsletter-socials" aria-label="Follow Hafiz Mart"><div>{storeSocialLinks().filter(item=>["Facebook","WhatsApp","Instagram"].includes(item.label)).map(item=><a key={item.label} className={`hm-nl-social hm-nl-${item.label.toLowerCase()}`} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}{item.label==="WhatsApp"&&<span>Chat on WhatsApp</span>}</a>)}</div></div></div></div></div></section>
       <HomeTestimonials/>
     </main>
     <Toast message={toast} onClose={()=>setToast("")}/>
@@ -6487,11 +6553,11 @@ function storeSocialLinks() {
   let configured = general;
   try { const raw = window.__HAFIZ_STORE_SETTINGS__; if (raw && raw.general) configured = { ...general, ...raw.general }; } catch {}
   const links = [];
-  if (configured.facebook && isSafeHttpUrl(configured.facebook)) links.push({label:'Facebook',url:configured.facebook,icon:<Users size={17}/>});
-  if (configured.instagram && isSafeHttpUrl(configured.instagram)) links.push({label:'Instagram',url:configured.instagram,icon:<Heart size={17}/>});
-  if (configured.youtube && isSafeHttpUrl(configured.youtube)) links.push({label:'YouTube',url:configured.youtube,icon:<ImageIcon size={17}/>});
+  if (configured.facebook && isSafeHttpUrl(configured.facebook)) links.push({label:'Facebook',url:configured.facebook,icon:<HmfIcon name="facebook" size={18}/>});
+  if (configured.instagram && isSafeHttpUrl(configured.instagram)) links.push({label:'Instagram',url:configured.instagram,icon:<HmfIcon name="instagram" size={18}/>});
+  if (configured.youtube && isSafeHttpUrl(configured.youtube)) links.push({label:'YouTube',url:configured.youtube,icon:<HmfIcon name="youtube" size={18}/>});
   const wa = getStoreWhatsAppNumber(configured.whatsapp || import.meta.env.VITE_WHATSAPP_NUMBER);
-  links.push({label:'WhatsApp',url:`https://wa.me/${wa}`,icon:<MessageCircle size={17}/>});
+  links.push({label:'WhatsApp',url:`https://wa.me/${wa}`,icon:<HmfIcon name="whatsapp" size={20}/>});
   return links;
 }
 /* ===== Hafiz Mart footer (home = full footer, other pages = compact footer) ===== */
@@ -6517,7 +6583,8 @@ const HMF_ICON_PATHS = {
   facebook: <path fill="currentColor" stroke="none" d="M13.5 21v-7.5H16l.5-3h-3V8.8c0-.9.3-1.5 1.6-1.5h1.5V4.6c-.3 0-1.2-.1-2.2-.1-2.3 0-3.9 1.4-3.9 4v2H8v3h2.5V21h3Z"/>,
   instagram: <><rect x="4" y="4" width="16" height="16" rx="4.5"/><circle cx="12" cy="12" r="3.6"/><circle cx="16.8" cy="7.2" r=".9" fill="currentColor" stroke="none"/></>,
   youtube: <><rect x="3" y="6" width="18" height="12" rx="3.5"/><path fill="currentColor" stroke="none" d="M10.5 9.6v4.8l4.2-2.4Z"/></>,
-  tiktok: <><path d="M14 4v10.3a3.3 3.3 0 1 1-3.3-3.3"/><path d="M14 4c.3 2.5 1.9 4.1 4.5 4.3"/></>
+  tiktok: <><path d="M14 4v10.3a3.3 3.3 0 1 1-3.3-3.3"/><path d="M14 4c.3 2.5 1.9 4.1 4.5 4.3"/></>,
+  whatsapp: <><path d="M3 21l1.6-4.7A8.5 8.5 0 1 1 8 19.4L3 21Z"/><path fill="currentColor" stroke="none" d="M9 8.8c0 3.3 2.9 6.2 6.2 6.2l1-1.2-1.9-1-.9.7a4 4 0 0 1-2-2l.7-.9-1-1.9L9 8.8Z"/></>
 };
 
 function HmfIcon({ name, size = 20 }) {
