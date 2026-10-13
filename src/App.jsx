@@ -5951,6 +5951,38 @@ function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore()
   finally { setBusy(false); }
  }; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data is saved directly to the Supabase database.</p></div></div><form className="admin-form hm-product-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=><option key={c.id} value={c.id}>{getCategoryPathNames(store.categories,c.id).map(item=>item.name).join(' / ')}</option>)}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Product Type<select value={form.productType} onChange={e=>setForm({...form,productType:e.target.value})}><option value="general">General</option><option value="shirt">Shirt / T-shirt</option><option value="stitched_suit">Stitched Suit</option><option value="unstitched_suit">Unstitched Suit</option><option value="trousers">Pants / Trousers</option><option value="accessory">Accessory</option></select></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><div className="span-2 hm-product-type-hint"><strong>{({shirt:"Shirt / T-shirt",stitched_suit:"Stitched Suit",unstitched_suit:"Unstitched Suit",trousers:"Pants / Trousers",accessory:"Accessory",general:"General"})[form.productType] || "Product"} setup</strong><p>Select colour and size checkboxes below to create product variants. Specifications and highlights are also managed with checkboxes.</p></div><div className="span-2 hm-product-options-panel"><strong>Variants & Options</strong><p>Select available sizes and colours. These selections save as product variants.</p><fieldset className="hm-check-field"><legend>Colours</legend><div className="hm-check-options">{['Black','White','Navy','Blue','Red','Pink','Green','Beige','Brown','Grey','Yellow','Purple'].map(value=><label className={`hm-check-chip ${selectedColors.includes(value)?'selected':''}`} key={value}><input type="checkbox" checked={selectedColors.includes(value)} onChange={()=>setSelectedColors(prev=>prev.includes(value)?prev.filter(x=>x!==value):[...prev,value])}/><span>{value}</span></label>)}</div><div className="hm-custom-option"><label htmlFor="hm-custom-color">Custom colour</label><div><input id="hm-custom-color" value={customColor} onChange={e=>setCustomColor(e.target.value)} placeholder="Type a colour (e.g. Teal)"/><button type="button" className="ghost-btn" onClick={()=>{const value=customColor.trim();if(value&&!selectedColors.some(x=>x.toLowerCase()===value.toLowerCase()))setSelectedColors(prev=>[...prev,value]);setCustomColor('');}}>Add colour</button></div>{selectedColors.filter(value=>!['Black','White','Navy','Blue','Red','Pink','Green','Beige','Brown','Grey','Yellow','Purple'].includes(value)).map(value=><span className="hm-custom-option-chip" key={value}>{value}<button type="button" aria-label={`Remove ${value}`} onClick={()=>setSelectedColors(prev=>prev.filter(x=>x!==value))}>×</button></span>)}</div></fieldset><fieldset className="hm-check-field"><legend>Sizes</legend><div className="hm-check-options">{['XS','S','M','L','XL','XXL','3XL','Free Size'].map(value=><label className={`hm-check-chip ${selectedSizes.includes(value)?'selected':''}`} key={value}><input type="checkbox" checked={selectedSizes.includes(value)} onChange={()=>setSelectedSizes(prev=>prev.includes(value)?prev.filter(x=>x!==value):[...prev,value])}/><span>{value}</span></label>)}</div></fieldset></div><div className="span-2 hm-product-options-panel"><strong>Specifications & Attributes</strong><p>Checkboxes se common product details select karein.</p>{[['Material',['Cotton','Lawn','Linen','Polyester','Silk','Chiffon','Khaddar','Denim','Leather','Stainless Steel'],selectedMaterials,setSelectedMaterials],['Fit',['Regular Fit','Slim Fit','Oversized','Relaxed Fit','Standard'],selectedFits,setSelectedFits],['Pattern / Finish',['Plain','Printed','Striped','Floral','Embroidered','Checked','Textured'],selectedPatterns,setSelectedPatterns],['Product highlights',['Premium quality','Comfortable fabric','Everyday wear','Breathable material','Durable construction','Gift-ready','Easy to maintain','Lightweight'],selectedHighlights,setSelectedHighlights]].map(([title,options,selected,setSelected])=><fieldset className="hm-check-field" key={title}><legend>{title}</legend><div className="hm-check-options">{options.map(value=><label className={`hm-check-chip ${selected.includes(value)?'selected':''}`} key={value}><input type="checkbox" checked={selected.includes(value)} onChange={()=>setSelected(prev=>prev.includes(value)?prev.filter(x=>x!==value):[...prev,value])}/><span>{value}</span></label>)}</div>{title==='Product highlights'&&<div className="hm-custom-option"><label htmlFor="hm-custom-highlight">Custom highlight</label><div><input id="hm-custom-highlight" value={customHighlight} onChange={e=>setCustomHighlight(e.target.value)} placeholder="Add a product highlight"/><button type="button" className="ghost-btn" onClick={()=>{const value=customHighlight.trim();if(value&&!selectedHighlights.some(x=>x.toLowerCase()===value.toLowerCase()))setSelectedHighlights(prev=>[...prev,value]);setCustomHighlight('');}}>Add highlight</button></div>{selectedHighlights.filter(value=>!options.includes(value)).map(value=><span className="hm-custom-option-chip" key={value}>{value}<button type="button" aria-label={`Remove ${value}`} onClick={()=>setSelectedHighlights(prev=>prev.filter(x=>x!==value))}>×</button></span>)}</div>}</fieldset>)}</div><label>Size Guide<input value={form.sizeGuide} onChange={e=>setForm({...form,sizeGuide:e.target.value})} placeholder="e.g. S: chest 38, M: 40, L: 42"/></label><label>Return Policy<select value={form.returnPolicy} onChange={e=>setForm({...form,returnPolicy:e.target.value})}><option value="">Use store policy</option><option value="change_of_mind">Change of Mind</option><option value="easy_returns">Easy Returns</option><option value="no_returns">No Returns</option></select></label><label>Warranty Information<input value={form.warrantyInfo} onChange={e=>setForm({...form,warrantyInfo:e.target.value})} placeholder="Warranty available / Not available"/></label><div className="span-2 hm-video-uploader"><div><strong>Product Video</strong><small>MP4, WEBM or MOV · maximum 100 MB</small></div><label className="gold-btn upload-btn"><Upload size={16}/>{videoUploading?'Uploading video…':'Upload Video'}<input type="file" accept="video/mp4,video/webm,video/quicktime" hidden disabled={videoUploading} onChange={e=>{uploadVideo(e.target.files?.[0]);e.target.value='';}}/></label>{videoError&&<p className="upload-error">{videoError}</p>}<label className="span-2">Or paste a video URL<input value={form.videoUrl} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="https://..."/></label>{form.videoUrl&&<video className="hm-video-preview" src={form.videoUrl} controls preload="metadata"/>}</div><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy||videoUploading}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
 
+// Deletes a category together with every subcategory below it and every product inside any of them.
+// Products are removed with one query per call (no matter how many thousands there are), then the
+// categories are removed deepest-first so a parent is never deleted before its children.
+async function deleteCategoryTree(categories, rootCategory, { hideLinkedProducts = false, client = supabase } = {}) {
+  const ids = Array.from(getCategoryDescendantIds(categories, rootCategory.id));
+  const depthOf = (category, seen = new Set()) => {
+    if (!category || !category.parent_category_id || seen.has(String(category.id))) return 0;
+    seen.add(String(category.id));
+    const parent = categories.find(item => String(item.id) === String(category.parent_category_id));
+    return parent ? 1 + depthOf(parent, seen) : 0;
+  };
+  if (hideLinkedProducts) {
+    // Fallback when old orders still point at these products: hide them instead of deleting them.
+    const { error } = await client.from('products').update({ status: 'inactive', category_id: null }).in('category_id', ids);
+    if (error) throw error;
+  } else {
+    const { error } = await client.from('products').delete().in('category_id', ids);
+    if (error) {
+      if (String(error.code) === '23503') return { blockedByOrders: true, ids };
+      throw error;
+    }
+  }
+  const nodes = ids.map(id => categories.find(item => String(item.id) === id)).filter(Boolean);
+  const levels = [...new Set(nodes.map(node => depthOf(node)))].sort((a, b) => b - a);
+  for (const level of levels) {
+    const levelIds = nodes.filter(node => depthOf(node) === level).map(node => node.id);
+    const { error } = await client.from('categories').delete().in('id', levelIds);
+    if (error) throw error;
+  }
+  return { ids, blockedByOrders: false };
+}
+
 function AdminCategories() {
   const { store, refresh } = useStore();
   const [name, setName] = useState('');
@@ -6016,14 +6048,28 @@ function AdminCategories() {
     setBusy(false);
   };
   const remove = async category => {
-    const children = categories.filter(c => String(c.parent_category_id || '') === String(category.id));
-    if (children.length) { alert('Pehle is category ke neeche wali subcategories delete karein.'); return; }
-    const productCount = categories.length && store.products.filter(p => String(p.categoryId) === String(category.id)).length;
-    if (productCount) { alert(`Is category se ${productCount} product(s) linked hain. Pehle products ki category change karein.`); return; }
-    if (!confirm(`"${category.name}" delete karni hai?`)) return;
-    const { error } = await supabase.from('categories').delete().eq('id', category.id);
-    if (error) { alert(getFriendlyErrorMessage(error)); return; }
-    await refresh();
+    if (busy) return;
+    const ids = Array.from(getCategoryDescendantIds(categories, category.id));
+    const subCount = ids.length - 1;
+    const productTotal = store.products.filter(p => ids.includes(String(p.categoryId))).length;
+    const parts = [];
+    if (subCount) parts.push(`${subCount} subcategor${subCount === 1 ? 'y' : 'ies'}`);
+    if (productTotal) parts.push(`${productTotal} product${productTotal === 1 ? '' : 's'}`);
+    const detail = parts.length ? `\n\nIske saath ${parts.join(' aur ')} bhi hamesha ke liye delete ho jayenge.` : '';
+    if (!confirm(`"${category.name}" delete karni hai?${detail}\n\nYe action wapas nahi ho sakta.`)) return;
+    setBusy(true);
+    try {
+      let result = await deleteCategoryTree(categories, category);
+      if (result.blockedByOrders) {
+        if (!confirm('Kuch products purane orders mein istemal hue hain, isliye wo delete nahi ho sakte.\n\nKya unhein hide (inactive) karke category tree delete kar dein? Orders ki history safe rahegi.')) return;
+        result = await deleteCategoryTree(categories, category, { hideLinkedProducts: true });
+      }
+    } catch (error) {
+      alert(getFriendlyErrorMessage(error, 'Category delete nahi ho saki. Dobara koshish karein.'));
+    } finally {
+      await refresh();
+      setBusy(false);
+    }
   };
   const getOwnProductCount = id => store.products.filter(p => String(p.categoryId) === String(id) && p.status !== 'inactive').length;
   const renderNode = (category, depth = 0) => {
@@ -6031,7 +6077,7 @@ function AdminCategories() {
     return <div className={`category-admin-node depth-${Math.min(depth, 2)}`} key={category.id}>
       <div className="category-admin-child">
         <div><span className="category-child-marker">{depth ? '↳' : '•'}</span><div><span className="category-type-label">{depth === 0 ? 'MAIN CATEGORY' : depth === 1 ? 'SUBCATEGORY' : 'SUBCATEGORY OF SUBCATEGORY'}</span><strong>{category.name}</strong><small>{categoryPath(category)} · {getOwnProductCount(category.id)} product(s)</small></div></div>
-        <button type="button" className="category-delete-btn" onClick={() => remove(category)} aria-label={`Delete category ${category.name}`} title="Delete category"><Trash2 size={15}/></button>
+        <button type="button" className="category-delete-btn" onClick={() => remove(category)} disabled={busy} aria-label={`Delete category ${category.name}`} title="Delete category"><Trash2 size={15}/></button>
       </div>
       {children.length > 0 && <div className="category-admin-children">{children.map(child => renderNode(child, depth + 1))}</div>}
     </div>;
