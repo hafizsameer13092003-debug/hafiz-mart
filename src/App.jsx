@@ -256,7 +256,7 @@ function replaceLegacyStorePhoneText(value) {
 
 const DEFAULT_ADMIN_SETTINGS = {
   general: { storeName: 'Hafiz Mart', tagline: 'Everything You Need, Delivered', supportEmail: '', supportPhone: '', whatsapp: '', address: '', currency: 'PKR', timezone: 'Asia/Karachi', facebook: '', instagram: '', youtube: '', tiktok: '' },
-  shipping: { enabled: true, defaultRate: 300, freeDeliveryThreshold: 10000, minDays: 2, maxDays: 5, cityRates: [{ city: 'Multan', rate: 270 }] },
+  shipping: { enabled: true, defaultRate: 300, freeDeliveryThreshold: 5000, minDays: 2, maxDays: 5, cityRates: [{ city: 'Multan', rate: 270 }] },
   storefront: { announcementEnabled: true, announcementText: 'Shop your favourites at Hafiz Mart', announcementLink: '/deals', announcementButton: 'Shop Deals', announcementTheme: 'gold', maintenanceMode: false, maintenanceMessage: 'We are improving your shopping experience. Please check back soon.' },
   payments: { codEnabled: true, onlinePaymentsEnabled: false },
   policies: { cancellationWindowHours: 2, returnWindowDays: 7, returnsPolicy: '', shippingPolicy: '', privacyPolicy: '', terms: '' },
@@ -638,6 +638,11 @@ function SeoManager() {
       "/reset-password": ["Reset Password — Hafiz Mart", "Set a new password for your Hafiz Mart account."],
       "/faq": ["FAQ — Hafiz Mart", "Find answers to common Hafiz Mart questions about orders, delivery, payments, returns and support."],
       "/privacy-policy": ["Privacy Policy — Hafiz Mart", "Read the Hafiz Mart privacy policy and learn how customer information is handled."],
+      "/return-policy": ["Return & Refund Policy — Hafiz Mart", "How to cancel an order, return an item and get a refund or exchange at Hafiz Mart."],
+      "/refund-policy": ["Return & Refund Policy — Hafiz Mart", "How to cancel an order, return an item and get a refund or exchange at Hafiz Mart."],
+      "/shipping-policy": ["Shipping & Delivery Policy — Hafiz Mart", "Delivery areas, charges, timelines and tracking for Hafiz Mart orders."],
+      "/terms": ["Terms & Conditions — Hafiz Mart", "The terms for using Hafiz Mart and placing orders."],
+      "/terms-and-conditions": ["Terms & Conditions — Hafiz Mart", "The terms for using Hafiz Mart and placing orders."],
       "/thank-you": ["Thank You — Hafiz Mart", "Thank you for contacting Hafiz Mart. Your request has been received."],
     };
 
@@ -836,6 +841,231 @@ function FAQPage() {
       </div>
     </main>
   );
+}
+
+/* ===== Store policies: Return & Refund, Shipping & Delivery, Terms & Conditions =====
+   Same look as the Privacy Policy page. Numbers (return days, delivery days, free-delivery amount...)
+   come from Admin -> Settings. If the admin types their own text in Settings -> Policies,
+   that text is shown instead of the default wording below. */
+const HM_POLICY_UPDATED = '16 October 2026';
+const HM_LEGAL_LINKS = [
+  ['Privacy Policy', '/privacy-policy'],
+  ['Return & Refund Policy', '/return-policy'],
+  ['Shipping & Delivery', '/shipping-policy'],
+  ['Terms & Conditions', '/terms']
+];
+const hmMoney = value => `Rs. ${Number(value || 0).toLocaleString('en-US')}`;
+
+function hmPolicyContext(settings) {
+  const policies = { ...DEFAULT_ADMIN_SETTINGS.policies, ...((settings && settings.policies) || {}) };
+  const shipping = { ...DEFAULT_ADMIN_SETTINGS.shipping, ...((settings && settings.shipping) || {}) };
+  const payments = { ...DEFAULT_ADMIN_SETTINGS.payments, ...((settings && settings.payments) || {}) };
+  const general = { ...DEFAULT_ADMIN_SETTINGS.general, ...((settings && settings.general) || {}) };
+  return { policies, shipping, payments, general, returnDays: Number(policies.returnWindowDays) || 7, cancelHours: Number(policies.cancellationWindowHours) || 2 };
+}
+
+function buildReturnPolicy({ returnDays, cancelHours, payments }) {
+  const online = payments.onlinePaymentsEnabled;
+  return [
+    { id: 'overview', number: '01', navLabel: 'Overview', title: 'Shop with confidence', lead: 'This policy explains how to cancel an order, return an item, and receive a refund or exchange from Hafiz Mart.',
+      paragraphs: [`We want you to be happy with every order. If something is wrong, you can request a return or refund within ${returnDays} days of delivery, as long as the item meets the conditions below. Please read this page together with our Shipping & Delivery Policy and Terms & Conditions.`] },
+    { id: 'cancellation', number: '02', navLabel: 'Order cancellation', title: 'Cancelling an order', lead: 'You can cancel an order until it is handed to the courier.',
+      paragraphs: [`You can cancel directly from your account within ${cancelHours} hour${cancelHours === 1 ? '' : 's'} of placing the order. After that, contact Complaints & Support or WhatsApp with your order number and we will cancel it if it has not been dispatched. Once an order is with the courier it can no longer be cancelled, but you may refuse delivery or request a return once it arrives.`,
+        'Hafiz Mart may also cancel an order, and will tell you why, if an item is out of stock, a price or description error is found, we cannot reach you to confirm the order, the address cannot be served, or we suspect fraud. Any amount you paid in advance is refunded in full.'] },
+    { id: 'eligibility', number: '03', navLabel: 'What can be returned', title: 'Items eligible for return', lead: `Return requests must be made within ${returnDays} days of delivery.`,
+      items: [
+        { title: 'Wrong, damaged or defective items', text: 'Always eligible. This includes a different product, size or colour from what you ordered, items damaged in transit, items with a manufacturing defect, and missing parts or items.' },
+        { title: 'Change of mind', text: 'Eligible for most items if they are unused, unwashed and unworn, with original tags, packaging and accessories. Return shipping for a change of mind is paid by the customer.' },
+        { title: 'Proof of purchase', text: 'Keep your order number. We may ask for photos or a short unboxing video, especially for damage or missing items.' }] },
+    { id: 'non-returnable', number: '04', navLabel: 'Non-returnable items', title: 'Items we cannot take back', lead: 'For hygiene, safety and fairness, some items cannot be returned unless they arrive faulty or wrong.',
+      items: [
+        { title: 'Personal and hygiene items', text: 'Underwear and innerwear, swimwear, pierced jewellery such as earrings, and opened or used cosmetics, skincare and personal-care products.' },
+        { title: 'Fragrances', text: 'Opened or used perfumes, attars and body sprays. Sealed fragrances can be returned within the return window.' },
+        { title: 'Made-to-order and altered items', text: 'Custom or tailored items, stitched or cut unstitched fabric, and anything washed, worn, altered or damaged after delivery.' },
+        { title: 'Special offers', text: 'Items marked "non-returnable" on the product page, gift cards, and downloadable products.' }] },
+    { id: 'how-to', number: '05', navLabel: 'How to return', title: 'How to request a return', lead: 'It takes a few simple steps.',
+      items: [
+        { title: 'Step 1: Contact us', text: `Within ${returnDays} days of delivery, open Complaints & Support (or message us on WhatsApp) with your order number, the item, the reason and clear photos.` },
+        { title: 'Step 2: Approval', text: 'We review your request, usually within 1 to 2 working days, and tell you whether it is approved and how to send the item back.' },
+        { title: 'Step 3: Send it back', text: 'Pack the item securely in its original packaging with all tags and accessories. We may arrange a pickup, or you can send it with a courier and share the tracking number.' },
+        { title: 'Step 4: Inspection', text: 'When the item reaches us we check its condition. Items that do not meet this policy may be sent back to you or refunded partially.' },
+        { title: 'Step 5: Refund or exchange', text: 'Once approved, we issue your refund or send the exchange.' }] },
+    { id: 'damaged', number: '06', navLabel: 'Damaged or wrong items', title: 'Damaged, defective or wrong items', lead: 'Please check your parcel when it arrives.',
+      paragraphs: ['If the parcel looks opened or damaged, please do not accept it and tell us straight away. If you find a problem after opening, contact us as soon as possible, ideally within 48 hours of delivery, with photos or a short video of the parcel and the item. In these cases Hafiz Mart pays for return shipping and sends a replacement or a full refund, including the delivery charge.'] },
+    { id: 'refunds', number: '07', navLabel: 'Refunds', title: 'How and when you get your money back', lead: 'Refunds are made after the returned item is received and checked.',
+      items: [
+        { title: 'Cash on Delivery orders', text: 'Refunded by bank transfer, JazzCash or Easypaisa to an account in your name. We will ask for the account details.' },
+        ...(online ? [{ title: 'Online payments', text: 'Refunded to the original payment method.' }] : []),
+        { title: 'Timing', text: 'We start your refund within 3 to 5 working days of approving it. It can then take a further 3 to 7 working days to appear, depending on your bank or wallet.' },
+        { title: 'Delivery charges', text: 'Delivery charges are refunded only when the return is due to our mistake (wrong, damaged or defective item) or when we cancel the order.' },
+        { title: 'Partial refunds', text: 'If an item comes back used, incomplete or damaged by the customer, we may refund only part of the price or decline the refund.' }] },
+    { id: 'exchanges', number: '08', navLabel: 'Exchanges', title: 'Exchanges', lead: 'Need a different size or colour?',
+      paragraphs: ['Exchanges are subject to stock. Request one in the same way as a return. If the replacement is not available, we will offer a refund instead. The customer pays shipping for exchanges requested because of fit or preference; we pay when the exchange is due to our error.'] },
+    { id: 'refused', number: '09', navLabel: 'Refused or failed delivery', title: 'Refused, unreachable or undelivered parcels', lead: 'Cash on Delivery works best when you are available to receive your order.',
+      paragraphs: ['If a parcel comes back because the address was wrong, nobody was reachable or the delivery was refused without a valid reason, we may cancel the order. Customers with repeated refused or unreachable orders may be asked to pay in advance for future orders. Parcels that are damaged or tampered with are a valid reason to refuse delivery; please contact us immediately.'] },
+    { id: 'contact', number: '10', navLabel: 'Contact us', title: 'Need help with a return?', lead: 'We are happy to help.', contact: true }
+  ];
+}
+
+function buildShippingPolicy({ shipping, payments }) {
+  const threshold = Number(shipping.freeDeliveryThreshold) || 0;
+  const cities = (shipping.cityRates || []).filter(item => item && item.city);
+  return [
+    { id: 'overview', number: '01', navLabel: 'Overview', title: 'Delivery to your door', lead: 'How and when Hafiz Mart delivers your order.',
+      paragraphs: ['We deliver through trusted courier partners. This policy covers delivery areas, charges, timelines and what to do when your parcel arrives. Delivery is available only while shipping is enabled for your location at checkout.'] },
+    { id: 'areas', number: '02', navLabel: 'Delivery areas', title: 'Where we deliver', lead: 'Delivery availability and charges are confirmed at checkout.',
+      paragraphs: ['Enter your full address and city at checkout. Some remote areas may take longer or may not be served by our courier partners; in that case we will contact you to agree on another option or cancel the order with a full refund.'] },
+    { id: 'processing', number: '03', navLabel: 'Order processing', title: 'Processing your order', lead: 'Most orders are packed within 1 to 2 working days.',
+      paragraphs: ['After you place an order we may contact you by phone or WhatsApp to confirm it. Orders are processed on working days (Monday to Saturday), excluding public holidays. Orders placed late on a Saturday or before a holiday are processed on the next working day.'] },
+    { id: 'time', number: '04', navLabel: 'Delivery time', title: 'How long delivery takes', lead: `Estimated delivery is ${shipping.minDays} to ${shipping.maxDays} working days after dispatch.`,
+      paragraphs: ['These are estimates, not guarantees. Delivery may take longer during sales, Eid and other busy periods, bad weather, strikes or for remote areas. We will keep you updated if your order is delayed.'] },
+    { id: 'charges', number: '05', navLabel: 'Delivery charges', title: 'Delivery charges', lead: 'You will always see the delivery charge before you place your order.',
+      items: [
+        { title: 'Standard delivery', text: `${hmMoney(shipping.defaultRate)} per order unless a city rate or free delivery applies.` },
+        ...cities.map(item => ({ title: item.city, text: `${hmMoney(item.rate)} delivery charge for ${item.city}.` })),
+        ...(threshold > 0 ? [{ title: 'Free delivery', text: `Orders of ${hmMoney(threshold)} or more qualify for free delivery. The amount is based on the value of the items in your cart after discounts.` }] : [])] },
+    { id: 'payment', number: '06', navLabel: 'Payment on delivery', title: 'Paying for your order', lead: 'Available payment options are shown at checkout.',
+      paragraphs: [payments.codEnabled ? 'Cash on Delivery (COD) is available. Please keep the exact amount ready and pay the courier when you receive and check your parcel.' : 'Please see checkout for the payment methods currently available.', payments.onlinePaymentsEnabled ? 'Online payment options, where enabled, are processed securely by our payment partners.' : ''].filter(Boolean) },
+    { id: 'tracking', number: '07', navLabel: 'Order tracking', title: 'Tracking your order', lead: 'Follow your order from our store to your door.',
+      paragraphs: ['Use the Track Order page with your order number, or open your account to see your order status. You will also see updates in your notifications as your order is confirmed, dispatched and delivered.'] },
+    { id: 'receiving', number: '08', navLabel: 'Receiving your parcel', title: 'When your parcel arrives', lead: 'Please check it before you accept it.',
+      paragraphs: ['Check that the packaging is sealed and undamaged. If the parcel looks opened, wet or damaged, do not accept it and contact us straight away. Once you accept and open your order, any issue should be reported within the return window as described in our Return & Refund Policy. A short unboxing video helps us resolve problems faster.'] },
+    { id: 'attempts', number: '09', navLabel: 'Delivery attempts', title: 'Delivery attempts and wrong addresses', lead: 'Please give an accurate address and an active phone number.',
+      paragraphs: ['The courier will usually try more than once to deliver your parcel. If they cannot reach you or the address is wrong or incomplete, the parcel is returned to us and your order may be cancelled. You can change the address or phone number only before the order is dispatched, by contacting support.'] },
+    { id: 'delays', number: '10', navLabel: 'Delays and events beyond our control', title: 'Delays beyond our control', lead: 'Some things are outside anyone’s control.',
+      paragraphs: ['Hafiz Mart is not responsible for delays caused by natural events, strikes, road closures, public holidays, government restrictions, courier network problems or other events outside our reasonable control. We will do our best to deliver as soon as possible.'] },
+    { id: 'contact', number: '11', navLabel: 'Contact us', title: 'Questions about delivery?', lead: 'Reach out and we will help.', contact: true }
+  ];
+}
+
+function buildTermsPolicy() {
+  return [
+    { id: 'acceptance', number: '01', navLabel: 'Acceptance', title: 'Agreeing to these terms', lead: 'By using Hafiz Mart you accept these Terms & Conditions.',
+      paragraphs: ['These terms apply to your use of the Hafiz Mart website, your account and any order you place. If you do not agree, please do not use the store. They should be read together with our Privacy Policy, Return & Refund Policy and Shipping & Delivery Policy.'] },
+    { id: 'eligibility', number: '02', navLabel: 'Eligibility', title: 'Who can use the store', lead: 'You must be able to enter into a binding contract.',
+      paragraphs: ['You must be at least 18 years old, or use the store with the supervision and consent of a parent or guardian. You agree to provide accurate and current information when you register or place an order.'] },
+    { id: 'account', number: '03', navLabel: 'Your account', title: 'Your account and security', lead: 'Keep your login details safe.',
+      paragraphs: ['You are responsible for keeping your password confidential and for activity under your account. Tell us at once if you think your account has been used without permission. We may suspend or close accounts that are used for fraud, abuse or in breach of these terms.'] },
+    { id: 'products', number: '04', navLabel: 'Products and availability', title: 'Products, descriptions and availability', lead: 'We try to show products as accurately as possible.',
+      paragraphs: ['Colours and finishes may look slightly different on your screen. Sizes, weights and measurements may vary a little. Products are subject to availability and we may limit quantities or stop selling any product at any time. If we find an error in a listing after you order, we will contact you and you may choose to continue, change or cancel the order.'] },
+    { id: 'pricing', number: '05', navLabel: 'Prices and payment', title: 'Prices and payment', lead: 'All prices are in Pakistani Rupees (PKR).',
+      paragraphs: ['Prices, discounts and delivery charges can change at any time without notice, but the price you see at checkout is the price for your order. If a product is listed at a clearly wrong price, we may cancel the order and refund anything you paid. Payment must be made by the methods offered at checkout, and Cash on Delivery orders must be paid in full when you receive the parcel.'] },
+    { id: 'orders', number: '06', navLabel: 'Orders', title: 'Placing and accepting orders', lead: 'An order confirmation is not the final acceptance.',
+      paragraphs: ['When you place an order we send an acknowledgement. The contract is formed when we confirm the order or dispatch your items. We may decline or cancel an order for reasons such as stock, pricing errors, an unserviceable address, inability to contact you, or suspected fraud, and we will refund any advance payment.'] },
+    { id: 'policies', number: '07', navLabel: 'Delivery, returns and cancellations', title: 'Delivery, returns and cancellations', lead: 'These are explained on their own pages.',
+      paragraphs: ['Delivery times and charges are in our Shipping & Delivery Policy. Cancellations, returns, exchanges and refunds are covered in our Return & Refund Policy. Those policies form part of these terms.'] },
+    { id: 'promotions', number: '08', navLabel: 'Coupons and promotions', title: 'Coupons and promotions', lead: 'Offers have their own conditions.',
+      paragraphs: ['Coupons and promotional offers are valid for the period and conditions stated with them, cannot be exchanged for cash, and may not be combined unless stated. We may withdraw or change an offer, and may cancel orders where a coupon was used incorrectly or abused.'] },
+    { id: 'content', number: '09', navLabel: 'Reviews and your content', title: 'Reviews, photos and messages you submit', lead: 'Keep it honest and respectful.',
+      paragraphs: ['If you post a review, photo or message, you confirm it is yours, honest and lawful, and you allow Hafiz Mart to display and use it on the store and in marketing. We may remove content that is false, offensive, infringing, or that breaches these terms.'] },
+    { id: 'conduct', number: '10', navLabel: 'Acceptable use', title: 'Acceptable use', lead: 'Please use the store fairly.',
+      items: [
+        { title: 'No unlawful or harmful use', text: 'Do not use the store for any unlawful purpose, to harm others, or to spread malware or spam.' },
+        { title: 'No interference', text: 'Do not attempt to hack, overload, scrape or bypass the security of the website or other users’ accounts.' },
+        { title: 'No misuse of offers', text: 'Do not create fake accounts or orders, or abuse coupons, returns or refunds.' }] },
+    { id: 'ip', number: '11', navLabel: 'Intellectual property', title: 'Our content and brand', lead: 'The store and its content belong to Hafiz Mart or its licensors.',
+      paragraphs: ['The Hafiz Mart name, logo, design, images, text and other content are protected. You may view and print pages for your personal use, but you may not copy, sell or reuse our content without written permission.'] },
+    { id: 'third-party', number: '12', navLabel: 'Third-party services', title: 'Third-party links and services', lead: 'Some services are provided by others.',
+      paragraphs: ['The store may link to or use services provided by others, such as WhatsApp, courier companies and payment providers. We do not control them and are not responsible for their content or practices; their own terms and policies apply.'] },
+    { id: 'liability', number: '13', navLabel: 'Liability', title: 'Disclaimers and limits of liability', lead: 'What we can and cannot promise.',
+      paragraphs: ['We work to keep the store available and accurate, but it is provided "as is" and may be interrupted or contain errors. To the extent permitted by law, Hafiz Mart is not liable for indirect or consequential loss, and our total liability for any order is limited to the amount you paid for that order. Nothing in these terms limits any right you have under applicable consumer-protection law that cannot be excluded.'] },
+    { id: 'law', number: '14', navLabel: 'Governing law', title: 'Governing law and disputes', lead: 'We prefer to solve problems directly.',
+      paragraphs: ['These terms are governed by the laws of Pakistan. Please contact Complaints & Support first so we can try to resolve any dispute. If it cannot be resolved, it may be brought before the courts of competent jurisdiction in Pakistan.'] },
+    { id: 'changes', number: '15', navLabel: 'Changes', title: 'Changes to these terms', lead: 'We may update these terms from time to time.',
+      paragraphs: [`The "last updated" date at the top of this page shows when they were last changed. By continuing to use the store after a change, you accept the updated terms.`] },
+    { id: 'contact', number: '16', navLabel: 'Contact us', title: 'Questions about these terms?', lead: 'We are here to help.', contact: true }
+  ];
+}
+
+const HM_POLICY_PAGES = {
+  returns: { title: 'Return & Refund Policy', kicker: 'POLICY CENTRE', settingKey: 'returnsPolicy', build: buildReturnPolicy,
+    copy: 'Clear, fair rules for cancelling, returning and getting your money back.',
+    highlights: [['Easy returns', 'Request a return within the return window shown in this policy.'], ['Fair refunds', 'Refunds go to your bank, wallet or original payment method.'], ['We help', 'Wrong or damaged item? We cover the return.']] },
+  shipping: { title: 'Shipping & Delivery Policy', kicker: 'POLICY CENTRE', settingKey: 'shippingPolicy', build: buildShippingPolicy,
+    copy: 'How we deliver, what it costs and how long it takes.',
+    highlights: [['Clear charges', 'You see the delivery charge before you order.'], ['Track it', 'Follow your order from dispatch to delivery.'], ['Check on arrival', 'Open and check your parcel when it arrives.']] },
+  terms: { title: 'Terms & Conditions', kicker: 'POLICY CENTRE', settingKey: 'terms', build: buildTermsPolicy,
+    copy: 'The simple rules for using Hafiz Mart and placing orders.',
+    highlights: [['Plain language', 'What you can expect from us and what we expect from you.'], ['Fair for both', 'Your consumer rights are never taken away.'], ['Questions?', 'Contact us any time and we will explain.']] }
+};
+
+function StorePolicyPage({ kind }) {
+  const { store } = useStore();
+  const config = HM_POLICY_PAGES[kind];
+  const ctx = hmPolicyContext(store.adminSettings);
+  const configured = replaceLegacyStorePhoneText(String(ctx.policies[config.settingKey] || '')).trim();
+  const sections = configured
+    ? [{ id: 'store-policy', number: 'STORE POLICY', navLabel: config.title, title: config.title, lead: '', blocks: configured.replace(/\r\n?/g, '\n').split(/\n\s*\n/).filter(block => block.trim()) }, { id: 'contact', number: '', navLabel: 'Contact us', title: 'Need help?', lead: 'We are happy to help.', contact: true }]
+    : config.build(ctx);
+  const phone = String(ctx.general.supportPhone || STORE_SUPPORT_PHONE_LOCAL).trim();
+  const email = String(ctx.general.supportEmail || '').trim();
+  const whatsapp = String(ctx.general.whatsapp || '').replace(/[^\d]/g, '');
+  const address = String(ctx.general.address || '').trim();
+  const contactMethods = [
+    { label: 'Phone', value: phone, href: `tel:${phone.replace(/[^\d+]/g, '')}` },
+    ...(whatsapp ? [{ label: 'WhatsApp', value: `+${whatsapp}`, href: `https://wa.me/${whatsapp}` }] : []),
+    ...(email ? [{ label: 'Email', value: email, href: `mailto:${email}` }] : []),
+    ...(address ? [{ label: 'Address', value: address, href: '' }] : [])
+  ];
+  const scrollTo = (event, id) => {
+    event.preventDefault();
+    const target = document.getElementById(id);
+    if (target) {
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+    }
+  };
+  return <main className="page hm-privacy-page">
+    <div className="container hm-privacy-shell">
+      <header className="hm-privacy-hero">
+        <div className="hm-privacy-hero-meta">
+          <span className="hm-privacy-kicker"><ShieldCheck size={15} aria-hidden="true"/> {config.kicker}</span>
+          <span className="hm-privacy-updated">Last updated: {HM_POLICY_UPDATED}</span>
+        </div>
+        <h1>{config.title}</h1>
+        <p className="hm-privacy-hero-copy">{config.copy}</p>
+        <div className="hm-privacy-highlights">
+          {config.highlights.map(([title, text], index) => <div key={title}><span className="hm-privacy-highlight-number">{String(index + 1).padStart(2, '0')}</span><div><strong>{title}</strong><small>{text}</small></div></div>)}
+        </div>
+      </header>
+      <div className="hm-privacy-layout">
+        <aside className="hm-privacy-toc" aria-label={`${config.title} contents`}>
+          <p className="hm-privacy-toc-title">ON THIS PAGE</p>
+          <nav>{sections.map(section => <a key={section.id} href={`#hm-${kind}-${section.id}`} onClick={event => scrollTo(event, `hm-${kind}-${section.id}`)}>{section.number && section.number.length <= 2 && <span>{section.number}</span>}<span>{section.navLabel}</span></a>)}</nav>
+          <div className="hm-privacy-toc-help">
+            <ShieldCheck size={18} aria-hidden="true"/>
+            <p><strong>Need help?</strong><span>Contact us and we will be glad to assist.</span></p>
+            <Link to="/contact-us">Contact Us <ArrowRight size={13} aria-hidden="true"/></Link>
+          </div>
+        </aside>
+        <article className="hm-privacy-document">
+          {sections.map(section => <section className="hm-privacy-section" id={`hm-${kind}-${section.id}`} key={section.id}>
+            <div className="hm-privacy-section-heading">
+              {section.number && <span className="hm-privacy-section-number">{section.number}</span>}
+              <div><h2>{section.title}</h2>{section.lead && <p>{section.lead}</p>}</div>
+            </div>
+            <div className="hm-privacy-prose">
+              {section.paragraphs?.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+              {section.blocks?.map((block, index) => <p key={index}>{block.trim()}</p>)}
+              {section.items?.length > 0 && <div className="hm-privacy-detail-list">
+                {section.items.map(item => <div className="hm-privacy-detail" key={item.title}>
+                  <span className="hm-privacy-detail-mark" aria-hidden="true">✓</span>
+                  <div><h3>{item.title}</h3><p>{item.text}</p></div>
+                </div>)}
+              </div>}
+              {section.contact && <div className="hm-privacy-contact-grid">
+                {contactMethods.map(method => <div className="hm-privacy-contact-card" key={method.label}>
+                  <span>{method.label}</span>
+                  {method.href ? <a href={method.href} target={method.href.startsWith('https://') ? '_blank' : undefined} rel={method.href.startsWith('https://') ? 'noreferrer' : undefined}>{method.value}</a> : <strong>{method.value}</strong>}
+                </div>)}
+                <div className="hm-privacy-contact-empty"><strong>Prefer to write to us?</strong><p>Open Complaints & Support and share your order number so we can help faster.</p><Link to="/complaints">Open Complaints & Support <ArrowRight size={14} aria-hidden="true"/></Link></div>
+              </div>}
+            </div>
+          </section>)}
+        </article>
+      </div>
+    </div>
+  </main>;
 }
 
 const DEFAULT_PRIVACY_POLICY = [
@@ -2691,7 +2921,7 @@ function Shop() {
     navigate("/shop");
   };
 
-  const freeDeliveryThreshold = Number(store.adminSettings?.shipping?.freeDeliveryThreshold ?? 10000);
+  const freeDeliveryThreshold = Number(store.adminSettings?.shipping?.freeDeliveryThreshold ?? 5000);
 
   let products = store.products
     .filter((p) => p.status !== "inactive")
@@ -3045,7 +3275,7 @@ function Checkout(){
 
   const normalizedCity = String(form.city || '').trim().toLowerCase();
   const cityRate = (shippingSettings.cityRates || []).find(row => String(row.city || '').trim().toLowerCase() === normalizedCity);
-  const freeThreshold = Number(shippingSettings.freeDeliveryThreshold ?? 10000);
+  const freeThreshold = Number(shippingSettings.freeDeliveryThreshold ?? 5000);
   const deliveryFee = freeThreshold > 0 && subtotal >= freeThreshold
     ? 0
     : Math.max(0, Number(cityRate?.rate ?? shippingSettings.defaultRate ?? (normalizedCity === 'multan' ? 270 : 300)));
@@ -4552,6 +4782,8 @@ function Checkout(){
 
               )}
 
+              <p className="hm-checkout-legal">By placing your order you agree to our <Link to="/terms">Terms &amp; Conditions</Link>, <Link to="/return-policy">Return &amp; Refund Policy</Link> and <Link to="/privacy-policy">Privacy Policy</Link>.</p>
+
             </div>
 
           </form>
@@ -5359,13 +5591,15 @@ function Login() {
 
   useEffect(() => {
     if (user && profile) {
+      const next = new URLSearchParams(location.search).get("next");
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "";
       navigate(
-        profile.role === "admin"
+        safeNext || (profile.role === "admin"
           ? "/admin"
-          : "/account"
+          : "/account")
       );
     }
-  }, [user, profile, navigate]);
+  }, [user, profile, navigate, location.search]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -6262,6 +6496,176 @@ function AdminCustomerReceipt({ customer, order, items, productMap={}, onClose }
   return <div className="customer-receipt-panel"><div className="customer-receipt-head"><div><p className="eyebrow">ORDER RECEIPT</p><h3>{order.order_number || order.id.slice(0,8)}</h3><span>{new Date(order.created_at).toLocaleString()}</span></div><button className="ghost-btn" type="button" onClick={onClose}>Close</button></div><div className="customer-receipt-summary"><div><span>Customer</span><strong>{customer.full_name || customer.name || order.customer_name || 'Customer'}</strong><small>{customer.email || order.email || '—'}</small></div><div><span>Status</span><strong>{String(order.status || 'pending').replaceAll('_',' ')}</strong><small>{order.payment_method || 'COD'}</small></div><div><span>Total</span><strong>{money(order.total)}</strong><small>{(items || []).length} item line(s)</small></div></div><div className="customer-receipt-items">{(items || []).length ? items.map(item=><div key={item.id}><div><strong>{item.product_name || productMap[String(item.product_id)]?.name || 'Product'}</strong><span>SKU: {item.sku || productMap[String(item.product_id)]?.sku || 'N/A'} · {item.quantity} × {money(item.unit_price)}</span></div><strong>{money(Number(item.unit_price || 0) * Number(item.quantity || 0))}</strong></div>) : <div className="mini-empty">No item lines found for this order.</div>}</div><div className="customer-receipt-totals"><span>Subtotal</span><strong>{money(order.subtotal)}</strong><span>Discount</span><strong>{money(order.discount)}</strong><span>Delivery</span><strong>{money(order.delivery_fee)}</strong><span className="grand">Total</span><strong className="grand">{money(order.total)}</strong></div><button className="gold-btn" type="button" onClick={printReceipt}><FileText size={15}/> Print / Save Receipt</button></div>;
 }
 
+/* ===== Team invites: admin creates a link, the invited person opens it and joins with a role ===== */
+const HM_ROLE_PRESETS = {
+  manager: ['view_dashboard', 'manage_products', 'manage_content', 'manage_marketing', 'manage_orders', 'manage_support', 'manage_reviews', 'view_transactions', 'view_reports', 'view_notifications'],
+  editor: ['view_dashboard', 'manage_products', 'manage_content', 'manage_marketing', 'manage_reviews'],
+  support: ['view_dashboard', 'manage_orders', 'manage_support', 'manage_reviews', 'view_notifications']
+};
+const HM_ROLE_LABELS = { manager: 'Manager', editor: 'Content Editor', support: 'Support' };
+
+function hmPresetPermissions(role) {
+  const out = {};
+  (HM_ROLE_PRESETS[role] || []).forEach(key => { out[key] = true; });
+  return out;
+}
+
+function hmInviteLink(token) {
+  return `${window.location.origin}${window.location.pathname}#/join-team/${token}`;
+}
+
+function hmInviteError(error, fallback = 'Invite ka kaam nahi ho saka. Dobara koshish karein.') {
+  const text = String(error?.message || error || '').toLowerCase();
+  if (String(error?.code) === 'PGRST202' || String(error?.code) === '42883' || text.includes('could not find the function') || text.includes('team_invites')) {
+    return 'Invite system ka database setup abhi nahi hua. Supabase SQL Editor mein team_invites.sql run karein.';
+  }
+  return getFriendlyErrorMessage(error, fallback);
+}
+
+async function hmCopyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    try {
+      const area = document.createElement('textarea');
+      area.value = text; area.style.position = 'fixed'; area.style.opacity = '0';
+      document.body.appendChild(area); area.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(area);
+      return ok;
+    } catch (inner) { return false; }
+  }
+}
+
+function TeamInvitePanel({ permissionKeys }) {
+  const [open, setOpen] = useState(false);
+  const [role, setRole] = useState('support');
+  const [email, setEmail] = useState('');
+  const [days, setDays] = useState(7);
+  const [perms, setPerms] = useState(() => hmPresetPermissions('support'));
+  const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState(null);
+  const [invites, setInvites] = useState([]);
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState('');
+
+  const loadInvites = async () => {
+    const { data, error: loadError } = await supabase.rpc('list_team_invites');
+    if (loadError) { setError(hmInviteError(loadError)); return; }
+    setInvites(data || []);
+  };
+  useEffect(() => { loadInvites(); }, []);
+
+  const changeRole = value => { setRole(value); setPerms(hmPresetPermissions(value)); };
+  const createInvite = async event => {
+    event.preventDefault();
+    setBusy(true); setError(''); setCreated(null);
+    const cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail && !/^\S+@\S+\.\S+$/.test(cleanEmail)) { setError('Sahi email likhein, ya khali chhor dein.'); setBusy(false); return; }
+    const { data, error: createError } = await supabase.rpc('create_team_invite', { p_email: cleanEmail || null, p_team_role: role, p_permissions: perms, p_days: Number(days) });
+    if (createError) setError(hmInviteError(createError));
+    else { setCreated(Array.isArray(data) ? data[0] : data); setEmail(''); await loadInvites(); }
+    setBusy(false);
+  };
+  const revoke = async invite => {
+    if (!confirm('Is invite link ko cancel karna hai? Ye link phir kaam nahi karega.')) return;
+    const { error: revokeError } = await supabase.rpc('revoke_team_invite', { p_invite_id: invite.id });
+    if (revokeError) setError(hmInviteError(revokeError)); else await loadInvites();
+  };
+  const copy = async (token, key) => {
+    const ok = await hmCopyText(hmInviteLink(token));
+    setCopied(ok ? key : '');
+    if (!ok) setError('Link copy nahi hua. Link ko khud select karke copy karein.');
+    setTimeout(() => setCopied(''), 2200);
+  };
+  const createdToken = created && (created.token || created.invite_token);
+  const createdLink = createdToken ? hmInviteLink(createdToken) : '';
+  const pending = invites.filter(item => item.status === 'pending' && new Date(item.expires_at) > new Date());
+  const recent = invites.filter(item => !pending.includes(item)).slice(0, 5);
+
+  return <section className="hm-invite-panel" aria-label="Invite team members">
+    <div className="hm-invite-head">
+      <div><p className="eyebrow">TEAM</p><h3>Invite a team member</h3><p>Link banayein, usay WhatsApp ya email par bhejein. Link kholne aur account se login karne par banda aap ki team mein shamil ho jata hai.</p></div>
+      <button type="button" className="gold-btn" onClick={() => setOpen(value => !value)}><Plus size={16}/> {open ? 'Close' : 'Invite Member'}</button>
+    </div>
+    {error && <p className="hm-invite-error" role="alert">{error}</p>}
+    {open && <form className="hm-invite-form" onSubmit={createInvite}>
+      <div className="hm-invite-grid">
+        <label>Role<select value={role} onChange={event => changeRole(event.target.value)}>{Object.entries(HM_ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label>Invite valid for<select value={days} onChange={event => setDays(event.target.value)}><option value={1}>1 day</option><option value={3}>3 days</option><option value={7}>7 days</option><option value={14}>14 days</option><option value={30}>30 days</option></select></label>
+        <label className="hm-invite-wide">Lock to an email (optional)<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="name@example.com — sirf is email se join ho sakega"/></label>
+      </div>
+      <div className="hm-invite-perms"><h4>What can they do?</h4>
+        <div>{permissionKeys.filter(key => key !== 'manage_users' && key !== 'manage_settings' && key !== 'manage_transactions').map(key => <label key={key}><input type="checkbox" checked={!!perms[key]} onChange={event => setPerms(prev => ({ ...prev, [key]: event.target.checked }))}/><span>{key.replaceAll('_', ' ')}</span></label>)}</div>
+        <small>Sensitive permissions (users, settings, transactions) invite se nahi diye jate. Join karne ke baad aap unhein list mein se de sakte hain.</small>
+      </div>
+      <button type="submit" className="gold-btn" disabled={busy}>{busy ? 'Creating...' : 'Create invite link'}</button>
+    </form>}
+    {createdLink && <div className="hm-invite-created" role="status">
+      <strong>Invite link tayyar hai</strong>
+      <div className="hm-invite-linkbox"><input readOnly value={createdLink} onFocus={event => event.target.select()} aria-label="Invite link"/><button type="button" className="gold-btn" onClick={() => copy(createdToken, 'new')}>{copied === 'new' ? 'Copied!' : 'Copy link'}</button></div>
+      <a className="hm-invite-wa" href={`https://wa.me/?text=${encodeURIComponent(`Hafiz Mart team mein shamil hone ke liye ye link kholein: ${createdLink}`)}`} target="_blank" rel="noreferrer">Share on WhatsApp</a>
+    </div>}
+    {pending.length > 0 && <div className="hm-invite-list"><h4>Pending invites</h4>
+      {pending.map(item => <div className="hm-invite-row" key={item.id}>
+        <div><strong>{HM_ROLE_LABELS[item.team_role] || item.team_role}</strong><span>{item.email || 'Anyone with the link'} · expires {new Date(item.expires_at).toLocaleDateString()}</span></div>
+        <div className="hm-invite-actions"><button type="button" className="ghost-btn" onClick={() => copy(item.token, item.id)}>{copied === item.id ? 'Copied!' : 'Copy link'}</button><button type="button" className="ghost-btn danger" onClick={() => revoke(item)}>Cancel</button></div>
+      </div>)}
+    </div>}
+    {recent.length > 0 && <div className="hm-invite-list is-muted"><h4>Recent</h4>
+      {recent.map(item => <div className="hm-invite-row" key={item.id}><div><strong>{HM_ROLE_LABELS[item.team_role] || item.team_role}</strong><span>{item.email || 'Anyone with the link'}</span></div><em>{item.status === 'accepted' ? 'Joined' : item.status === 'revoked' ? 'Cancelled' : 'Expired'}</em></div>)}
+    </div>}
+  </section>;
+}
+
+function JoinTeam() {
+  const { token } = useParams();
+  const { user, profile, loading, refreshProfile } = useAuth();
+  const navigate = useNavigate();
+  const [state, setState] = useState({ loading: true, invite: null, error: '' });
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [message, setMessage] = useState('');
+  const here = `/join-team/${token}`;
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data, error } = await supabase.rpc('preview_team_invite', { p_token: token });
+      if (!active) return;
+      if (error) setState({ loading: false, invite: null, error: hmInviteError(error) });
+      else setState({ loading: false, invite: Array.isArray(data) ? data[0] : data, error: '' });
+    })();
+    return () => { active = false; };
+  }, [token]);
+
+  const accept = async () => {
+    setBusy(true); setMessage('');
+    const { data, error } = await supabase.rpc('accept_team_invite', { p_token: token });
+    if (error) { setMessage(hmInviteError(error, 'Invite accept nahi ho saka.')); setBusy(false); return; }
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result && result.ok === false) { setMessage(result.message || 'Invite accept nahi ho saka.'); setBusy(false); return; }
+    await refreshProfile();
+    setDone(true); setBusy(false);
+  };
+
+  const invite = state.invite;
+  const reasons = { not_found: 'Ye invite link sahi nahi hai.', used: 'Ye invite pehle hi use ho chuka hai.', revoked: 'Ye invite cancel kar diya gaya hai.', expired: 'Is invite ki muddat khatam ho chuki hai.' };
+  const roleLabel = invite ? (HM_ROLE_LABELS[invite.team_role] || invite.team_role) : '';
+
+  let body;
+  if (state.loading || loading) body = <p className="hm-join-text">Invite check ho raha hai...</p>;
+  else if (state.error) body = <p className="hm-join-error" role="alert">{state.error}</p>;
+  else if (!invite || invite.valid === false) body = <><h1>Invite available nahi</h1><p className="hm-join-text">{reasons[invite?.reason] || reasons.not_found}</p><p className="hm-join-text">Naya link store owner se mangwa lein.</p><Link className="ghost-btn" to="/">Back to store</Link></>;
+  else if (done) body = <><h1>Welcome to the team!</h1><p className="hm-join-text">Ab aap Hafiz Mart ke <strong>{roleLabel}</strong> hain.</p><button type="button" className="gold-btn" onClick={() => navigate('/admin')}>Open Admin Dashboard <ArrowRight size={16}/></button></>;
+  else if (!user) body = <><p className="eyebrow">TEAM INVITATION</p><h1>Join Hafiz Mart as {roleLabel}</h1><p className="hm-join-text">Aap ko store ki team mein shamil hone ke liye bulaya gaya hai. Pehle login karein ya naya account banayein{invite.email_locked ? ' (invite ki email se)' : ''}.</p><div className="hm-join-actions"><Link className="gold-btn" to={`/login?next=${encodeURIComponent(here)}`}>Login</Link><Link className="ghost-btn" to={`/login?mode=register&next=${encodeURIComponent(here)}`}>Create account</Link></div><p className="hm-join-hint">Naya account banane par email verify karni pad sakti hai — verify karne ke baad ye link dobara kholein.</p></>;
+  else if (profile?.role === 'admin') body = <><h1>Aap pehle se team mein hain</h1><p className="hm-join-text">Is account ke paas pehle se admin access hai.</p><Link className="gold-btn" to="/admin">Open Admin Dashboard</Link></>;
+  else body = <><p className="eyebrow">TEAM INVITATION</p><h1>Join Hafiz Mart as {roleLabel}</h1><p className="hm-join-text">Aap <strong>{profile?.email || user.email}</strong> se login hain. Invite accept karne par aap ko {roleLabel} ke access mil jayenge.</p>{message && <p className="hm-join-error" role="alert">{message}</p>}<button type="button" className="gold-btn" onClick={accept} disabled={busy}>{busy ? 'Joining...' : 'Accept invitation'}</button></>;
+
+  return <main className="page"><div className="container"><section className="hm-join-card">{body}</section></div></main>;
+}
+
 function AdminCustomers(){
   const { profile: currentProfile } = useAuth();
   const { store } = useStore();
@@ -6290,7 +6694,7 @@ function AdminCustomers(){
     if(next===customer.id&&!Object.prototype.hasOwnProperty.call(customerOrders,customer.id)) await loadCustomerOrders(customer);
   };
   const filtered=rows.filter(r=>tab==='customers'?r.role==='customer':r.role==='admin').filter(r=>`${r.full_name||''} ${r.email||''} ${r.phone||''}`.toLowerCase().includes(search.toLowerCase()));
-  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">USER MANAGEMENT</p><h1>{tab==='customers'?'Customers':'Team & Roles'}</h1><p>Users ko view, verify, block aur permissions ke saath manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="admin-user-toolbar"><div className="order-filters"><button className={tab==='customers'?'active':''} onClick={()=>{setTab('customers');setExpanded(null);setReceiptOrder(null)}}>Customers</button><button className={tab==='team'?'active':''} onClick={()=>{setTab('team');setExpanded(null);setReceiptOrder(null)}}>Team & Roles</button></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email or phone..."/></div>{loading?<EmptyState title="Loading users..." text="User profiles fetch ho rahe hain." icon={Users}/>:filtered.length?<div className="admin-user-list">{filtered.map(c=>{const perms=c.permissions||{};const orders=customerOrders[c.id]||[];const items=customerItems[c.id]||[];const spent=orders.filter(o=>o.status!=='cancelled').reduce((sum,o)=>sum+Number(o.total||0),0);return <article className="admin-user-card" key={c.id}><div className="admin-user-main"><div className="admin-user-avatar"><User size={18}/></div><div><strong>{c.full_name||c.name||'Customer'}</strong><span>{c.email||'Email unavailable'}{c.phone?` · ${c.phone}`:''}</span><small>{c.created_at?new Date(c.created_at).toLocaleDateString():''}</small></div><div className="admin-user-statuses"><span className={`status status-${c.account_status||'active'}`}>{c.account_status||'active'}</span>{c.is_verified&&<span className="verified-pill"><UserCheck size={12}/> Verified</span>}</div></div>{expanded===c.id&&<div className="admin-user-editor"><label>Account Status<select disabled={c.id===currentProfile?.id||tab==='team'&&c.team_role==='owner'} value={c.account_status||'active'} onChange={e=>updateUser(c.id,{account_status:e.target.value})}><option value="active">Active</option><option value="blocked">Blocked</option><option value="suspended">Suspended</option></select></label><label className="admin-user-check"><input type="checkbox" disabled={c.id===currentProfile?.id} checked={!!c.is_verified} onChange={e=>updateUser(c.id,{is_verified:e.target.checked})}/><span>Store verification</span></label>{tab==='team'&&<><label>Team Role<select disabled={c.id===currentProfile?.id||c.team_role==='owner'} value={c.team_role||'manager'} onChange={e=>updateUser(c.id,{team_role:e.target.value})}><option value="owner">Owner</option><option value="manager">Manager</option><option value="editor">Content Editor</option><option value="support">Support</option></select></label><div className="permissions-grid"><h4>Permissions</h4>{permissionKeys.map(key=><label key={key}><input type="checkbox" checked={c.team_role==='owner'||!!perms[key]} disabled={c.team_role==='owner'||c.id===currentProfile?.id} onChange={e=>updateUser(c.id,{permissions:{...perms,[key]:e.target.checked}})}/><span>{key.replaceAll('_',' ')}</span></label>)}</div></>}{tab==='customers'&&<section className="customer-orders-section"><div className="customer-orders-head"><div><p className="eyebrow">CUSTOMER HISTORY</p><h3>Orders & Receipts</h3><p>Is customer ke orders, purchased items aur receipts ek jagah.</p></div><div className="customer-order-stats"><span><strong>{orders.length}</strong> orders</span><span><strong>Rs. {spent.toLocaleString()}</strong> spent</span></div></div>{ordersLoading===c.id?<div className="mini-empty">Customer orders load ho rahe hain...</div>:orders.length?<div className="customer-order-list">{orders.map(order=>{const orderItems=items.filter(i=>i.order_id===order.id);return <div className="customer-order-card" key={order.id}><div className="customer-order-main"><div><strong>{order.order_number||order.id.slice(0,8)}</strong><span>{new Date(order.created_at).toLocaleString()}</span><small>{order.customer_name||c.full_name||'Customer'} · {order.email||c.email||'No email'}</small></div><div><span className={`status status-${order.status||'pending'}`}>{String(order.status||'pending').replaceAll('_',' ')}</span><strong>Rs. {Number(order.total||0).toLocaleString()}</strong></div></div><div className="customer-order-items"><span>{orderItems.length ? orderItems.map(i=>`${i.product_name||store.products.find(p=>String(p.id)===String(i.product_id))?.name||'Product'} · SKU: ${i.sku||store.products.find(p=>String(p.id)===String(i.product_id))?.sku||'N/A'} × ${i.quantity}`).join(' · ') : 'Item snapshot unavailable'}</span><strong>{orderItems.length} item line{orderItems.length===1?'':'s'}</strong></div><div className="customer-order-actions"><button className="ghost-btn" type="button" onClick={()=>setReceiptOrder(receiptOrder?.id===order.id?null:order)}>{receiptOrder?.id===order.id?'Hide Receipt':'View Receipt'} <FileText size={15}/></button></div>{receiptOrder?.id===order.id&&<AdminCustomerReceipt customer={c} order={order} items={orderItems} productMap={Object.fromEntries(store.products.map(p=>[String(p.id),p]))} onClose={()=>setReceiptOrder(null)}/>}</div>})}</div>:<div className="mini-empty">Is customer ke naam par abhi koi linked order nahi hai.</div>}</section>}</div>}<div className="admin-user-actions">{tab==='customers'&&<button className="ghost-btn" type="button" onClick={()=>toggleCustomerOrders(c)}>{expanded===c.id?'Close Customer':'Orders & Receipts'} <ChevronRight size={15} className={expanded===c.id?'rotate':''}/></button>}{tab==='team'&&<button className="ghost-btn" type="button" onClick={()=>setExpanded(expanded===c.id?null:c.id)}>{expanded===c.id?'Close':'Manage User'} <ChevronRight size={15} className={expanded===c.id?'rotate':''}/></button>}{c.id!==currentProfile?.id&&tab==='customers'&&<button className={c.account_status==='blocked'?'gold-btn':'danger-btn'} disabled={saving===c.id} onClick={()=>updateUser(c.id,{account_status:c.account_status==='blocked'?'active':'blocked'})}>{c.account_status==='blocked'?<><UserCheck size={15}/> Unblock</>:<><UserX size={15}/> Block</>}</button>}</div></article>})}</div>:<EmptyState title="No users found" text="Search ya tab change karke dobara try karein." icon={Users}/>}</AdminLayout>;
+  return <AdminLayout><div className="admin-head"><div><p className="eyebrow">USER MANAGEMENT</p><h1>{tab==='customers'?'Customers':'Team & Roles'}</h1><p>Users ko view, verify, block aur permissions ke saath manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="admin-user-toolbar"><div className="order-filters"><button className={tab==='customers'?'active':''} onClick={()=>{setTab('customers');setExpanded(null);setReceiptOrder(null)}}>Customers</button><button className={tab==='team'?'active':''} onClick={()=>{setTab('team');setExpanded(null);setReceiptOrder(null)}}>Team & Roles</button></div><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email or phone..."/></div>{tab==='team'&&userHasPermission(currentProfile,'manage_users')&&<TeamInvitePanel permissionKeys={permissionKeys}/>}{loading?<EmptyState title="Loading users..." text="User profiles fetch ho rahe hain." icon={Users}/>:filtered.length?<div className="admin-user-list">{filtered.map(c=>{const perms=c.permissions||{};const orders=customerOrders[c.id]||[];const items=customerItems[c.id]||[];const spent=orders.filter(o=>o.status!=='cancelled').reduce((sum,o)=>sum+Number(o.total||0),0);return <article className="admin-user-card" key={c.id}><div className="admin-user-main"><div className="admin-user-avatar"><User size={18}/></div><div><strong>{c.full_name||c.name||'Customer'}</strong><span>{c.email||'Email unavailable'}{c.phone?` · ${c.phone}`:''}</span><small>{c.created_at?new Date(c.created_at).toLocaleDateString():''}</small></div><div className="admin-user-statuses"><span className={`status status-${c.account_status||'active'}`}>{c.account_status||'active'}</span>{c.is_verified&&<span className="verified-pill"><UserCheck size={12}/> Verified</span>}</div></div>{expanded===c.id&&<div className="admin-user-editor"><label>Account Status<select disabled={c.id===currentProfile?.id||tab==='team'&&c.team_role==='owner'} value={c.account_status||'active'} onChange={e=>updateUser(c.id,{account_status:e.target.value})}><option value="active">Active</option><option value="blocked">Blocked</option><option value="suspended">Suspended</option></select></label><label className="admin-user-check"><input type="checkbox" disabled={c.id===currentProfile?.id} checked={!!c.is_verified} onChange={e=>updateUser(c.id,{is_verified:e.target.checked})}/><span>Store verification</span></label>{tab==='team'&&<><label>Team Role<select disabled={c.id===currentProfile?.id||c.team_role==='owner'} value={c.team_role||'manager'} onChange={e=>updateUser(c.id,{team_role:e.target.value})}><option value="owner">Owner</option><option value="manager">Manager</option><option value="editor">Content Editor</option><option value="support">Support</option></select></label><div className="permissions-grid"><h4>Permissions</h4>{permissionKeys.map(key=><label key={key}><input type="checkbox" checked={c.team_role==='owner'||!!perms[key]} disabled={c.team_role==='owner'||c.id===currentProfile?.id} onChange={e=>updateUser(c.id,{permissions:{...perms,[key]:e.target.checked}})}/><span>{key.replaceAll('_',' ')}</span></label>)}</div></>}{tab==='customers'&&<section className="customer-orders-section"><div className="customer-orders-head"><div><p className="eyebrow">CUSTOMER HISTORY</p><h3>Orders & Receipts</h3><p>Is customer ke orders, purchased items aur receipts ek jagah.</p></div><div className="customer-order-stats"><span><strong>{orders.length}</strong> orders</span><span><strong>Rs. {spent.toLocaleString()}</strong> spent</span></div></div>{ordersLoading===c.id?<div className="mini-empty">Customer orders load ho rahe hain...</div>:orders.length?<div className="customer-order-list">{orders.map(order=>{const orderItems=items.filter(i=>i.order_id===order.id);return <div className="customer-order-card" key={order.id}><div className="customer-order-main"><div><strong>{order.order_number||order.id.slice(0,8)}</strong><span>{new Date(order.created_at).toLocaleString()}</span><small>{order.customer_name||c.full_name||'Customer'} · {order.email||c.email||'No email'}</small></div><div><span className={`status status-${order.status||'pending'}`}>{String(order.status||'pending').replaceAll('_',' ')}</span><strong>Rs. {Number(order.total||0).toLocaleString()}</strong></div></div><div className="customer-order-items"><span>{orderItems.length ? orderItems.map(i=>`${i.product_name||store.products.find(p=>String(p.id)===String(i.product_id))?.name||'Product'} · SKU: ${i.sku||store.products.find(p=>String(p.id)===String(i.product_id))?.sku||'N/A'} × ${i.quantity}`).join(' · ') : 'Item snapshot unavailable'}</span><strong>{orderItems.length} item line{orderItems.length===1?'':'s'}</strong></div><div className="customer-order-actions"><button className="ghost-btn" type="button" onClick={()=>setReceiptOrder(receiptOrder?.id===order.id?null:order)}>{receiptOrder?.id===order.id?'Hide Receipt':'View Receipt'} <FileText size={15}/></button></div>{receiptOrder?.id===order.id&&<AdminCustomerReceipt customer={c} order={order} items={orderItems} productMap={Object.fromEntries(store.products.map(p=>[String(p.id),p]))} onClose={()=>setReceiptOrder(null)}/>}</div>})}</div>:<div className="mini-empty">Is customer ke naam par abhi koi linked order nahi hai.</div>}</section>}</div>}<div className="admin-user-actions">{tab==='customers'&&<button className="ghost-btn" type="button" onClick={()=>toggleCustomerOrders(c)}>{expanded===c.id?'Close Customer':'Orders & Receipts'} <ChevronRight size={15} className={expanded===c.id?'rotate':''}/></button>}{tab==='team'&&<button className="ghost-btn" type="button" onClick={()=>setExpanded(expanded===c.id?null:c.id)}>{expanded===c.id?'Close':'Manage User'} <ChevronRight size={15} className={expanded===c.id?'rotate':''}/></button>}{c.id!==currentProfile?.id&&tab==='customers'&&<button className={c.account_status==='blocked'?'gold-btn':'danger-btn'} disabled={saving===c.id} onClick={()=>updateUser(c.id,{account_status:c.account_status==='blocked'?'active':'blocked'})}>{c.account_status==='blocked'?<><UserCheck size={15}/> Unblock</>:<><UserX size={15}/> Block</>}</button>}</div></article>})}</div>:<EmptyState title="No users found" text="Search ya tab change karke dobara try karein." icon={Users}/>}</AdminLayout>;
 }
 
 function AdminComplaints(){
@@ -6790,6 +7194,7 @@ function HafizFooter() {
           <p className="hmf-copy">© {year} Hafiz Mart. All Rights Reserved.</p>
           <HmfPayments/>
         </div>
+        <nav className="hmf-legal" aria-label="Store policies"><ul>{HM_LEGAL_LINKS.map(([label, to]) => <li key={to}><Link to={to}>{label}</Link></li>)}</ul></nav>
       </div>
       <div className="hmf-goldbar" aria-hidden="true"/>
     </footer>;
@@ -6801,7 +7206,7 @@ function HafizFooter() {
   };
   const isShopPage = path === '/shop' || path === '/categories' || path === '/deals' || path.startsWith('/campaign/');
   const isProductPage = path.startsWith('/product/');
-  const isInfoPage = ['/contact', '/contact-us', '/faq', '/privacy-policy', '/store-privacy-policy', '/publisher-privacy-policy'].includes(path);
+  const isInfoPage = ['/contact', '/contact-us', '/faq', '/privacy-policy', '/store-privacy-policy', '/publisher-privacy-policy', '/return-policy', '/refund-policy', '/shipping-policy', '/terms', '/terms-and-conditions'].includes(path);
   let items;
   if (isShopPage || isProductPage) items = [L.home, L.shop, L.categories, L.about, L.contact];
   else if (isInfoPage) items = [L.home, L.shop, L.about, L.contact, L.faq];
@@ -6818,6 +7223,7 @@ function HafizFooter() {
       <HmfPayments/>
       <p className="hmf-copy">© {year} Hafiz Mart. All rights reserved.</p>
     </div>
+    <nav className="hmf-legal" aria-label="Store policies"><ul>{HM_LEGAL_LINKS.map(([label, to]) => <li key={to}><Link to={to}>{label}</Link></li>)}</ul></nav>
   </footer>;
 }
 
@@ -6826,7 +7232,7 @@ function AppRoutes(){
   const maintenance=Boolean(store.adminSettings?.storefront?.maintenanceMode); const isAdmin=profile?.role==='admin';
   const authAllowed=['/login','/forgot-password','/reset-password'].includes(location.pathname); const adminAllowed=location.pathname.startsWith('/admin'); const bypass=isAdmin||adminAllowed||authAllowed;
   try { window.__HAFIZ_STORE_SETTINGS__ = store.adminSettings || DEFAULT_ADMIN_SETTINGS; } catch {} return <><Navbar/>{(!maintenance||bypass)&&<AnnouncementBar/>}{maintenance&&!bypass?<MaintenancePage/>:<Routes>
-    <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/campaign/:id" element={<CampaignProducts/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/store-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/publisher-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/contact-us" element={<ContactUsPage/>}/><Route path="/contact" element={<ContactUsPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
+    <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/campaign/:id" element={<CampaignProducts/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/return-policy" element={<StorePolicyPage kind="returns"/>}/><Route path="/refund-policy" element={<StorePolicyPage kind="returns"/>}/><Route path="/shipping-policy" element={<StorePolicyPage kind="shipping"/>}/><Route path="/terms" element={<StorePolicyPage kind="terms"/>}/><Route path="/terms-and-conditions" element={<StorePolicyPage kind="terms"/>}/><Route path="/store-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/publisher-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/contact-us" element={<ContactUsPage/>}/><Route path="/contact" element={<ContactUsPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/join-team/:token" element={<JoinTeam/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
     <Route path="/admin/security/mfa" element={<AdminMfaSecurityPage/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="This page does not exist." action="Back Home" to="/"/></main>}/>
   </Routes>}<WhatsAppButton/><HafizFooter/></>;
 }
