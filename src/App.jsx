@@ -262,7 +262,7 @@ const DEFAULT_ADMIN_SETTINGS = {
   policies: { cancellationWindowHours: 2, returnWindowDays: 7, returnsPolicy: '', shippingPolicy: '', privacyPolicy: '', terms: '' },
   notifications: { inAppEnabled: true, emailEnabled: false, whatsappEnabled: false, notifyOnNewOrder: true, notifyOnNewCustomer: true, notifyOnComplaint: true, notifyOnReview: true, notifyOnOrderStatus: true, notifyOnComplaintResponse: true, notifyOnTransactionFailure: true, notifyOnRefund: true, notifyOnLowStock: true },
   inventory: { lowStockThreshold: 5, hideOutOfStock: true, allowBackorders: false, reviewsRequireApproval: false, maxReviewImages: 5 },
-  content: { showCategoriesOnHome: true, showDealsSection: true, featuredProductsLimit: 8, heroHeadline: 'Upgrade Your Lifestyle Today', heroEyebrow: 'MEGA SALE', heroDescription: 'Discover the best products at unbeatable prices. Shop smarter, live better!', heroProductIds: [], promoCards: [{id:'seasonal-sale',eyebrow:'SEASONAL SPECIAL',title:'Summer Sale',subtitle:'Fresh picks for sunny days',description:'Discover this season’s trending favourites.',buttonText:'Shop the Sale',buttonLink:'/deals',theme:'summer',visible:true},{id:'fashion-trends',eyebrow:'YOUR STYLE, YOUR STORY',title:'Fashion Trends',subtitle:'Look Good, Feel Great',description:'Trendy Styles for Every You',buttonText:'Explore Fashion',buttonLink:'/shop',theme:'fashion',visible:true}], homepageSections: [{ id: 'new-arrivals', title: 'New Arrivals', type: 'new_arrivals', visible: true, order: 1 }, { id: 'popular-products', title: 'Popular Products', type: 'popular_products', visible: true, order: 2 }, { id: 'featured-products', title: 'Featured Products', type: 'product_collection', visible: true, order: 3 }] },
+  content: { showCategoriesOnHome: true, showDealsSection: true, featuredProductsLimit: 8, heroHeadline: 'Upgrade Your Lifestyle Today', heroEyebrow: 'NEW COLLECTION', heroDescription: 'Discover the best products at unbeatable prices. Shop smarter, live better!', heroProductIds: [], promoCards: [{id:'seasonal-sale',eyebrow:'SEASONAL SPECIAL',title:'Summer Sale',subtitle:'Fresh picks for sunny days',description:'Discover this season’s trending favourites.',buttonText:'Shop the Sale',buttonLink:'/deals',theme:'summer',visible:true},{id:'fashion-trends',eyebrow:'YOUR STYLE, YOUR STORY',title:'Fashion Trends',subtitle:'Look Good, Feel Great',description:'Trendy Styles for Every You',buttonText:'Explore Fashion',buttonLink:'/shop',theme:'fashion',visible:true}], homepageSections: [{ id: 'new-arrivals', title: 'New Arrivals', type: 'new_arrivals', visible: true, order: 1 }, { id: 'popular-products', title: 'Popular Products', type: 'popular_products', visible: true, order: 2 }, { id: 'featured-products', title: 'Featured Products', type: 'product_collection', visible: true, order: 3 }] },
   charges: { cashHandlingEnabled: true, cashHandlingMode: 'fixed', cashHandlingValue: 30, cashHandlingCodOnly: true },
   users: { requireManualVerification: false, allowGuestCheckout: false, defaultAccountStatus: 'active' },
   reports: { defaultRange: '30', includeCustomerPhone: false }
@@ -445,14 +445,16 @@ function StoreProvider({ children }) {
 
   const refresh = async () => {
     setLoading(true);
-    const [productsRes, categoriesRes, bannersRes, settingsRes] = await Promise.all([
+    const [productsRes, categoriesRes, bannersRes, settingsRes, publicSettingsRes] = await Promise.all([
       supabase.from('products').select('*').order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('created_at', { ascending: false }),
       supabase.from('banners').select('*').eq('status', 'active').order('created_at', { ascending: false }),
-      supabase.from('admin_store_settings').select('settings').eq('id', 'default').maybeSingle()
+      supabase.from('admin_store_settings').select('settings').eq('id', 'default').maybeSingle(),
+      // Customers and visitors cannot read the admin table, so they get the public-safe part through this function.
+      supabase.rpc('get_public_store_settings')
     ]);
     if (!productsRes.error && !categoriesRes.error && !bannersRes.error) {
-      const mappedCategories = (categoriesRes.data || []).map(mapCategory); const catMap = new Map(mappedCategories.map(c => [c.id, c.name])); const mappedProducts = (productsRes.data || []).map(p => ({ ...mapProduct(p), category: catMap.get(p.category_id) || '' })); const adminSettings = settingsRes.error ? DEFAULT_ADMIN_SETTINGS : mergeAdminSettings(DEFAULT_ADMIN_SETTINGS, settingsRes.data?.settings || {}); setStore(s => ({ ...s, products: mappedProducts, categories: mappedCategories, banners: (bannersRes.data || []).map(mapBanner), adminSettings })); if (settingsRes.error) logSafeError('Admin settings load error', settingsRes.error);
+      const mappedCategories = (categoriesRes.data || []).map(mapCategory); const catMap = new Map(mappedCategories.map(c => [c.id, c.name])); const mappedProducts = (productsRes.data || []).map(p => ({ ...mapProduct(p), category: catMap.get(p.category_id) || '' })); const publicSettings = !publicSettingsRes.error && publicSettingsRes.data && typeof publicSettingsRes.data === 'object' ? publicSettingsRes.data : null; const savedSettings = (!settingsRes.error && settingsRes.data?.settings) || publicSettings || null; const adminSettings = savedSettings ? mergeAdminSettings(DEFAULT_ADMIN_SETTINGS, savedSettings) : DEFAULT_ADMIN_SETTINGS; setStore(s => ({ ...s, products: mappedProducts, categories: mappedCategories, banners: (bannersRes.data || []).map(mapBanner), adminSettings })); if (settingsRes.error && !publicSettings) logSafeError('Admin settings load error', settingsRes.error);
     } else {
       logSafeError('Supabase load error', productsRes.error || categoriesRes.error || bannersRes.error);
     }
@@ -1882,7 +1884,17 @@ function SaleBanner() {
   const now = new Date();
   const active = store.banners.find(b => b.status === "active" && (!b.startDate || new Date(b.startDate) <= now) && (!b.endDate || new Date(b.endDate) >= now));
   if (!active) return null;
-  return <motion.section className="sale-hero" initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}}><div className="container sale-hero-inner">{active.imageUrl && <img src={active.imageUrl} alt={active.title || "Hafiz Mart promotion"}/>}<div className="sale-hero-copy"><p className="eyebrow"><Sparkles size={14}/> LIMITED OFFER</p><h2>{active.title}</h2>{active.subtitle && <p>{active.subtitle}</p>}{active.buttonText && active.buttonLink && <Link className="gold-btn" to={active.buttonLink}>{active.buttonText}<ArrowRight size={15}/></Link>}</div></div></motion.section>;
+  const chosen = new Set((active.productIds || []).map(String));
+  const saleProducts = store.products.filter(product => chosen.has(String(product.id)) && product.status !== "inactive").slice(0, 3);
+  const shipping = store.adminSettings?.shipping || DEFAULT_ADMIN_SETTINGS.shipping;
+  const payments = store.adminSettings?.payments || DEFAULT_ADMIN_SETTINGS.payments;
+  const threshold = Number(shipping.freeDeliveryThreshold) || 0;
+  const chips = [];
+  if (active.endDate) chips.push(`Ends ${new Date(active.endDate).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`);
+  if (shipping.enabled !== false && threshold > 0) chips.push(`Free delivery over ${hmMoney(threshold)}`);
+  if (payments.codEnabled !== false) chips.push("Cash on Delivery");
+  const priceOf = product => { const regular = Number(product.price || 0); const sale = Number(product.salePrice || 0); return sale > 0 && sale < regular ? sale : regular; };
+  return <motion.section className="sale-hero" initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}}><div className={`container sale-hero-inner${active.imageUrl ? " has-image" : ""}${saleProducts.length ? " has-products" : ""}`}>{active.imageUrl && <img src={active.imageUrl} alt={active.title || "Hafiz Mart promotion"}/>}<div className="sale-hero-copy"><p className="eyebrow"><Sparkles size={14}/> LIMITED OFFER</p><h2>{active.title}</h2>{active.subtitle && <p>{active.subtitle}</p>}{active.buttonText && active.buttonLink && <Link className="gold-btn" to={active.buttonLink}>{active.buttonText}<ArrowRight size={15}/></Link>}{chips.length > 0 && <ul className="sale-hero-chips">{chips.map(chip => <li key={chip}>{chip}</li>)}</ul>}</div>{saleProducts.length > 0 && <div className="sale-hero-products" aria-label="Products in this sale">{saleProducts.map(product => <Link className="sale-hero-product" key={product.id} to={`/product/${product.id}`}>{product.image && <img src={product.image} alt=""/>}<span>{product.name}</span><strong>{hmMoney(priceOf(product))}</strong></Link>)}</div>}</div></motion.section>;
 }
 
 function EmptyState({ title, text, action, to, icon: Icon = ShoppingBag }) {
@@ -2004,7 +2016,7 @@ function Home() {
       <section className="home-hero hm-reference-hero">
         <div className="container home-hero-grid">
           <motion.div className="home-hero-copy" initial={{opacity:0,x:-20}} animate={{opacity:1,x:0}} transition={{duration:.5}}>
-            <p className="eyebrow hm-sale-pill"><Sparkles size={14}/> {contentSettings.heroEyebrow || 'MEGA SALE'} <span>• LIMITED TIME OFFERS</span></p>
+            <p className="eyebrow hm-sale-pill"><Sparkles size={14}/> {(!contentSettings.heroEyebrow || /^\s*mega\s+sale\s*$/i.test(contentSettings.heroEyebrow)) ? 'NEW COLLECTION' : contentSettings.heroEyebrow} <span>• FRESH ARRIVALS</span></p>
             <h1>{(contentSettings.heroHeadline || 'Upgrade Your Lifestyle Today').split(' ').slice(0,2).join(' ')} <span>{(contentSettings.heroHeadline || 'Upgrade Your Lifestyle Today').split(' ').slice(2).join(' ')}</span></h1>
             <p>{contentSettings.heroDescription || 'Discover the best products at unbeatable prices. Shop smarter, live better!'}</p>
             <div className="hero-buttons">
@@ -2024,7 +2036,7 @@ function Home() {
             {collage[2] && <Link to={`/product/${collage[2].id}`} className="hm-collage-item hm-collage-left"><img src={collage[2].image || logo} alt={collage[2].name}/></Link>}
             {collage[3] && <Link to={`/product/${collage[3].id}`} className="hm-collage-item hm-collage-bottom"><img src={collage[3].image || logo} alt={collage[3].name}/></Link>}
             {!collage.length && <div className="hm-collage-fallback"><span>HAFIZ MART</span><strong>Everyday essentials.<br/>Extraordinary value.</strong><ShoppingBag size={100}/></div>}
-            <div className="hm-floating-sale">MEGA<br/><strong>SALE</strong><span>UP TO 50% OFF</span></div>
+            <div className="hm-floating-sale">NEW<br/><strong>ITEMS</strong><span>JUST ARRIVED</span></div>
           </motion.div>
         </div>
       </section>
@@ -2065,7 +2077,7 @@ function Home() {
         </div>
       </section>
 
-      <section className="home-section home-newsletter-section hm-reference-newsletter"><div className="container"><div className="home-newsletter"><div className="home-newsletter-content"><p className="eyebrow">STAY IN THE LOOP</p><h2>Get the Best Deals First</h2><p>Subscribe for new arrivals, exclusive offers and special discounts from Hafiz Mart.</p></div><div className="newsletter-form-area"><form className="home-newsletter-form" onSubmit={async e=>{e.preventDefault();const email=newsletterEmail.trim().toLowerCase();if(!email)return;setNewsletterBusy(true);setNewsletterMessage("");try{const {error}=await supabase.from("newsletter_subscribers").insert({email});if(error){setNewsletterMessage(error.code==="23505"?"You're already subscribed. Thank you!":"Something went wrong. Please try again.");}else{setNewsletterMessage("Thank you for subscribing!");setNewsletterEmail("");}}catch(error){logSafeError("Newsletter subscription error:",error);setNewsletterMessage("Something went wrong. Please try again.");}finally{setNewsletterBusy(false);}}}><input type="email" value={newsletterEmail} onChange={e=>{setNewsletterEmail(e.target.value);setNewsletterMessage("");}} placeholder="Enter your email address" required/><button type="submit" className="gold-btn" disabled={newsletterBusy}>{newsletterBusy?"Subscribing...":"Subscribe"}</button></form>{newsletterMessage&&<p className="newsletter-message" role="status">{newsletterMessage}</p>}<div className="newsletter-socials" aria-label="Follow Hafiz Mart"><div>{storeSocialLinks().filter(item=>["Facebook","WhatsApp","Instagram"].includes(item.label)).map(item=><a key={item.label} className={`hm-nl-social hm-nl-${item.label.toLowerCase()}`} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}{item.label==="WhatsApp"&&<span>Chat on WhatsApp</span>}</a>)}</div></div></div></div></div></section>
+      <section className="home-section home-newsletter-section hm-reference-newsletter"><div className="container"><div className="home-newsletter"><div className="home-newsletter-content"><p className="eyebrow">STAY IN THE LOOP</p><h2>Get the Best Deals First</h2><p>Subscribe for new arrivals, exclusive offers and special discounts from Hafiz Mart.</p></div><div className="newsletter-form-area"><form className="home-newsletter-form" onSubmit={async e=>{e.preventDefault();const email=newsletterEmail.trim().toLowerCase();if(!email)return;setNewsletterBusy(true);setNewsletterMessage("");try{const {error}=await supabase.from("newsletter_subscribers").insert({email});if(error){setNewsletterMessage(error.code==="23505"?"You're already subscribed. Thank you!":"Something went wrong. Please try again.");}else{setNewsletterMessage("Thank you for subscribing!");setNewsletterEmail("");}}catch(error){logSafeError("Newsletter subscription error:",error);setNewsletterMessage("Something went wrong. Please try again.");}finally{setNewsletterBusy(false);}}}><input type="email" value={newsletterEmail} onChange={e=>{setNewsletterEmail(e.target.value);setNewsletterMessage("");}} placeholder="Enter your email address" required/><button type="submit" className="gold-btn" disabled={newsletterBusy}>{newsletterBusy?"Subscribing...":"Subscribe"}</button></form>{newsletterMessage&&<p className="newsletter-message" role="status">{newsletterMessage}</p>}<div className="newsletter-socials" aria-label="Follow Hafiz Mart"><div>{storeSocialLinks().filter(item=>["Facebook","WhatsApp","Instagram"].includes(item.label)).map(item=><a key={item.label} className={`hm-nl-social hm-nl-${item.label.toLowerCase()}`} href={item.url} target="_blank" rel="noreferrer" aria-label={item.label} title={item.label}>{item.icon}</a>)}</div></div></div></div></div></section>
       <HomeTestimonials/>
     </main>
     <Toast message={toast} onClose={()=>setToast("")}/>
@@ -7006,6 +7018,7 @@ function storeSocialLinks() {
   if (configured.facebook && isSafeHttpUrl(configured.facebook)) links.push({label:'Facebook',url:configured.facebook,icon:<HmfIcon name="facebook" size={18}/>});
   if (configured.instagram && isSafeHttpUrl(configured.instagram)) links.push({label:'Instagram',url:configured.instagram,icon:<HmfIcon name="instagram" size={18}/>});
   if (configured.youtube && isSafeHttpUrl(configured.youtube)) links.push({label:'YouTube',url:configured.youtube,icon:<HmfIcon name="youtube" size={18}/>});
+  if (configured.tiktok && isSafeHttpUrl(configured.tiktok)) links.push({label:'TikTok',url:configured.tiktok,icon:<HmfIcon name="tiktok" size={18}/>});
   const wa = getStoreWhatsAppNumber(configured.whatsapp || import.meta.env.VITE_WHATSAPP_NUMBER);
   links.push({label:'WhatsApp',url:`https://wa.me/${wa}`,icon:<HmfIcon name="whatsapp" size={20}/>});
   return links;
@@ -7124,6 +7137,7 @@ function HafizFooter() {
   const phoneHref = phone.replace(/[^\d+]/g, '');
   const supportEmail = String(general.supportEmail || '').trim();
   const address = String(general.address || '').trim() || 'Pakistan';
+  const waNumber = getStoreWhatsAppNumber(general.whatsapp || import.meta.env.VITE_WHATSAPP_NUMBER);
   const categories = sortMainCategories(store.categories || []).slice(0, 8);
 
   const submitNewsletter = async event => {
@@ -7183,6 +7197,7 @@ function HafizFooter() {
             <h2 className="hmf-title hmf-title-sm">Contact Us</h2>
             <ul className="hmf-contact">
               <li><HmfIcon name="phone" size={18}/><a href={`tel:${phoneHref}`}>{phone}</a></li>
+              <li><HmfIcon name="whatsapp" size={18}/><a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer">WhatsApp +{waNumber}</a></li>
               {supportEmail && <li><HmfIcon name="mail" size={18}/><a href={`mailto:${supportEmail}`}>{supportEmail}</a></li>}
               <li><HmfIcon name="pin" size={18}/><span>{address}</span></li>
             </ul>

@@ -11157,3 +11157,63 @@ html body .hm-invite-panel input,html body .hm-invite-panel select{background:#f
 @media (max-width:640px){.hmf .hmf-legal ul{gap:6px 18px}.hmf .hmf-legal a{font-size:12px}}
 .hm-checkout-legal{margin:14px 0 0;font-size:12px;line-height:1.6;color:#5c6275;text-align:center}
 .hm-checkout-legal a{color:#9a6d1c;font-weight:700;text-decoration:underline}
+
+/* ==========================================================================
+   v8 additions (appended; nothing above was edited)
+   Admin -> Sale Banners: "Campaign products" box was black with unreadable,
+   vertically stacked product names. Light, readable selectable cards instead.
+   ========================================================================== */
+html body .hm-campaign-products{background:#fffaf0!important;background-image:none!important;border:1px solid #e3d3a8!important;border-radius:14px!important;padding:18px!important;color:#2a251e!important;box-shadow:none!important}
+html body .hm-campaign-products>strong{display:block;color:#1d2230!important;font-size:16px}
+html body .hm-campaign-products>p:not(.hm-campaign-warning){margin:4px 0 14px!important;color:#5c6275!important;font-size:13px;line-height:1.55}
+html body .hm-campaign-product-list{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))!important;gap:10px!important;max-height:340px!important;overflow-y:auto!important;padding:2px!important;background:transparent!important}
+html body .hm-campaign-product-list label{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:12px!important;width:auto!important;min-height:64px!important;height:auto!important;padding:10px 12px!important;background:#fff!important;background-image:none!important;border:1px solid #e4dfd3!important;border-radius:12px!important;color:#1d2230!important;cursor:pointer;writing-mode:horizontal-tb!important;text-orientation:mixed!important;transition:border-color .15s,background .15s,box-shadow .15s}
+html body .hm-campaign-product-list label:hover{border-color:#c9a24d!important;box-shadow:0 4px 12px rgba(60,45,15,.08)}
+html body .hm-campaign-product-list label:has(input:checked){background:#e9f3e2!important;border-color:#16874a!important}
+html body .hm-campaign-product-list input[type="checkbox"]{flex:0 0 18px!important;width:18px!important;height:18px!important;margin:0!important;accent-color:#164832}
+html body .hm-campaign-product-list img{flex:0 0 44px!important;width:44px!important;height:44px!important;margin:0!important;border-radius:8px!important;object-fit:cover!important;position:static!important;opacity:1!important}
+html body .hm-campaign-product-list span{flex:1 1 auto!important;min-width:0!important;color:#1d2230!important;font-size:13px!important;font-weight:600!important;line-height:1.35!important;white-space:normal!important;overflow-wrap:anywhere;writing-mode:horizontal-tb!important;text-orientation:mixed!important;transform:none!important;opacity:1!important}
+html body .hm-campaign-warning{margin:12px 0 0!important;padding:10px 14px!important;background:#fff4d6!important;border:1px solid #e8cf86!important;border-radius:10px!important;color:#6b4a10!important;font-size:13px!important;font-weight:600}
+html body .admin-content .form-actions .gold-btn{background:#164832!important;background-image:none!important;color:#fff!important;border:0!important;box-shadow:0 8px 18px rgba(22,72,50,.2)!important;text-shadow:none!important}
+html body .admin-content .form-actions .gold-btn:hover{background:#0f3524!important}
+html body .admin-content .form-actions .ghost-btn{background:#fff!important;color:#1d2230!important;border:1px solid #d9d2c1!important}
+@media (max-width:640px){html body .hm-campaign-product-list{grid-template-columns:1fr!important}}
+
+/* ==========================================================================
+   v9 additions (appended; nothing above was edited)
+   - Sale banner: balanced layout (centered copy, info chips, product cards)
+   - Newsletter: WhatsApp is a round icon like Facebook / Instagram
+   ========================================================================== */
+
+/* Newsletter: round WhatsApp icon */
+.hm-reference-newsletter .newsletter-socials > div a.hm-nl-whatsapp[aria-label="WhatsApp"]{width:44px!important;height:44px!important;min-width:44px!important;padding:0!important;gap:0!important;border-radius:50%!important}
+.hm-reference-newsletter .newsletter-socials > div a.hm-nl-whatsapp[aria-label="WhatsApp"] svg{width:22px!important;height:22px!important}
+
+/* Sale banner */
+html body .sale-hero-inner{align-items:stretch!important}
+html body .sale-hero-inner.has-image{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)!important}
+html body .sale-hero-inner.has-products{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)!important}
+html body .sale-hero-inner.has-image.has-products{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,.85fr)!important}
+html body .sale-hero-inner>img{width:100%!important;height:100%!important;min-height:260px!important;object-fit:cover!important}
+html body .sale-hero-copy{align-self:center!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:12px!important;padding:36px 40px!important;position:relative;z-index:1}
+html body .sale-hero-copy h2{font-size:clamp(34px,4.2vw,56px)!important;line-height:1.05!important;margin:0!important}
+html body .sale-hero-copy p:not(.eyebrow){font-size:17px!important;margin:0!important}
+html body .sale-hero-copy .gold-btn{align-self:flex-start;margin-top:6px}
+.sale-hero-chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0;padding:0;list-style:none}
+.sale-hero-chips li{padding:6px 13px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:12px;font-weight:700;letter-spacing:.01em}
+html body .sale-hero-products{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:24px 28px 24px 0}
+.sale-hero-product{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;background:#fff;color:#1d2230!important;text-decoration:none;box-shadow:0 10px 22px rgba(0,0,0,.16);transition:transform .2s,box-shadow .2s}
+.sale-hero-product:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(0,0,0,.22)}
+.sale-hero-product img{flex:0 0 58px;width:58px!important;height:58px!important;min-height:0!important;border-radius:10px;object-fit:cover}
+.sale-hero-product span{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;font-weight:700;line-height:1.3;color:#1d2230}
+.sale-hero-product strong{flex:0 0 auto;font-size:13px;color:#164832}
+/* decorative rings so a banner with only an image + text never looks empty */
+html body .sale-hero-inner.has-image:not(.has-products)::before{content:"";position:absolute;right:-70px;bottom:-90px;width:320px;height:320px;border:38px solid rgba(216,243,108,.13);border-radius:50%;pointer-events:none}
+html body .sale-hero-inner.has-image:not(.has-products) .sale-hero-copy::after{content:"";position:absolute;right:60px;top:28px;width:90px;height:90px;border:14px solid rgba(255,255,255,.10);border-radius:50%;pointer-events:none}
+@media (max-width:900px){
+  html body .sale-hero-inner.has-image,html body .sale-hero-inner.has-products,html body .sale-hero-inner.has-image.has-products{grid-template-columns:minmax(0,1fr)!important}
+  html body .sale-hero-inner>img{min-height:0!important;height:auto!important;max-height:240px}
+  html body .sale-hero-copy{padding:26px 22px!important}
+  html body .sale-hero-products{flex-direction:row;overflow-x:auto;padding:0 22px 22px}
+  .sale-hero-product{flex:0 0 250px}
+}
