@@ -11217,3 +11217,44 @@ html body .sale-hero-inner.has-image:not(.has-products) .sale-hero-copy::after{c
   html body .sale-hero-products{flex-direction:row;overflow-x:auto;padding:0 22px 22px}
   .sale-hero-product{flex:0 0 250px}
 }
+
+/* ==========================================================================
+   v10 additions (appended; nothing above was edited)
+   - Sale banner: shorter (same width)
+   - Announcement bar: more colour themes (chosen in Admin -> Settings -> Storefront)
+   ========================================================================== */
+
+/* Sale banner: shorter, width unchanged */
+@media (min-width:901px){
+  html body .sale-hero{padding:18px 0 14px!important}
+  html body .sale-hero-inner{height:clamp(240px,22vw,310px)!important;min-height:0!important;grid-template-rows:minmax(0,1fr)!important}
+  html body .sale-hero-inner>img{height:100%!important;min-height:0!important;max-height:none!important;object-fit:cover!important;object-position:center!important}
+  html body .sale-hero-copy{padding:22px 38px!important;gap:8px!important}
+  html body .sale-hero-copy h2{font-size:clamp(30px,3.4vw,46px)!important}
+  html body .sale-hero-copy p:not(.eyebrow){font-size:16px!important}
+  html body .sale-hero-copy .gold-btn{margin-top:4px}
+  .sale-hero-chips{margin-top:4px}
+  html body .sale-hero-products{padding:16px 24px 16px 0;gap:8px}
+  .sale-hero-product{padding:8px 12px}
+  .sale-hero-product img{flex-basis:50px;width:50px!important;height:50px!important}
+}
+@media (max-width:900px){
+  html body .sale-hero-inner>img{max-height:170px!important;object-fit:cover!important}
+}
+
+/* Announcement bar: more colours (text and the underlined link follow the bar colour) */
+html body .announcement-bar.theme-green{background:#164832;color:#fff;border-bottom-color:rgba(255,255,255,.18)}
+html body .announcement-bar.theme-lime{background:#d8f36c;color:#164832;border-bottom-color:rgba(22,72,50,.18)}
+html body .announcement-bar.theme-mint{background:#dff0e3;color:#164832;border-bottom-color:rgba(22,72,50,.14)}
+html body .announcement-bar.theme-teal{background:#0f766e;color:#fff;border-bottom-color:rgba(255,255,255,.18)}
+html body .announcement-bar.theme-blue{background:#1f4e8c;color:#fff;border-bottom-color:rgba(255,255,255,.18)}
+html body .announcement-bar.theme-sky{background:#dcecf9;color:#16365c;border-bottom-color:rgba(22,54,92,.14)}
+html body .announcement-bar.theme-purple{background:#5b3a8c;color:#fff;border-bottom-color:rgba(255,255,255,.18)}
+html body .announcement-bar.theme-rose{background:#f7c6d4;color:#5c1230;border-bottom-color:rgba(92,18,48,.14)}
+html body .announcement-bar.theme-orange{background:#f08a3c;color:#1d1204;border-bottom-color:rgba(29,18,4,.18)}
+html body .announcement-bar.theme-red{background:#a32622;color:#fff;border-bottom-color:rgba(255,255,255,.18)}
+html body .announcement-bar.theme-light{border-bottom-color:rgba(0,0,0,.08)}
+html body .announcement-bar > .announcement-inner > a,html body .announcement-bar > .announcement-inner > span{color:inherit}
+/* the small preview under the colour picker in admin */
+html body .announcement-bar.hm-theme-preview{margin-top:10px;border:1px solid rgba(0,0,0,.08);border-radius:10px;overflow:hidden;width:100%}
+html body .announcement-bar.hm-theme-preview .announcement-inner{min-height:38px}
