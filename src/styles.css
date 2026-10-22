@@ -11258,3 +11258,125 @@ html body .announcement-bar > .announcement-inner > a,html body .announcement-ba
 /* the small preview under the colour picker in admin */
 html body .announcement-bar.hm-theme-preview{margin-top:10px;border:1px solid rgba(0,0,0,.08);border-radius:10px;overflow:hidden;width:100%}
 html body .announcement-bar.hm-theme-preview .announcement-inner{min-height:38px}
+
+/* ==========================================================================
+   v11 additions (appended; nothing above was edited)
+   Admin product form only: custom size + product weight
+   ========================================================================== */
+html body .hm-custom-option .hm-custom-option-chip{justify-self:start;width:fit-content;display:inline-flex;margin:6px 8px 0 0}
+html body .hm-weight-note{display:block;margin-top:10px;font-size:12px;line-height:1.5;color:#5c6275}
+
+/* ==========================================================================
+   v11 additions (appended; nothing above was edited)
+   Admin product form only: custom size + product weight
+   ========================================================================== */
+html body .hm-custom-option .hm-custom-option-chip{justify-self:start;width:fit-content;display:inline-flex;margin:6px 8px 0 0}
+html body .hm-weight-note{display:block;margin-top:10px;font-size:12px;line-height:1.5;color:#5c6275}
+
+/* ==========================================================================
+   v12 additions: category-based product form + Shipping & Warranty
+   ========================================================================== */
+html body .hm-family-banner{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;padding:16px 18px;border:1px solid #cfdcc3;border-radius:14px;background:#eef5e8}
+html body .hm-family-banner>div{flex:1 1 260px}
+html body .hm-family-banner strong{display:block;font-size:16px;color:#164832}
+html body .hm-family-banner p{margin:4px 0 0;font-size:12px;line-height:1.5;color:#44574a}
+html body .hm-family-banner label{flex:0 1 220px;font-size:12px;font-weight:700;color:#2b3144}
+html body .hm-family-banner select{margin-top:4px}
+html body .hm-spec-text-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;margin-top:14px}
+html body .hm-spec-text-grid label{font-size:13px;font-weight:600;color:#2b3144}
+html body .hm-size-system{display:block;max-width:320px;margin-bottom:12px;font-size:12px;font-weight:700;color:#2b3144}
+html body .hm-size-summary{margin:10px 0 0;font-size:12px;color:#164832;font-weight:600}
+html body .hm-switch{display:flex;align-items:center;gap:12px;margin:10px 0 4px;font-size:14px;font-weight:600;color:#1d2230;cursor:pointer}
+html body .hm-switch input{position:absolute;opacity:0;width:1px;height:1px}
+html body .hm-switch-track{position:relative;flex:0 0 44px;height:24px;border-radius:999px;background:#c9c3b3;transition:background .2s}
+html body .hm-switch-track::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+html body .hm-switch input:checked + .hm-switch-track{background:#164832}
+html body .hm-switch input:checked + .hm-switch-track::after{transform:translateX(20px)}
+html body .hm-switch input:focus-visible + .hm-switch-track{outline:3px solid #b98b2a;outline-offset:2px}
+html body .hm-package-grid{display:grid;gap:16px;margin-top:16px;padding:16px;border:1px solid #e3d3a8;border-radius:12px;background:#fffaf0}
+html body .hm-package-weight>label,html body .hm-warranty-duration>label{display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:#2b3144}
+html body .hm-weight-input{display:flex;gap:10px;align-items:stretch}
+html body .hm-weight-input input{flex:1 1 140px;min-width:0}
+html body .hm-weight-input select{flex:0 0 110px}
+html body .hm-package-weight small{display:block;margin-top:6px;font-size:12px;color:#5c6275}
+html body .hm-unit-toggle{display:inline-flex;flex:0 0 auto;border:1px solid #d9d2c1;border-radius:10px;overflow:hidden;background:#fff}
+html body .hm-unit-toggle button{min-width:52px;padding:0 14px;border:0;background:#fff;color:#1d2230;font-weight:700;font-size:14px;cursor:pointer}
+html body .hm-unit-toggle button.active{background:#164832;color:#fff}
+html body .hm-package-dims{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+html body .hm-package-dims label{font-size:13px;font-weight:600;color:#2b3144}
+html body .hm-volume-readout{margin:0;padding:10px 14px;border-radius:10px;background:#fff;border:1px dashed #d9c9a0;font-size:14px;font-weight:700;color:#164832}
+html body .hm-warranty-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
+html body .hm-warranty-grid .span-2{grid-column:1/-1}
+html body .hm-warranty-grid label{font-size:13px;font-weight:600;color:#2b3144}
+@media (max-width:640px){html body .hm-spec-text-grid,html body .hm-warranty-grid{grid-template-columns:1fr}html body .hm-package-dims{grid-template-columns:1fr}html body .hm-weight-input{flex-wrap:wrap}}
+
+/* ==========================================================================
+   v13 additions: Admin -> Products browsed by category
+   ========================================================================== */
+html body .hm-pl-toolbar{margin:0 0 18px}
+html body .hm-pl-toolbar input{width:100%;max-width:520px;height:46px;padding:0 16px;border:1px solid #d9d2c1;border-radius:12px;background:#fff;color:#1d2230;font-size:14px}
+html body .hm-pl-heading{margin:22px 0 12px;font-size:18px;color:#1d2230}
+html body .hm-pl-heading span{color:#667085;font-weight:500;font-size:14px}
+html body .hm-pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+html body .hm-pl-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:16px 44px 16px 16px;border:1px solid #e4dfd3;border-radius:16px;background:#fff;color:#1d2230;text-align:left;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .2s}
+html body .hm-pl-card:hover,html body .hm-pl-card:focus-visible{border-color:#c9a24d;box-shadow:0 10px 24px rgba(60,45,15,.1);transform:translateY(-2px)}
+html body .hm-pl-card strong{font-size:16px;color:#1d2230}
+html body .hm-pl-card small{font-size:12px;color:#667085}
+html body .hm-pl-count{display:inline-block;padding:3px 10px;border-radius:999px;background:#e9f3e2;color:#164832;font-size:12px;font-weight:700}
+html body .hm-pl-card.is-muted .hm-pl-count{background:#f4efe2;color:#7a5412}
+html body .hm-pl-chevron{position:absolute;right:14px;top:50%;margin-top:-9px;color:#9a6d1c}
+html body .hm-pl-thumbs{display:flex;gap:6px;min-height:44px}
+html body .hm-pl-thumbs img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#f3f0e8;border:1px solid #ece7db}
+html body .hm-pl-thumb-empty{display:grid;place-items:center;width:44px;height:44px;border-radius:10px;background:#f3f0e8;color:#9a6d1c}
+html body .hm-pl-crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0 0 4px;font-size:13px}
+html body .hm-pl-crumbs button{padding:4px 8px;border:0;border-radius:8px;background:transparent;color:#9a6d1c;font-weight:700;font-size:13px;cursor:pointer}
+html body .hm-pl-crumbs button:hover{background:#f6edd4}
+html body .hm-pl-crumbs span{color:#1d2230;font-weight:700}
+html body .hm-pl-crumbs svg{color:#a8a08c}
+html body .hm-pl-listhead{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+html body .hm-pl-listtools{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+html body .hm-pl-listtools .ghost-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:1px solid #d9d2c1;border-radius:10px;background:#fff;color:#1d2230;font-weight:700;font-size:13px;text-decoration:none}
+html body .hm-pl-listtools .ghost-btn:hover{border-color:#b8862b;color:#7a5412}
+html body .hm-pl-note{margin:18px 0 0;font-size:13px;color:#5c6275}
+html body .hm-pl-link{padding:0;border:0;background:none;color:#9a6d1c;font-weight:700;text-decoration:underline;cursor:pointer;font-size:13px}
+html body .hm-pl-empty{padding:28px;border:1px dashed #d9d2c1;border-radius:14px;background:#fff;color:#5c6275;text-align:center}
+html body .hm-stock-out{color:#b3261e;font-weight:700}
+html body .admin-content .admin-head .gold-btn{background:#164832!important;background-image:none!important;color:#fff!important;border:0!important;box-shadow:0 8px 18px rgba(22,72,50,.2)!important}
+html body .admin-content .admin-head .gold-btn:hover{background:#0f3524!important}
+html body .hm-orders-head-actions{display:flex;gap:10px;flex-wrap:wrap}
+html body .hm-orders-head-actions .gold-btn{display:inline-flex;align-items:center;gap:8px;background:#164832!important;background-image:none!important;color:#fff!important;border:0!important}
+html body .hm-orders-head-actions .gold-btn:disabled{opacity:.5;cursor:not-allowed}
+html body .order-quick-actions{display:flex;gap:8px;margin-top:8px}
+html body .hm-label-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid #cfdcc3;border-radius:10px;background:#f1f6ec;color:#164832;font-weight:700;font-size:13px;cursor:pointer}
+html body .hm-label-btn:hover{background:#e3eeda;border-color:#164832}
+
+/* ==========================================================================
+   v14 additions: extra 3D scrolling (cards, hero, sections)
+   All of it is switched off for people who choose "reduce motion".
+   ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  /* sections and cards swing up out of the screen: depth + tilt, staggered by position */
+  html body .scroll-reveal{transform-origin:50% 100%;transition:opacity .7s ease calc(var(--hm-i,0) * 70ms),transform .9s cubic-bezier(.2,.75,.25,1) calc(var(--hm-i,0) * 70ms),box-shadow .25s ease,border-color .25s ease}
+  html body .scroll-reveal:not(.is-visible){opacity:0;transform:perspective(1200px) translate3d(0,46px,-70px) rotateX(7deg) scale(.97)}
+  html body .scroll-reveal.is-visible{opacity:1;transform:perspective(1200px) translate3d(0,0,0) rotateX(0deg) scale(1)}
+  html body .product-card.scroll-reveal:not(.is-visible),
+  html body .hm-category-reference-card.scroll-reveal:not(.is-visible){transform:perspective(900px) translate3d(0,42px,-90px) rotateX(16deg) rotateY(calc((var(--hm-i,0) - 2.5) * 5deg)) scale(.94)}
+  html body .hm-steps-grid > li.scroll-reveal:not(.is-visible),
+  html body .hm-benefit-strip > div.scroll-reveal:not(.is-visible){transform:perspective(900px) translate3d(0,30px,-60px) rotateY(calc((var(--hm-i,0) - 1.5) * -9deg)) scale(.95)}
+
+  /* hero collage: layers sit at different depths and drift with the mouse and the scroll */
+  html body .hm-reference-collage .hm-collage-item,
+  html body .hm-reference-collage .hm-collage-orbit,
+  html body .hm-reference-collage .hm-floating-sale{will-change:translate;transition:translate .35s cubic-bezier(.2,.75,.25,1)}
+  html body .hm-reference-collage .hm-collage-main{translate:calc(var(--hm-px,0) * 10px) calc(var(--hm-py,0) * 8px + var(--hm-scroll,0) * -.04px)}
+  html body .hm-reference-collage .hm-collage-top{translate:calc(var(--hm-px,0) * 24px) calc(var(--hm-py,0) * 16px + var(--hm-scroll,0) * -.09px)}
+  html body .hm-reference-collage .hm-collage-left{translate:calc(var(--hm-px,0) * -20px) calc(var(--hm-py,0) * 14px + var(--hm-scroll,0) * -.07px)}
+  html body .hm-reference-collage .hm-collage-bottom{translate:calc(var(--hm-px,0) * 18px) calc(var(--hm-py,0) * -14px + var(--hm-scroll,0) * -.11px)}
+  html body .hm-reference-collage .hm-collage-orbit{translate:calc(var(--hm-px,0) * -14px) calc(var(--hm-py,0) * -10px);rotate:calc(var(--hm-scroll,0) * .05deg)}
+  html body .hm-reference-collage .hm-floating-sale{translate:calc(var(--hm-px,0) * 30px) calc(var(--hm-py,0) * 22px + var(--hm-scroll,0) * -.13px)}
+}
+
+/* pointer tilt (mouse devices only) */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  html body .hm-tilting{transform:perspective(900px) translate3d(0,-6px,0) rotateX(var(--hm-rx,0deg)) rotateY(var(--hm-ry,0deg)) scale(1.025)!important;transition:transform .12s ease-out,box-shadow .2s ease!important;box-shadow:var(--hm-sx,0px) calc(20px + var(--hm-sy,0px)) 40px rgba(30,24,10,.22)!important;position:relative;z-index:3}
+}

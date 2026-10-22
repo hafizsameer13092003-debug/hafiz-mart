@@ -515,6 +515,94 @@ function ScrollToTop() {
   return null;
 }
 
+// Extra 3D feel on top of ScrollReveal: pointer tilt on cards, depth parallax on the hero,
+// scroll-linked variables and staggered 3D entrances. Switched off for "reduce motion".
+function Scroll3D() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const root = document.documentElement;
+    const finePointer = window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => { root.style.setProperty("--hm-scroll", String(Math.round(window.scrollY || 0))); ticking = false; });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    // staggered entrance: every child of these grids gets its own position number
+    const gridSelector = ".home-product-grid, .hm-featured-grid, .hm-category-reference-grid, .hm-steps-grid, .hm-benefit-strip, .hmc-grid";
+    const numberChildren = () => {
+      document.querySelectorAll(gridSelector).forEach(grid => {
+        Array.from(grid.children).forEach((child, index) => { if (child.style) child.style.setProperty("--hm-i", String(index % 6)); });
+      });
+    };
+    numberChildren();
+    const app = document.querySelector(".app");
+    let queued = false;
+    const mutation = new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; numberChildren(); }); });
+    if (app) mutation.observe(app, { childList: true, subtree: true });
+
+    let tilted = null; let hero = null;
+    const resetTilt = () => {
+      if (!tilted) return;
+      tilted.classList.remove("hm-tilting");
+      ["--hm-rx", "--hm-ry", "--hm-sx", "--hm-sy"].forEach(name => tilted.style.removeProperty(name));
+      tilted = null;
+    };
+    const resetHero = () => { if (!hero) return; hero.style.setProperty("--hm-px", "0"); hero.style.setProperty("--hm-py", "0"); hero = null; };
+    const tiltSelector = ".product-card, .hm-category-reference-card, .hm-steps-grid > li, .hm-benefit-strip > div, .sale-hero-product, .hmc-card";
+    const onMove = event => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const card = target.closest(tiltSelector);
+      if (tilted && tilted !== card) resetTilt();
+      if (card) {
+        const rect = card.getBoundingClientRect();
+        const px = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+        const py = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+        card.style.setProperty("--hm-rx", ((0.5 - py) * 9).toFixed(2) + "deg");
+        card.style.setProperty("--hm-ry", ((px - 0.5) * 11).toFixed(2) + "deg");
+        card.style.setProperty("--hm-sx", ((0.5 - px) * 22).toFixed(1) + "px");
+        card.style.setProperty("--hm-sy", ((0.5 - py) * 12).toFixed(1) + "px");
+        card.classList.add("hm-tilting");
+        tilted = card;
+      }
+      const stageCandidate = target.closest(".hm-reference-collage");
+      const stageRect = stageCandidate ? stageCandidate.getBoundingClientRect() : null;
+      const stage = stageRect && event.clientX >= stageRect.left && event.clientX <= stageRect.right && event.clientY >= stageRect.top && event.clientY <= stageRect.bottom ? stageCandidate : null;
+      if (hero && hero !== stage) resetHero();
+      if (stage) {
+        const rect = stageRect;
+        stage.style.setProperty("--hm-px", (((event.clientX - rect.left) / rect.width - 0.5) * 2).toFixed(3));
+        stage.style.setProperty("--hm-py", (((event.clientY - rect.top) / rect.height - 0.5) * 2).toFixed(3));
+        hero = stage;
+      }
+    };
+    const onLeaveWindow = () => { resetTilt(); resetHero(); };
+    if (finePointer) {
+      document.addEventListener("pointermove", onMove, { passive: true });
+      document.addEventListener("pointerleave", onLeaveWindow);
+      window.addEventListener("blur", onLeaveWindow);
+    }
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      mutation.disconnect();
+      if (finePointer) {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerleave", onLeaveWindow);
+        window.removeEventListener("blur", onLeaveWindow);
+      }
+      resetTilt(); resetHero();
+    };
+  }, [pathname]);
+
+  return null;
+}
+
 // Lightweight scroll-reveal effects: no extra animation library required.
 function ScrollReveal() {
   const { pathname, search } = useLocation();
@@ -539,6 +627,10 @@ function ScrollReveal() {
       ".admin-head",
       ".panel",
       ".stat-card",
+      ".hm-steps-grid > li",
+      ".hm-benefit-strip > div",
+      ".hm-category-reference-card",
+      ".hm-offer-banner",
       ".admin-review-card",
       ".track-items"
     ].join(",");
@@ -2662,7 +2754,7 @@ function ProductDetails() {
   const discountPercent = hasDiscount ? Math.round((1 - price / originalPrice) * 100) : 0;
   const stock = Number(selectedVariant?.stock ?? selectedVariant?.stock_quantity ?? product.stock ?? 0);
   const wished = store.wishlist.includes(product.id) || store.wishlist.includes(id);
-  const attributes = product.attributes && typeof product.attributes === "object" ? Object.entries(product.attributes).filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== "") : [];
+  const attributes = product.attributes && typeof product.attributes === "object" ? Object.entries(product.attributes).filter(([key, value]) => !String(key).startsWith("_") && value !== null && value !== undefined && String(value).trim() !== "") : [];
   const highlights = Array.isArray(product.highlights) ? product.highlights.filter(Boolean) : [];
   const shortDescription = String(product.shortDescription || product.short_description || "").trim();
   const fullDescription = String(product.description || "").trim();
@@ -6146,7 +6238,83 @@ function Admin(){
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN PANEL</p><h1>Dashboard</h1><p>Real Supabase-backed Hafiz Mart control center.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div><div className="stats-grid six">{[[Package,'Products',store.products.length,'Live catalog'],[Tag,'Categories',store.categories.length,'Live categories'],[ShoppingCart,'Orders',stats.orders,'Database orders'],[Users,'Customers',stats.customers,'Registered customers'],[Sparkles,'Active Sales',store.banners.length,'Promotional banners'],[ShoppingBag,'Revenue',`Rs. ${stats.revenue.toLocaleString()}`,'Non-cancelled orders']].map(([I,n,v,small],i)=><motion.div className="stat-card" key={n} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*.04}}><I size={18}/><span>{n}</span><strong>{v}</strong><small>{small}</small></motion.div>)}</div><div className="admin-grid"><div className="panel"><div className="panel-head-row"><div><p className="eyebrow">RECENT ORDERS</p><h2>Latest Activity</h2></div><Link className="text-link" to="/admin/orders">View all <ArrowRight size={15}/></Link></div>{recent.length?<div className="recent-orders">{recent.map(o=><Link to="/admin/orders" className="recent-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{o.customer_name||'Customer'} · {new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{o.status}</em></div></Link>)}</div>:<div className="mini-empty"><ShoppingCart size={25}/><strong>No orders yet</strong><span>Customer checkout complete hone ke baad orders yahan appear honge.</span></div>}</div><div className="panel"><p className="eyebrow">QUICK START</p><h2>Store Setup</h2><Link className="check-row hm-quick-card" to="/admin/products"><span>01</span><div><strong>Add products</strong><small>Real catalog items with images and stock.</small></div><ChevronRight size={16}/></Link><Link className="check-row hm-quick-card" to="/admin/orders"><span>02</span><div><strong>Manage orders</strong><small>Confirm, pack, ship and deliver customer orders.</small></div><ChevronRight size={16}/></Link><Link className="check-row hm-quick-card" to="/admin/banners"><span>03</span><div><strong>Create a sale</strong><small>Publish promotional banners from admin.</small></div><ChevronRight size={16}/></Link></div></div></AdminLayout>;
 }
 
-function AdminProducts(){ const {store,refresh}=useStore(); const remove=async id=>{if(!confirm('Delete this product?'))return; const {error}=await supabase.from('products').delete().eq('id',id); if(error) alert(getFriendlyErrorMessage(error)); else refresh();}; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Products</h1><p>{store.products.length} product(s) in your Supabase catalog.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div>{store.products.length?<div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{store.products.map(p=><div className="table-row" key={p.id}><div className="table-product"><img src={p.image||logo} alt={p.name || "Hafiz Mart product"}/><strong>{p.name}</strong><small>{p.sku||"No SKU"}</small></div><span>{store.categories.find(c=>c.id===p.categoryId)?.name||"—"}</span><span>Rs. {Number(p.salePrice||p.price||0).toLocaleString()}</span><span>{p.stock||0}</span><div className="row-actions"><Link to={`/admin/products/${p.id}/edit`} aria-label={`Edit ${p.name}`} title="Edit product"><Pencil aria-hidden="true" size={15}/></Link><button type="button" onClick={()=>remove(p.id)} aria-label={`Delete ${p.name}`} title="Delete product"><Trash2 aria-hidden="true" size={15}/></button></div></div>)}</div>:<EmptyState title="No Products Yet" text="Your database catalog is empty. Add your first product." action="Add First Product" to="/admin/products/new" icon={Package}/>}</AdminLayout>; }
+function AdminProducts(){
+  const { store, refresh } = useStore(); const location = useLocation(); const navigate = useNavigate();
+  const currentId = new URLSearchParams(location.search).get('category') || '';
+  const [search, setSearch] = useState('');
+  const [includeSub, setIncludeSub] = useState(true);
+  const categories = store.categories; const products = store.products;
+  const remove = async id => { if (!confirm('Delete this product?')) return; const { error } = await supabase.from('products').delete().eq('id', id); if (error) alert(getFriendlyErrorMessage(error)); else refresh(); };
+  const goto = id => navigate(id ? `/admin/products?category=${encodeURIComponent(id)}` : '/admin/products');
+  const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''));
+  const childrenOf = parentId => categories.filter(c => String(c.parent_category_id || '') === String(parentId || '')).sort(byName);
+  const countFor = category => getCategoryProductCount(categories, products, category.id);
+  const productsIn = (category, withSub) => {
+    const ids = withSub ? new Set(getCategoryDescendantIds(categories, category.id)) : new Set([String(category.id)]);
+    return products.filter(p => ids.has(String(p.categoryId)));
+  };
+  const categoryIds = new Set(categories.map(c => String(c.id)));
+  const uncategorized = products.filter(p => !p.categoryId || !categoryIds.has(String(p.categoryId)));
+  const pathOf = p => getCategoryPathNames(categories, p.categoryId).map(c => c.name).join(' / ') || '—';
+  const current = currentId && currentId !== '__none' && currentId !== '__all' ? categories.find(c => String(c.id) === currentId) : null;
+  const term = search.trim().toLowerCase();
+
+  const Row = ({ p }) => <div className="table-row" key={p.id}>
+    <div className="table-product"><img src={p.image || logo} alt={p.name || 'Hafiz Mart product'}/><strong>{p.name}</strong><small>{p.sku || 'No SKU'}</small></div>
+    <span>{pathOf(p)}</span><span>Rs. {Number(p.salePrice || p.price || 0).toLocaleString()}</span><span className={Number(p.stock || 0) <= 0 ? 'hm-stock-out' : ''}>{p.stock || 0}</span>
+    <div className="row-actions"><Link to={`/admin/products/${p.id}/edit`} aria-label={`Edit ${p.name}`} title="Edit product"><Pencil aria-hidden="true" size={15}/></Link><button type="button" onClick={() => remove(p.id)} aria-label={`Delete ${p.name}`} title="Delete product"><Trash2 aria-hidden="true" size={15}/></button></div>
+  </div>;
+  const Table = ({ list }) => list.length
+    ? <div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{list.map(p => <Row key={p.id} p={p}/>)}</div>
+    : <div className="hm-pl-empty">Is jagah abhi koi product nahi.</div>;
+  const CategoryCard = ({ category }) => {
+    const items = productsIn(category, true); const subs = childrenOf(category.id).length;
+    return <button type="button" className="hm-pl-card" onClick={() => goto(category.id)}>
+      <span className="hm-pl-thumbs" aria-hidden="true">{items.slice(0, 3).map(p => <img key={p.id} src={p.image || logo} alt=""/>)}{items.length === 0 && <span className="hm-pl-thumb-empty"><Package size={20}/></span>}</span>
+      <strong>{category.name}</strong>
+      <span className="hm-pl-count">{items.length} product{items.length === 1 ? '' : 's'}</span>
+      {subs > 0 && <small>{subs} subcategor{subs === 1 ? 'y' : 'ies'}</small>}
+      <ChevronRight size={18} className="hm-pl-chevron" aria-hidden="true"/>
+    </button>;
+  };
+
+  let body;
+  if (!products.length) body = <EmptyState title="No Products Yet" text="Your database catalog is empty. Add your first product." action="Add First Product" to="/admin/products/new" icon={Package}/>;
+  else if (term) {
+    const found = products.filter(p => `${p.name} ${p.sku || ''} ${p.brand || ''}`.toLowerCase().includes(term));
+    body = <><p className="hm-pl-note">{found.length} result{found.length === 1 ? '' : 's'} for “{search.trim()}”</p><Table list={found}/></>;
+  } else if (currentId === '__all') body = <><Breadcrumb/><Table list={products}/></>;
+  else if (currentId === '__none') body = <><Breadcrumb/><Table list={uncategorized}/></>;
+  else if (current) {
+    const subs = childrenOf(current.id); const list = productsIn(current, includeSub);
+    body = <>
+      <Breadcrumb/>
+      {subs.length > 0 && <><h2 className="hm-pl-heading">Subcategories</h2><div className="hm-pl-grid">{subs.map(c => <CategoryCard key={c.id} category={c}/>)}</div></>}
+      <div className="hm-pl-listhead"><h2 className="hm-pl-heading">{includeSub && subs.length > 0 ? `All products in ${current.name}` : `Products in ${current.name}`} <span>({list.length})</span></h2>
+        <div className="hm-pl-listtools">{subs.length > 0 && <label className="hm-switch"><input type="checkbox" checked={includeSub} onChange={e => setIncludeSub(e.target.checked)}/><span className="hm-switch-track" aria-hidden="true"/><span>Subcategories ke products bhi</span></label>}<Link className="ghost-btn" to={`/admin/products/new?category=${encodeURIComponent(current.id)}`}><Plus size={15}/> Add product here</Link></div></div>
+      <Table list={list}/>
+    </>;
+  } else body = <>
+    <h2 className="hm-pl-heading">Categories</h2>
+    <div className="hm-pl-grid">
+      {sortMainCategories(categories).map(c => <CategoryCard key={c.id} category={c}/>)}
+      {uncategorized.length > 0 && <button type="button" className="hm-pl-card is-muted" onClick={() => goto('__none')}><span className="hm-pl-thumbs" aria-hidden="true"><span className="hm-pl-thumb-empty"><Package size={20}/></span></span><strong>No category</strong><span className="hm-pl-count">{uncategorized.length} product{uncategorized.length === 1 ? '' : 's'}</span><ChevronRight size={18} className="hm-pl-chevron" aria-hidden="true"/></button>}
+    </div>
+    <p className="hm-pl-note"><button type="button" className="hm-pl-link" onClick={() => goto('__all')}>Saare products ek list mein dekhein ({products.length})</button></p>
+  </>;
+
+  function Breadcrumb() {
+    const trail = current ? getCategoryPathNames(categories, current.id) : [];
+    const label = currentId === '__all' ? 'All products' : currentId === '__none' ? 'No category' : '';
+    return <nav className="hm-pl-crumbs" aria-label="Breadcrumb"><button type="button" onClick={() => goto('')}>All categories</button>{trail.map((item, index) => <React.Fragment key={item.id}><ChevronRight size={14} aria-hidden="true"/>{index === trail.length - 1 ? <span aria-current="page">{item.name}</span> : <button type="button" onClick={() => goto(item.id)}>{item.name}</button>}</React.Fragment>)}{label && <><ChevronRight size={14} aria-hidden="true"/><span aria-current="page">{label}</span></>}</nav>;
+  }
+
+  return <AdminLayout>
+    <div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>Products</h1><p>{products.length} product(s) in {categories.length} categories.</p></div><Link className="gold-btn" to={current ? `/admin/products/new?category=${encodeURIComponent(current.id)}` : '/admin/products/new'}><Plus size={17}/> Add Product</Link></div>
+    {products.length > 0 && <div className="hm-pl-toolbar"><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Product ka naam, SKU ya brand dhoondein..." aria-label="Search products"/></div>}
+    {body}
+  </AdminLayout>;
+}
 
 function ProductImageUploader({images, setImages}){
   const [uploading,setUploading]=useState(false);
@@ -6179,23 +6347,279 @@ function ProductImageUploader({images, setImages}){
   </div>;
 }
 
-function ProductForm(){ const {id}=useParams(); const {store,refresh}=useStore(); const editing=Boolean(id); const existing=store.products.find(p=>p.id===id); const [form,setForm]=useState({name:'',sku:'',categoryId:'',brand:'',shortDescription:'',description:'',price:'',salePrice:'',stock:'',status:'active',productType:'general',variantsText:'[]',attributesText:'{}',returnPolicy:'',warrantyInfo:'',sizeGuide:'',highlightsText:'',videoUrl:''}); const [images,setImages]=useState([]); const [busy,setBusy]=useState(false); const [videoUploading,setVideoUploading]=useState(false); const [videoError,setVideoError]=useState(''); const [selectedColors,setSelectedColors]=useState([]); const [customColor,setCustomColor]=useState(''); const [customHighlight,setCustomHighlight]=useState(''); const [selectedSizes,setSelectedSizes]=useState([]); const [selectedMaterials,setSelectedMaterials]=useState([]); const [selectedFits,setSelectedFits]=useState([]); const [selectedPatterns,setSelectedPatterns]=useState([]); const [selectedHighlights,setSelectedHighlights]=useState([]); const navigate=useNavigate(); useEffect(()=>{if(existing){let gallery=Array.isArray(existing.images)?existing.images:[];if(existing.image&&!gallery.includes(existing.image))gallery=[existing.image,...gallery];setForm({name:existing.name||'',sku:existing.sku||'',categoryId:existing.categoryId||'',brand:existing.brand||'',shortDescription:existing.shortDescription||'',description:existing.description||'',price:existing.price||'',salePrice:existing.salePrice||'',stock:existing.stock||0,status:existing.status||'active',productType:existing.productType||'general',variantsText:JSON.stringify(existing.variants||[],null,2),attributesText:JSON.stringify(existing.attributes||{},null,2),returnPolicy:existing.returnPolicy||'',warrantyInfo:existing.warrantyInfo||'',sizeGuide:existing.sizeGuide||'',highlightsText:JSON.stringify(existing.highlights||[],null,2),videoUrl:existing.videoUrl||''});setImages(gallery);const vars=Array.isArray(existing.variants)?existing.variants:[];const attrs=existing.attributes&&typeof existing.attributes==='object'?existing.attributes:{};setSelectedColors([...new Set(vars.map(v=>v.color).filter(Boolean))]);setSelectedSizes([...new Set(vars.map(v=>v.size).filter(Boolean))]);setSelectedMaterials([].concat(attrs.material||[]).filter(Boolean));setSelectedFits([].concat(attrs.fit||[]).filter(Boolean));setSelectedPatterns([].concat(attrs.pattern||[]).filter(Boolean));setSelectedHighlights(Array.isArray(existing.highlights)?existing.highlights:[])}},[existing]); const uploadVideo=async file=>{if(!file)return;setVideoError('');const allowed=['video/mp4','video/webm','video/quicktime'];if(!allowed.includes(file.type)){setVideoError('Please select an MP4, WEBM or MOV video.');return;}if(file.size>100*1024*1024){setVideoError('Video file must be 100 MB or smaller.');return;}setVideoUploading(true);try{const ext=({'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'})[file.type];const path='products/'+crypto.randomUUID()+'.'+ext;const {error}=await supabase.storage.from('product-videos').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});if(error)throw error;const {data}=supabase.storage.from('product-videos').getPublicUrl(path);if(!data?.publicUrl)throw new Error('Video URL unavailable');setForm(v=>({...v,videoUrl:data.publicUrl}));}catch(error){setVideoError(getFriendlyErrorMessage(error,'Video upload failed. Check that the product-videos storage bucket is configured.'));}finally{setVideoUploading(false);}}; const submit=async e=>{
-  e.preventDefault();
-  const enteredImages=images.filter(Boolean); const cleanImages=enteredImages.filter(isSafeHttpUrl);
-  if(enteredImages.length!==cleanImages.length){alert('Product image URLs must use valid HTTP or HTTPS URLs.');return;}
-  if(!String(form.name||'').trim() || String(form.name).trim().length>180){alert('Product name is required and must be 180 characters or fewer.');return;}
-  const price=Number(form.price); const salePrice=form.salePrice===''?null:Number(form.salePrice); const stock=Number(form.stock||0); const colorOptions=['Black','White','Navy','Blue','Red','Pink','Green','Beige','Brown','Grey','Yellow','Purple']; const sizeOptions=['XS','S','M','L','XL','XXL','3XL','Free Size']; const materialOptions=['Cotton','Lawn','Linen','Polyester','Silk','Chiffon','Khaddar','Denim','Leather','Stainless Steel']; const fitOptions=['Regular Fit','Slim Fit','Oversized','Relaxed Fit','Standard']; const patternOptions=['Plain','Printed','Striped','Floral','Embroidered','Checked','Textured']; const highlightOptions=['Premium quality','Comfortable fabric','Everyday wear','Breathable material','Durable construction','Gift-ready','Easy to maintain','Lightweight']; const variants=(selectedColors.length||selectedSizes.length)?(selectedColors.length?selectedColors:['']).flatMap(color=>(selectedSizes.length?selectedSizes:['']).map(size=>({... (color ? {color} : {}), ... (size ? {size} : {}), price:salePrice??price, stock}))):[]; const attributes={...(selectedMaterials.length?{material:selectedMaterials}:{}),...(selectedFits.length?{fit:selectedFits}:{}),...(selectedPatterns.length?{pattern:selectedPatterns}:{})}; const highlights=selectedHighlights;
-  if(!Number.isFinite(price)||price<0|| (salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0||salePrice>price)) || !Number.isInteger(stock)||stock<0){alert('Enter a valid price, sale price, and stock quantity.');return;}
-  setBusy(true);
-  try {
-    const slug=(form.name||'product').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+(id||crypto.randomUUID().slice(0,8));
-    const payload={name:String(form.name).trim(),slug,sku:form.sku.trim()||null,category_id:form.categoryId||null,brand:form.brand.trim()||null,short_description:form.shortDescription.trim()||null,description:form.description.trim()||null,price,sale_price:salePrice,stock_quantity:stock,main_image:cleanImages[0]||null,images:cleanImages,status:form.status,product_type:form.productType,variants,attributes,return_policy:form.returnPolicy.trim()||null,warranty_info:form.warrantyInfo.trim()||null,size_guide:form.sizeGuide.trim()||null,highlights,video_url:form.videoUrl.trim()||null};
-    const result=editing?await supabase.from('products').update(payload).eq('id',id).select().single():await supabase.from('products').insert(payload).select().single();
-    if(result.error)throw result.error;
-    await refresh();navigate('/admin/products');
-  } catch(error) { alert(getFriendlyErrorMessage(error,'Product could not be saved. Please try again.')); }
-  finally { setBusy(false); }
- }; return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Product data is saved directly to the Supabase database.</p></div></div><form className="admin-form hm-product-form" onSubmit={submit}><div className="form-grid"><label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label><label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=><option key={c.id} value={c.id}>{getCategoryPathNames(store.categories,c.id).map(item=>item.name).join(' / ')}</option>)}</select></label><label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label><label>Product Type<select value={form.productType} onChange={e=>setForm({...form,productType:e.target.value})}><option value="general">General</option><option value="shirt">Shirt / T-shirt</option><option value="stitched_suit">Stitched Suit</option><option value="unstitched_suit">Unstitched Suit</option><option value="trousers">Pants / Trousers</option><option value="accessory">Accessory</option></select></label><label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label><label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><div className="span-2 hm-product-type-hint"><strong>{({shirt:"Shirt / T-shirt",stitched_suit:"Stitched Suit",unstitched_suit:"Unstitched Suit",trousers:"Pants / Trousers",accessory:"Accessory",general:"General"})[form.productType] || "Product"} setup</strong><p>Select colour and size checkboxes below to create product variants. Specifications and highlights are also managed with checkboxes.</p></div><div className="span-2 hm-product-options-panel"><strong>Variants & Options</strong><p>Select available sizes and colours. These selections save as product variants.</p><fieldset className="hm-check-field"><legend>Colours</legend><div className="hm-check-options">{['Black','White','Navy','Blue','Red','Pink','Green','Beige','Brown','Grey','Yellow','Purple'].map(value=><label className={`hm-check-chip ${selectedColors.includes(value)?'selected':''}`} key={value}><input type="checkbox" checked={selectedColors.includes(value)} onChange={()=>setSelectedColors(prev=>prev.includes(value)?prev.filter(x=>x!==value):[...prev,value])}/><span>{value}</span></label>)}</div><div className="hm-custom-option"><label htmlFor="hm-custom-color">Custom colour</label><div><input id="hm-custom-color" value={customColor} onChange={e=>setCustomColor(e.target.value)} placeholder="Type a colour (e.g. Teal)"/><button type="button" className="ghost-btn" onClick={()=>{const value=customColor.trim();if(value&&!selectedColors.some(x=>x.toLowerCase()===value.toLowerCase()))setSelectedColors(prev=>[...prev,value]);setCustomColor('');}}>Add colour</button></div>{selectedColors.filter(value=>!['Black','White','Navy','Blue','Red','Pink','Green','Beige','Brown','Grey','Yellow','Purple'].includes(value)).map(value=><span className="hm-custom-option-chip" key={value}>{value}<button type="button" aria-label={`Remove ${value}`} onClick={()=>setSelectedColors(prev=>prev.filter(x=>x!==value))}>×</button></span>)}</div></fieldset><fieldset className="hm-check-field"><legend>Sizes</legend><div className="hm-check-options">{['XS','S','M','L','XL','XXL','3XL','Free Size'].map(value=><label className={`hm-check-chip ${selectedSizes.includes(value)?'selected':''}`} key={value}><input type="checkbox" checked={selectedSizes.includes(value)} onChange={()=>setSelectedSizes(prev=>prev.includes(value)?prev.filter(x=>x!==value):[...prev,value])}/><span>{value}</span></label>)}</div></fieldset></div><div className="span-2 hm-product-options-panel"><strong>Specifications & Attributes</strong><p>Checkboxes se common product details select karein.</p>{[['Material',['Cotton','Lawn','Linen','Polyester','Silk','Chiffon','Khaddar','Denim','Leather','Stainless Steel'],selectedMaterials,setSelectedMaterials],['Fit',['Regular Fit','Slim Fit','Oversized','Relaxed Fit','Standard'],selectedFits,setSelectedFits],['Pattern / Finish',['Plain','Printed','Striped','Floral','Embroidered','Checked','Textured'],selectedPatterns,setSelectedPatterns],['Product highlights',['Premium quality','Comfortable fabric','Everyday wear','Breathable material','Durable construction','Gift-ready','Easy to maintain','Lightweight'],selectedHighlights,setSelectedHighlights]].map(([title,options,selected,setSelected])=><fieldset className="hm-check-field" key={title}><legend>{title}</legend><div className="hm-check-options">{options.map(value=><label className={`hm-check-chip ${selected.includes(value)?'selected':''}`} key={value}><input type="checkbox" checked={selected.includes(value)} onChange={()=>setSelected(prev=>prev.includes(value)?prev.filter(x=>x!==value):[...prev,value])}/><span>{value}</span></label>)}</div>{title==='Product highlights'&&<div className="hm-custom-option"><label htmlFor="hm-custom-highlight">Custom highlight</label><div><input id="hm-custom-highlight" value={customHighlight} onChange={e=>setCustomHighlight(e.target.value)} placeholder="Add a product highlight"/><button type="button" className="ghost-btn" onClick={()=>{const value=customHighlight.trim();if(value&&!selectedHighlights.some(x=>x.toLowerCase()===value.toLowerCase()))setSelectedHighlights(prev=>[...prev,value]);setCustomHighlight('');}}>Add highlight</button></div>{selectedHighlights.filter(value=>!options.includes(value)).map(value=><span className="hm-custom-option-chip" key={value}>{value}<button type="button" aria-label={`Remove ${value}`} onClick={()=>setSelectedHighlights(prev=>prev.filter(x=>x!==value))}>×</button></span>)}</div>}</fieldset>)}</div><label>Size Guide<input value={form.sizeGuide} onChange={e=>setForm({...form,sizeGuide:e.target.value})} placeholder="e.g. S: chest 38, M: 40, L: 42"/></label><label>Return Policy<select value={form.returnPolicy} onChange={e=>setForm({...form,returnPolicy:e.target.value})}><option value="">Use store policy</option><option value="change_of_mind">Change of Mind</option><option value="easy_returns">Easy Returns</option><option value="no_returns">No Returns</option></select></label><label>Warranty Information<input value={form.warrantyInfo} onChange={e=>setForm({...form,warrantyInfo:e.target.value})} placeholder="Warranty available / Not available"/></label><div className="span-2 hm-video-uploader"><div><strong>Product Video</strong><small>MP4, WEBM or MOV · maximum 100 MB</small></div><label className="gold-btn upload-btn"><Upload size={16}/>{videoUploading?'Uploading video…':'Upload Video'}<input type="file" accept="video/mp4,video/webm,video/quicktime" hidden disabled={videoUploading} onChange={e=>{uploadVideo(e.target.files?.[0]);e.target.value='';}}/></label>{videoError&&<p className="upload-error">{videoError}</p>}<label className="span-2">Or paste a video URL<input value={form.videoUrl} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="https://..."/></label>{form.videoUrl&&<video className="hm-video-preview" src={form.videoUrl} controls preload="metadata"/>}</div><ProductImageUploader images={images} setImages={setImages}/><label className="span-2">Short Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})}/></label><label className="span-2">Full Description<textarea rows="7" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label></div><div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy||videoUploading}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div></form></AdminLayout>; }
+// Admin-only helpers for the product form: common weights and standard sizes
+const HM_WEIGHT_PRESETS = ['5 g', '10 g', '25 g', '50 g', '100 g', '250 g', '500 g', '1 kg', '2 kg'];
+const HM_STANDARD_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'Free Size'];
+
+/* ===== Product form: fields follow the product's category (clothing, footwear, bags, jewellery, beauty, electronics, home) ===== */
+const HM_FAMILY_LABELS = { apparel: 'Clothing & Apparel', footwear: 'Footwear', bags: 'Bags & Wallets', jewelry: 'Jewellery', beauty: 'Beauty & Personal Care', electronics: 'Electronics & Appliances', home: 'Home & Living', general: 'General Product' };
+
+function hmDetectFamily(categories, categoryId) {
+  const names = getCategoryPathNames(categories, categoryId).map(item => String(item.name || '')).join(' / ').toLowerCase();
+  if (!names) return 'general';
+  const has = re => re.test(names);
+  if (has(/shoe|sandal|footwear|slipper|chappal|sneaker|boot|khussa|heel/)) return 'footwear';
+  if (has(/\bbags?\b|handbag|wallet|purse|clutch|backpack|luggage/)) return 'bags';
+  if (has(/jewel|ring|earring|necklace|bangle|bracelet|anklet|tikka|pendant/)) return 'jewelry';
+  if (has(/cosmetic|beauty|skin|hair|makeup|lip|eye|face|fragrance|perfume|attar|personal care|mehndi|nail/)) return 'beauty';
+  if (has(/electronic|appliance|phone|mobile|gadget|charger|headphone|earbud|speaker|camera|laptop|computer|iron|blender|fan|heater|cooker|oven|geyser|trimmer|battery|cable|power bank|smart/)) return 'electronics';
+  if (has(/home|decor|furniture|bedding|curtain|rug|carpet|kitchen|crockery|cutlery|lighting|storage|bath|garden|islamic/)) return 'home';
+  if (has(/cloth|apparel|fashion|wear|shirt|pant|trouser|kurta|shalwar|lawn|suit|dress|boys|girls|kids|men|women|ladies|gents|fabric|stitched|abaya|hijab|scarf|shawl|jeans/)) return 'apparel';
+  return 'general';
+}
+
+// kind: chips = pick several (and add your own), text = one line
+const HM_FAMILY_SPECS = {
+  apparel: [
+    { key: 'occasion', label: 'Apparel type / occasion', kind: 'chips', options: ['Casual', 'Formal', 'Party', 'Outdoor', 'Business', 'Sports', 'Wedding', 'Daily wear'] },
+    { key: 'material', label: 'Fabric type', kind: 'chips', options: ['Cotton', 'Lawn', 'Linen', 'Polyester', 'Silk', 'Chiffon', 'Khaddar', 'Denim', 'Wool', 'Velvet', 'Cambric', 'Jersey'] },
+    { key: 'style', label: 'Style', kind: 'chips', options: ['Casual', 'Oxford', 'Polo', 'Crew Neck', 'V-Neck', 'Collared', 'Straight', 'Flared'] },
+    { key: 'fit', label: 'Fit', kind: 'chips', options: ['Regular Fit', 'Slim Fit', 'Oversized', 'Relaxed Fit', 'Standard'] },
+    { key: 'pattern', label: 'Pattern / Finish', kind: 'chips', options: ['Plain', 'Printed', 'Striped', 'Floral', 'Embroidered', 'Checked', 'Textured'] },
+    { key: 'season', label: 'Season', kind: 'chips', options: ['Summer', 'Winter', 'All Season'] }
+  ],
+  footwear: [
+    { key: 'shoe_type', label: 'Shoe type', kind: 'chips', options: ['Sneakers', 'Sandals', 'Slippers', 'Formal', 'Boots', 'Sports', 'Casual'] },
+    { key: 'material', label: 'Material', kind: 'chips', options: ['Leather', 'Synthetic', 'Rubber', 'Canvas', 'Mesh', 'Suede'] },
+    { key: 'closure', label: 'Closure', kind: 'chips', options: ['Lace-up', 'Slip-on', 'Velcro', 'Buckle'] },
+    { key: 'occasion', label: 'Occasion', kind: 'chips', options: ['Casual', 'Formal', 'Sports', 'Party'] },
+    { key: 'season', label: 'Season', kind: 'chips', options: ['Summer', 'Winter', 'All Season'] }
+  ],
+  bags: [
+    { key: 'bag_type', label: 'Bag type', kind: 'chips', options: ['Handbag', 'Shoulder Bag', 'Backpack', 'Clutch', 'Tote', 'Wallet', 'Travel Bag', 'Laptop Bag'] },
+    { key: 'material', label: 'Material', kind: 'chips', options: ['Leather', 'PU Leather', 'Canvas', 'Nylon', 'Fabric'] },
+    { key: 'closure', label: 'Closure', kind: 'chips', options: ['Zip', 'Magnetic', 'Flap', 'Drawstring'] },
+    { key: 'dimensions', label: 'Dimensions (L x W x H)', kind: 'text', placeholder: 'e.g. 30 x 12 x 25 cm' }
+  ],
+  jewelry: [
+    { key: 'jewelry_type', label: 'Jewellery type', kind: 'chips', options: ['Ring', 'Earrings', 'Necklace', 'Bracelet', 'Bangles', 'Anklet', 'Tikka', 'Set', 'Pendant'] },
+    { key: 'material', label: 'Material', kind: 'chips', options: ['Gold Plated', 'Silver Plated', 'Brass', 'Alloy', 'Pearl', 'Stone', 'Kundan', 'Artificial'] },
+    { key: 'occasion', label: 'Occasion', kind: 'chips', options: ['Bridal', 'Party', 'Daily wear', 'Gift'] }
+  ],
+  beauty: [
+    { key: 'category_type', label: 'Type', kind: 'chips', options: ['Skin Care', 'Hair Care', 'Makeup', 'Fragrance', 'Body Care', 'Tools'] },
+    { key: 'skin_type', label: 'Suitable for', kind: 'chips', options: ['All Skin', 'Oily', 'Dry', 'Normal', 'Sensitive', 'Combination'] },
+    { key: 'gender', label: 'For', kind: 'chips', options: ['Women', 'Men', 'Unisex'] },
+    { key: 'net_quantity', label: 'Net quantity', kind: 'text', placeholder: 'e.g. 50 ml or 100 g' },
+    { key: 'shelf_life', label: 'Shelf life', kind: 'text', placeholder: 'e.g. 24 months' },
+    { key: 'ingredients', label: 'Key ingredients', kind: 'text', placeholder: 'e.g. Saffron, Vitamin C' }
+  ],
+  electronics: [
+    { key: 'model', label: 'Model', kind: 'text', placeholder: 'e.g. HM-2000' },
+    { key: 'power', label: 'Power', kind: 'text', placeholder: 'e.g. 1200 W' },
+    { key: 'voltage', label: 'Voltage', kind: 'text', placeholder: 'e.g. 220 V' },
+    { key: 'capacity', label: 'Capacity', kind: 'text', placeholder: 'e.g. 1.5 L' },
+    { key: 'colour', label: 'Colour', kind: 'text', placeholder: 'e.g. Black / Silver' },
+    { key: 'material', label: 'Material', kind: 'chips', options: ['Plastic', 'Stainless Steel', 'Glass', 'Aluminium', 'Ceramic'] },
+    { key: 'usage', label: 'Used for', kind: 'chips', options: ['Kitchen', 'Home', 'Office', 'Personal Care', 'Outdoor'] },
+    { key: 'box_contents', label: 'In the box', kind: 'text', placeholder: 'e.g. Unit, charger, manual' }
+  ],
+  home: [
+    { key: 'material', label: 'Material', kind: 'chips', options: ['Wood', 'Metal', 'Glass', 'Ceramic', 'Plastic', 'Fabric', 'Stainless Steel', 'Resin'] },
+    { key: 'style', label: 'Style', kind: 'chips', options: ['Modern', 'Classic', 'Minimal', 'Traditional'] },
+    { key: 'room', label: 'Room', kind: 'chips', options: ['Living Room', 'Bedroom', 'Kitchen', 'Bathroom', 'Office', 'Outdoor'] },
+    { key: 'colour', label: 'Colour', kind: 'text', placeholder: 'e.g. Walnut brown' },
+    { key: 'dimensions', label: 'Dimensions', kind: 'text', placeholder: 'e.g. 40 x 30 x 20 cm' },
+    { key: 'pieces', label: 'Pieces in pack', kind: 'text', placeholder: 'e.g. 6' }
+  ],
+  general: [
+    { key: 'material', label: 'Material', kind: 'chips', options: ['Cotton', 'Plastic', 'Metal', 'Wood', 'Glass', 'Leather', 'Stainless Steel'] },
+    { key: 'colour', label: 'Colour', kind: 'text', placeholder: 'e.g. Black' },
+    { key: 'dimensions', label: 'Dimensions', kind: 'text', placeholder: 'e.g. 20 x 10 x 5 cm' }
+  ]
+};
+
+const HM_SIZE_SYSTEMS = {
+  standard: { label: 'Standard (XS – 3XL)', options: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'Free Size'] },
+  kids: { label: 'Kids / Age', options: ['0-3 Months', '3-6 Months', '6-12 Months', '1-2 Years', '2-3 Years', '3-4 Years', '4-5 Years', '5-6 Years', '6-7 Years', '7-8 Years', '8-9 Years', '9-10 Years', '10-11 Years', '11-12 Years', '12-13 Years', '13-14 Years', '14-15 Years', '15-16 Years'] },
+  collar: { label: 'Collar (inches)', prefix: 'Collar ', options: ['14', '14.5', '15', '15.5', '16', '16.5', '17', '17.5', '18'] },
+  waist: { label: 'Waist / Pants (inches)', prefix: 'Waist ', options: ['28', '30', '32', '34', '36', '38', '40', '42', '44'] },
+  suit: { label: 'Suit / Chest', prefix: 'Suit ', options: ['34', '36', '38', '40', '42', '44', '46'] },
+  height: { label: 'Height (cm)', suffix: ' cm', options: ['80', '90', '100', '110', '120', '130', '140', '150', '160', '170', '180'] },
+  eu: { label: 'EU sizes', prefix: 'EU ', options: ['34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46'] },
+  uk: { label: 'UK sizes', prefix: 'UK ', options: ['3', '4', '5', '6', '7', '8', '9', '10', '11', '12'] },
+  us: { label: 'US sizes', prefix: 'US ', options: ['4', '5', '6', '7', '8', '9', '10', '11', '12', '13'] }
+};
+const HM_FAMILY_SIZE_SYSTEMS = { apparel: ['standard', 'kids', 'collar', 'waist', 'suit', 'height', 'eu', 'uk', 'us'], footwear: ['eu', 'uk', 'us', 'kids'] };
+const hmSizeLabel = (system, option) => `${system.prefix || ''}${option}${system.suffix || ''}`;
+const HM_COLOUR_OPTIONS = ['Black', 'White', 'Navy', 'Blue', 'Red', 'Pink', 'Green', 'Beige', 'Brown', 'Grey', 'Yellow', 'Purple'];
+const HM_HIGHLIGHT_OPTIONS = ['Premium quality', 'Comfortable fabric', 'Everyday wear', 'Breathable material', 'Durable construction', 'Gift-ready', 'Easy to maintain', 'Lightweight'];
+const HM_DANGEROUS_OPTIONS = [['none', 'None'], ['battery', 'Contains battery'], ['flammable', 'Flammable'], ['liquid', 'Liquid']];
+const HM_WARRANTY_TYPES = [['none', 'No warranty'], ['seller', 'Seller warranty'], ['brand', 'Brand warranty'], ['other', 'Other warranty']];
+
+function hmEnterToButton(event) {
+  if (event.key === 'Enter') { event.preventDefault(); const button = event.currentTarget.parentElement.querySelector('button'); if (button) button.click(); }
+}
+
+// A group of checkbox chips with a small box to add your own value
+function HmChipsField({ id, label, options, value, onChange }) {
+  const [custom, setCustom] = useState('');
+  const toggle = item => onChange(value.includes(item) ? value.filter(x => x !== item) : [...value, item]);
+  const addCustom = () => { const text = custom.trim(); if (text && !value.some(x => x.toLowerCase() === text.toLowerCase())) onChange([...value, text]); setCustom(''); };
+  const extra = value.filter(item => !options.includes(item));
+  return <fieldset className="hm-check-field" key={id}>
+    <legend>{label}</legend>
+    <div className="hm-check-options">{options.map(item => <label className={`hm-check-chip ${value.includes(item) ? 'selected' : ''}`} key={item}><input type="checkbox" checked={value.includes(item)} onChange={() => toggle(item)}/><span>{item}</span></label>)}</div>
+    <div className="hm-custom-option"><div><input value={custom} onChange={event => setCustom(event.target.value)} onKeyDown={hmEnterToButton} placeholder={`Add other (${label.toLowerCase()})`} aria-label={`Add custom ${label}`}/><button type="button" className="ghost-btn" onClick={addCustom}>Add</button></div>
+      {extra.map(item => <span className="hm-custom-option-chip" key={item}>{item}<button type="button" aria-label={`Remove ${item}`} onClick={() => toggle(item)}>×</button></span>)}</div>
+  </fieldset>;
+}
+
+function ProductForm(){
+  const {id}=useParams(); const {store,refresh}=useStore(); const editing=Boolean(id); const existing=store.products.find(p=>p.id===id);
+  const emptyPkg={enabled:false,weight:'',unit:'kg',length:'',width:'',height:'',dangerous:'none'};
+  const emptyWarranty={type:'none',amount:'',unit:'months',policy:''};
+  const formLocation=useLocation(); const startCategory=new URLSearchParams(formLocation.search).get('category')||''; const [form,setForm]=useState({name:'',sku:'',categoryId:startCategory,brand:'',shortDescription:'',description:'',price:'',salePrice:'',stock:'',status:'active',productType:'general',returnPolicy:'',sizeGuide:'',videoUrl:''});
+  const [images,setImages]=useState([]); const [busy,setBusy]=useState(false); const [videoUploading,setVideoUploading]=useState(false); const [videoError,setVideoError]=useState('');
+  const [familyOverride,setFamilyOverride]=useState(''); const [specs,setSpecs]=useState({}); const [productWeight,setProductWeight]=useState(''); const [customWeight,setCustomWeight]=useState('');
+  const [optionsOn,setOptionsOn]=useState(false); const [selectedColors,setSelectedColors]=useState([]); const [customColor,setCustomColor]=useState(''); const [selectedSizes,setSelectedSizes]=useState([]); const [customSize,setCustomSize]=useState(''); const [sizeSystem,setSizeSystem]=useState('');
+  const [selectedHighlights,setSelectedHighlights]=useState([]); const [customHighlight,setCustomHighlight]=useState('');
+  const [pkg,setPkg]=useState(emptyPkg); const [warranty,setWarranty]=useState(emptyWarranty); const navigate=useNavigate();
+  const family=familyOverride||hmDetectFamily(store.categories,form.categoryId);
+  const specFields=HM_FAMILY_SPECS[family]||HM_FAMILY_SPECS.general;
+  const sizeSystemKeys=HM_FAMILY_SIZE_SYSTEMS[family]||[];
+  const alwaysOptions=family==='apparel'||family==='footwear';
+  const showOptions=alwaysOptions||optionsOn;
+  const activeSystemKey=sizeSystemKeys.includes(sizeSystem)?sizeSystem:(sizeSystemKeys[0]||'');
+  const activeSystem=HM_SIZE_SYSTEMS[activeSystemKey];
+  const setSpec=(key,value)=>setSpecs(prev=>({...prev,[key]:value}));
+
+  useEffect(()=>{if(existing){
+    let gallery=Array.isArray(existing.images)?existing.images:[];if(existing.image&&!gallery.includes(existing.image))gallery=[existing.image,...gallery];
+    setForm({name:existing.name||'',sku:existing.sku||'',categoryId:existing.categoryId||'',brand:existing.brand||'',shortDescription:existing.shortDescription||'',description:existing.description||'',price:existing.price||'',salePrice:existing.salePrice||'',stock:existing.stock||0,status:existing.status||'active',productType:existing.productType||'general',returnPolicy:existing.returnPolicy||'',sizeGuide:existing.sizeGuide||'',videoUrl:existing.videoUrl||''});
+    setImages(gallery);
+    const vars=Array.isArray(existing.variants)?existing.variants:[]; const attrs=existing.attributes&&typeof existing.attributes==='object'?existing.attributes:{};
+    setSelectedColors([...new Set(vars.map(v=>v.color).filter(Boolean))]); setSelectedSizes([...new Set(vars.map(v=>v.size).filter(Boolean))]); setOptionsOn(vars.length>0);
+    const loaded={}; Object.entries(attrs).forEach(([key,value])=>{if(key.startsWith('_')||key==='weight')return;loaded[key]=Array.isArray(value)?value.filter(Boolean):String(value??'');}); setSpecs(loaded);
+    setProductWeight(String([].concat(attrs.weight||[])[0]||'')); setFamilyOverride(typeof attrs._family==='string'?attrs._family:'');
+    setSelectedHighlights(Array.isArray(existing.highlights)?existing.highlights:[]);
+    const p=attrs._package; if(p&&typeof p==='object'){const kg=Number(p.weightKg)||0;const asGrams=kg>0&&kg<1;setPkg({enabled:true,weight:kg?String(asGrams?Number((kg*1000).toFixed(3)):kg):'',unit:asGrams?'g':'kg',length:p.length??'',width:p.width??'',height:p.height??'',dangerous:p.dangerous||'none'});}
+    const w=attrs._warranty; if(w&&typeof w==='object')setWarranty({type:w.type||'none',amount:w.amount??'',unit:w.unit||'months',policy:w.policy||''}); else if(existing.warrantyInfo)setWarranty({type:'other',amount:'',unit:'months',policy:existing.warrantyInfo});
+  }},[existing]);
+
+  const uploadVideo=async file=>{if(!file)return;setVideoError('');const allowed=['video/mp4','video/webm','video/quicktime'];if(!allowed.includes(file.type)){setVideoError('Please select an MP4, WEBM or MOV video.');return;}if(file.size>100*1024*1024){setVideoError('Video file must be 100 MB or smaller.');return;}setVideoUploading(true);try{const ext=({'video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'})[file.type];const path='products/'+crypto.randomUUID()+'.'+ext;const {error}=await supabase.storage.from('product-videos').upload(path,file,{upsert:false,contentType:file.type,cacheControl:'3600'});if(error)throw error;const {data}=supabase.storage.from('product-videos').getPublicUrl(path);if(!data?.publicUrl)throw new Error('Video URL unavailable');setForm(v=>({...v,videoUrl:data.publicUrl}));}catch(error){setVideoError(getFriendlyErrorMessage(error,'Video upload failed. Check that the product-videos storage bucket is configured.'));}finally{setVideoUploading(false);}};
+
+  const pkgWeightKg=(()=>{const n=Number(pkg.weight);if(!Number.isFinite(n)||n<=0)return 0;return pkg.unit==='g'?n/1000:n;})();
+  const pkgVolume=(()=>{const l=Number(pkg.length),w=Number(pkg.width),h=Number(pkg.height);return l>0&&w>0&&h>0?l*w*h:0;})();
+
+  const submit=async e=>{
+    e.preventDefault();
+    const enteredImages=images.filter(Boolean); const cleanImages=enteredImages.filter(isSafeHttpUrl);
+    if(enteredImages.length!==cleanImages.length){alert('Product image URLs must use valid HTTP or HTTPS URLs.');return;}
+    if(!String(form.name||'').trim() || String(form.name).trim().length>180){alert('Product name is required and must be 180 characters or fewer.');return;}
+    const price=Number(form.price); const salePrice=form.salePrice===''?null:Number(form.salePrice); const stock=Number(form.stock||0);
+    if(!Number.isFinite(price)||price<0|| (salePrice!==null&&(!Number.isFinite(salePrice)||salePrice<0||salePrice>price)) || !Number.isInteger(stock)||stock<0){alert('Enter a valid price, sale price, and stock quantity.');return;}
+    if(pkg.enabled){
+      if(!(pkgWeightKg>=0.001&&pkgWeightKg<=300)){alert('Package weight must be between 0.001 kg and 300 kg.');return;}
+      const dims=[pkg.length,pkg.width,pkg.height].filter(v=>String(v).trim()!=='');
+      if(dims.length&&(dims.length!==3||dims.some(v=>!(Number(v)>0)))){alert('Enter package length, width and height (cm) together, all greater than 0.');return;}
+    }
+    if(warranty.type!=='none'&&warranty.amount!==''&&!(Number(warranty.amount)>0)){alert('Warranty duration must be greater than 0.');return;}
+    const variants=(showOptions&&(selectedColors.length||selectedSizes.length))?(selectedColors.length?selectedColors:['']).flatMap(color=>(selectedSizes.length?selectedSizes:['']).map(size=>({...(color?{color}:{}),...(size?{size}:{}),price:salePrice??price,stock}))):[];
+    // customer-visible details (specifications)
+    const allowedKeys=new Set([...specFields.map(f=>f.key),...Object.keys((existing&&existing.attributes)||{}).filter(k=>!k.startsWith('_')&&k!=='weight')]);
+    const attributes={};
+    Object.entries(specs).forEach(([key,value])=>{if(!allowedKeys.has(key))return;if(Array.isArray(value)){if(value.length)attributes[key]=value;}else if(String(value).trim())attributes[key]=String(value).trim();});
+    if(productWeight)attributes.weight=productWeight;
+    // admin-only details (stored with an underscore so the store never lists them)
+    attributes._family=family;
+    if(pkg.enabled)attributes._package={weightKg:Number(pkgWeightKg.toFixed(3)),length:pkg.length===''?null:Number(pkg.length),width:pkg.width===''?null:Number(pkg.width),height:pkg.height===''?null:Number(pkg.height),dangerous:pkg.dangerous};
+    let warrantyText=null;
+    if(warranty.type!=='none'){
+      const months=warranty.amount===''?0:(warranty.unit==='years'?Number(warranty.amount)*12:Number(warranty.amount));
+      const typeLabel=({seller:'seller warranty',brand:'brand warranty',other:'warranty'})[warranty.type];
+      const duration=months?(months%12===0?`${months/12} year${months/12===1?'':'s'}`:`${months} month${months===1?'':'s'}`):'';
+      const head=duration?`${duration} ${typeLabel}`:(warranty.policy.trim()?'':'Warranty available');
+      warrantyText=[head,warranty.policy.trim()].filter(Boolean).join(' — ');
+      attributes._warranty={type:warranty.type,amount:warranty.amount===''?null:Number(warranty.amount),unit:warranty.unit,policy:warranty.policy.trim()};
+    }
+    setBusy(true);
+    try {
+      const slug=(form.name||'product').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+(id||crypto.randomUUID().slice(0,8));
+      const payload={name:String(form.name).trim(),slug,sku:form.sku.trim()||null,category_id:form.categoryId||null,brand:form.brand.trim()||null,short_description:form.shortDescription.trim()||null,description:form.description.trim()||null,price,sale_price:salePrice,stock_quantity:stock,main_image:cleanImages[0]||null,images:cleanImages,status:form.status,product_type:family==='apparel'?form.productType:'general',variants,attributes,return_policy:form.returnPolicy.trim()||null,warranty_info:warrantyText,size_guide:form.sizeGuide.trim()||null,highlights:selectedHighlights,video_url:form.videoUrl.trim()||null};
+      const result=editing?await supabase.from('products').update(payload).eq('id',id).select().single():await supabase.from('products').insert(payload).select().single();
+      if(result.error)throw result.error;
+      await refresh();navigate('/admin/products');
+    } catch(error) { alert(getFriendlyErrorMessage(error,'Product could not be saved. Please try again.')); }
+    finally { setBusy(false); }
+  };
+
+  const addColour=()=>{const value=customColor.trim();if(value&&!selectedColors.some(x=>x.toLowerCase()===value.toLowerCase()))setSelectedColors(prev=>[...prev,value]);setCustomColor('');};
+  const addSize=()=>{const value=customSize.trim();if(value&&!selectedSizes.some(x=>x.toLowerCase()===value.toLowerCase()))setSelectedSizes(prev=>[...prev,value]);setCustomSize('');};
+  const toggleSize=label=>setSelectedSizes(prev=>prev.includes(label)?prev.filter(x=>x!==label):[...prev,label]);
+  const allStandardSizeLabels=new Set(Object.values(HM_SIZE_SYSTEMS).flatMap(system=>system.options.map(option=>hmSizeLabel(system,option))));
+  const customSizeChips=selectedSizes.filter(value=>!allStandardSizeLabels.has(value));
+
+  return <AdminLayout>
+    <div className="admin-head"><div><p className="eyebrow">CATALOG</p><h1>{editing?'Edit Product':'Add Product'}</h1><p>Pehle category chunein. Neeche ki fields us category ke hisaab se badal jati hain.</p></div></div>
+    <form className="admin-form hm-product-form" onSubmit={submit}>
+      <div className="form-grid">
+        <label>Product Name*<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label>
+        <label>SKU<input value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/></label>
+        <label>Category<select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})}><option value="">Select category</option>{store.categories.map(c=><option key={c.id} value={c.id}>{getCategoryPathNames(store.categories,c.id).map(item=>item.name).join(' / ')}</option>)}</select></label>
+        <label>Brand<input value={form.brand} onChange={e=>setForm({...form,brand:e.target.value})}/></label>
+        <label>Price*<input required type="number" min="0" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label>
+        <label>Sale Price<input type="number" min="0" value={form.salePrice} onChange={e=>setForm({...form,salePrice:e.target.value})}/></label>
+        <label>Stock<input type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label>
+        <label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label>
+
+        <div className="span-2 hm-family-banner">
+          <div><strong>{HM_FAMILY_LABELS[family]}</strong><p>{familyOverride?'Aap ne ye type khud chuna hai.':form.categoryId?'Category ke hisaab se khud chuna gaya.':'Category chunein, ya apna product type chunein.'} Neeche sirf is type ki fields aati hain.</p></div>
+          <label>Product type<select value={familyOverride||''} onChange={e=>setFamilyOverride(e.target.value)} aria-label="Product type"><option value="">Auto (from category)</option>{Object.entries(HM_FAMILY_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+          {family==='apparel'&&<label>Clothing style<select value={form.productType} onChange={e=>setForm({...form,productType:e.target.value})}><option value="general">General</option><option value="shirt">Shirt / T-shirt</option><option value="stitched_suit">Stitched Suit</option><option value="unstitched_suit">Unstitched Suit</option><option value="trousers">Pants / Trousers</option><option value="accessory">Accessory</option></select></label>}
+        </div>
+
+        <div className="span-2 hm-product-options-panel"><strong>Product specifications</strong><p>Ye details customer ko product page par "Specifications" mein dikhti hain.</p>
+          {specFields.filter(field=>field.kind==='chips').map(field=><HmChipsField key={field.key+family} id={field.key} label={field.label} options={field.options} value={Array.isArray(specs[field.key])?specs[field.key]:(specs[field.key]?[String(specs[field.key])]:[])} onChange={value=>setSpec(field.key,value)}/>)}
+          {specFields.some(field=>field.kind==='text')&&<div className="hm-spec-text-grid">{specFields.filter(field=>field.kind==='text').map(field=><label key={field.key+family}>{field.label}<input value={typeof specs[field.key]==='string'?specs[field.key]:''} onChange={e=>setSpec(field.key,e.target.value)} placeholder={field.placeholder}/></label>)}</div>}
+          <fieldset className="hm-check-field hm-weight-field"><legend>Product weight / net quantity (shown to customers)</legend><div className="hm-check-options">{HM_WEIGHT_PRESETS.map(value=><label className={`hm-check-chip ${productWeight===value?'selected':''}`} key={value}><input type="checkbox" checked={productWeight===value} onChange={()=>setProductWeight(prev=>prev===value?'':value)}/><span>{value}</span></label>)}</div><div className="hm-custom-option"><div><input id="hm-custom-weight" maxLength={40} value={customWeight} onChange={e=>setCustomWeight(e.target.value)} onKeyDown={hmEnterToButton} placeholder="Type the weight (e.g. 75 g, 1.5 kg, 250 ml)"/><button type="button" className="ghost-btn" onClick={()=>{const value=customWeight.trim();if(value)setProductWeight(value);setCustomWeight('');}}>Set weight</button></div>{productWeight&&!HM_WEIGHT_PRESETS.includes(productWeight)&&<span className="hm-custom-option-chip">{productWeight}<button type="button" aria-label="Remove weight" onClick={()=>setProductWeight('')}>×</button></span>}</div></fieldset>
+        </div>
+
+        <div className="span-2 hm-product-options-panel"><strong>Colours, sizes & variants</strong>
+          {alwaysOptions?<p>Colour aur size chunein. Har combination ek variant ban jata hai.</p>:<label className="hm-switch"><input type="checkbox" checked={optionsOn} onChange={e=>setOptionsOn(e.target.checked)}/><span className="hm-switch-track" aria-hidden="true"/><span>Is product ke colour ya size options hain</span></label>}
+          {showOptions&&<>
+            <fieldset className="hm-check-field"><legend>Colours</legend><div className="hm-check-options">{HM_COLOUR_OPTIONS.map(value=><label className={`hm-check-chip ${selectedColors.includes(value)?'selected':''}`} key={value}><input type="checkbox" checked={selectedColors.includes(value)} onChange={()=>setSelectedColors(prev=>prev.includes(value)?prev.filter(x=>x!==value):[...prev,value])}/><span>{value}</span></label>)}</div>
+              <div className="hm-custom-option"><label htmlFor="hm-custom-color">Custom colour</label><div><input id="hm-custom-color" value={customColor} onChange={e=>setCustomColor(e.target.value)} onKeyDown={hmEnterToButton} placeholder="Type a colour (e.g. Teal)"/><button type="button" className="ghost-btn" onClick={addColour}>Add colour</button></div>{selectedColors.filter(value=>!HM_COLOUR_OPTIONS.includes(value)).map(value=><span className="hm-custom-option-chip" key={value}>{value}<button type="button" aria-label={`Remove ${value}`} onClick={()=>setSelectedColors(prev=>prev.filter(x=>x!==value))}>×</button></span>)}</div></fieldset>
+            <fieldset className="hm-check-field"><legend>Sizes</legend>
+              {activeSystem&&<label className="hm-size-system">Size type<select value={activeSystemKey} onChange={e=>setSizeSystem(e.target.value)}>{sizeSystemKeys.map(key=><option key={key} value={key}>{HM_SIZE_SYSTEMS[key].label}</option>)}</select></label>}
+              {activeSystem&&<div className="hm-check-options">{activeSystem.options.map(option=>{const label=hmSizeLabel(activeSystem,option);return <label className={`hm-check-chip ${selectedSizes.includes(label)?'selected':''}`} key={label}><input type="checkbox" checked={selectedSizes.includes(label)} onChange={()=>toggleSize(label)}/><span>{label}</span></label>;})}</div>}
+              {selectedSizes.filter(value=>allStandardSizeLabels.has(value)).length>0&&<p className="hm-size-summary">Selected: {selectedSizes.filter(value=>allStandardSizeLabels.has(value)).join(', ')}</p>}
+              <div className="hm-custom-option"><label htmlFor="hm-custom-size">Custom size</label><div><input id="hm-custom-size" value={customSize} onChange={e=>setCustomSize(e.target.value)} onKeyDown={hmEnterToButton} placeholder="Type a size (e.g. 32, Kids 8-10, 50 ml)"/><button type="button" className="ghost-btn" onClick={addSize}>Add size</button></div>{customSizeChips.map(value=><span className="hm-custom-option-chip" key={value}>{value}<button type="button" aria-label={`Remove ${value}`} onClick={()=>setSelectedSizes(prev=>prev.filter(x=>x!==value))}>×</button></span>)}</div>
+            </fieldset>
+          </>}
+        </div>
+
+        <label className="span-2">Main Description<textarea rows="3" value={form.shortDescription} onChange={e=>setForm({...form,shortDescription:e.target.value})} placeholder="2-3 lines: product kya hai aur kyun khaas hai"/></label>
+        <label className="span-2">Product Description<textarea rows="8" value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Poori detail: features, use, care instructions..."/></label>
+        <div className="span-2 hm-product-options-panel hm-highlights-panel"><strong>Highlights</strong><p>Chhote selling points jo product page par bullets mein dikhte hain.</p>
+          <div className="hm-check-options">{HM_HIGHLIGHT_OPTIONS.map(value=><label className={`hm-check-chip ${selectedHighlights.includes(value)?'selected':''}`} key={value}><input type="checkbox" checked={selectedHighlights.includes(value)} onChange={()=>setSelectedHighlights(prev=>prev.includes(value)?prev.filter(x=>x!==value):[...prev,value])}/><span>{value}</span></label>)}</div>
+          <div className="hm-custom-option"><label htmlFor="hm-custom-highlight">Custom highlight</label><div><input id="hm-custom-highlight" value={customHighlight} onChange={e=>setCustomHighlight(e.target.value)} onKeyDown={hmEnterToButton} placeholder="Add a product highlight"/><button type="button" className="ghost-btn" onClick={()=>{const value=customHighlight.trim();if(value&&!selectedHighlights.some(x=>x.toLowerCase()===value.toLowerCase()))setSelectedHighlights(prev=>[...prev,value]);setCustomHighlight('');}}>Add highlight</button></div>{selectedHighlights.filter(value=>!HM_HIGHLIGHT_OPTIONS.includes(value)).map(value=><span className="hm-custom-option-chip" key={value}>{value}<button type="button" aria-label={`Remove ${value}`} onClick={()=>setSelectedHighlights(prev=>prev.filter(x=>x!==value))}>×</button></span>)}</div>
+        </div>
+
+        <div className="span-2 hm-video-uploader"><div><strong>Product Video</strong><small>MP4, WEBM or MOV · maximum 100 MB</small></div><label className="gold-btn upload-btn"><Upload size={16}/>{videoUploading?'Uploading video…':'Upload Video'}<input type="file" accept="video/mp4,video/webm,video/quicktime" hidden disabled={videoUploading} onChange={e=>{uploadVideo(e.target.files?.[0]);e.target.value='';}}/></label>{videoError&&<p className="upload-error">{videoError}</p>}<label className="span-2">Or paste a video URL<input value={form.videoUrl} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="https://..."/></label>{form.videoUrl&&<video className="hm-video-preview" src={form.videoUrl} controls preload="metadata"/>}</div>
+        <ProductImageUploader images={images} setImages={setImages}/>
+
+        <div className="span-2 hm-product-options-panel hm-shipping-panel"><strong>Shipping & Warranty</strong><p>Ye details sirf aap ke liye hain (shipping label ke kaam aati hain); customer ko nahi dikhtin. Sirf warranty ka khulasa product page par aata hai.</p>
+          <label className="hm-switch"><input type="checkbox" checked={pkg.enabled} onChange={e=>setPkg({...pkg,enabled:e.target.checked})}/><span className="hm-switch-track" aria-hidden="true"/><span>Package weight aur dimensions likhni hain</span></label>
+          {pkg.enabled&&<div className="hm-package-grid">
+            <div className="hm-package-weight"><label htmlFor="hm-pkg-weight">Package weight</label><div className="hm-weight-input"><input id="hm-pkg-weight" type="number" min="0" step="any" inputMode="decimal" value={pkg.weight} onChange={e=>setPkg({...pkg,weight:e.target.value})} placeholder="0.001 – 300"/><div className="hm-unit-toggle" role="group" aria-label="Weight unit"><button type="button" className={pkg.unit==='kg'?'active':''} aria-pressed={pkg.unit==='kg'} onClick={()=>setPkg({...pkg,unit:'kg'})}>kg</button><button type="button" className={pkg.unit==='g'?'active':''} aria-pressed={pkg.unit==='g'} onClick={()=>setPkg({...pkg,unit:'g'})}>g</button></div></div><small>Allowed: 0.001 kg se 300 kg tak.</small></div>
+            <div className="hm-package-dims"><label>Length (cm)<input type="number" min="0" step="any" inputMode="decimal" value={pkg.length} onChange={e=>setPkg({...pkg,length:e.target.value})}/></label><label>Width (cm)<input type="number" min="0" step="any" inputMode="decimal" value={pkg.width} onChange={e=>setPkg({...pkg,width:e.target.value})}/></label><label>Height (cm)<input type="number" min="0" step="any" inputMode="decimal" value={pkg.height} onChange={e=>setPkg({...pkg,height:e.target.value})}/></label></div>
+            <p className="hm-volume-readout" aria-live="polite">{pkgVolume?`${pkg.length} × ${pkg.width} × ${pkg.height} = ${Number(pkgVolume.toFixed(2)).toLocaleString()} cm³`:'Length × Width × Height = —'}</p>
+            <label>Dangerous goods<select value={pkg.dangerous} onChange={e=>setPkg({...pkg,dangerous:e.target.value})}>{HM_DANGEROUS_OPTIONS.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+          </div>}
+          <div className="hm-warranty-grid">
+            <label>Warranty type<select value={warranty.type} onChange={e=>setWarranty({...warranty,type:e.target.value})}>{HM_WARRANTY_TYPES.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+            {warranty.type!=='none'&&<div className="hm-warranty-duration"><label htmlFor="hm-warranty-amount">Warranty duration</label><div className="hm-weight-input"><input id="hm-warranty-amount" type="number" min="0" step="1" inputMode="numeric" value={warranty.amount} onChange={e=>setWarranty({...warranty,amount:e.target.value})} placeholder="e.g. 6"/><select value={warranty.unit} onChange={e=>setWarranty({...warranty,unit:e.target.value})} aria-label="Warranty unit"><option value="months">months</option><option value="years">years</option></select></div></div>}
+            {warranty.type!=='none'&&<label className="span-2">Warranty policy<textarea rows="3" value={warranty.policy} onChange={e=>setWarranty({...warranty,policy:e.target.value})} placeholder="Kya cover hota hai aur kya nahi (e.g. manufacturing defects cover hain)"/></label>}
+            <label>Return Policy<select value={form.returnPolicy} onChange={e=>setForm({...form,returnPolicy:e.target.value})}><option value="">Use store policy</option><option value="change_of_mind">Change of Mind</option><option value="easy_returns">Easy Returns</option><option value="no_returns">No Returns</option></select></label>
+            {(family==='apparel'||family==='footwear')&&<label>Size Guide<input value={form.sizeGuide} onChange={e=>setForm({...form,sizeGuide:e.target.value})} placeholder="e.g. S: chest 38, M: 40, L: 42"/></label>}
+          </div>
+        </div>
+      </div>
+      <div className="form-actions"><Link className="ghost-btn" to="/admin/products">Cancel</Link><button className="gold-btn" type="submit" disabled={busy||videoUploading}>{busy?'Saving...':editing?'Save Changes':'Create Product'}</button></div>
+    </form>
+  </AdminLayout>;
+}
 
 // Deletes a category together with every subcategory below it and every product inside any of them.
 // Products are removed with one query per call (no matter how many thousands there are), then the
@@ -6368,7 +6792,222 @@ function AdminCoupons(){
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">PROMOTIONS</p><h1>Coupons</h1><p>Create percentage or fixed-amount discounts with limits and dates.</p></div></div><form className="admin-form" onSubmit={save}><div className="form-grid"><label>Coupon Code*<input required value={form.code} onChange={e=>setForm({...form,code:e.target.value.toUpperCase()})} placeholder="WELCOME"/></label><label>Customer-facing Offer Name<input value={form.displayName} onChange={e=>setForm({...form,displayName:e.target.value})} placeholder="Hafiz VIP Offer"/></label><label>Discount Type<select value={form.discountType} onChange={e=>setForm({...form,discountType:e.target.value})}><option value="percent">Percentage (%)</option><option value="fixed">Fixed (Rs.)</option><option value="free_shipping">Free Delivery</option></select></label><label>Discount Value{form.discountType==='free_shipping'&&<small className="form-hint">Free Delivery voucher ke liye 0 use hoga.</small>}<input required={form.discountType!=='free_shipping'} disabled={form.discountType==='free_shipping'} type="number" min="0" step="0.01" value={form.discountType==='free_shipping'?0:form.discountValue} onChange={e=>setForm({...form,discountValue:e.target.value})}/></label><label>Minimum Order (Rs.)<input type="number" min="0" value={form.minOrderAmount} onChange={e=>setForm({...form,minOrderAmount:e.target.value})}/></label><label>Max Discount (Rs.)<input type="number" min="0" value={form.maxDiscount} onChange={e=>setForm({...form,maxDiscount:e.target.value})} placeholder="Optional"/></label><label>Usage Limit<input type="number" min="1" value={form.usageLimit} onChange={e=>setForm({...form,usageLimit:e.target.value})} placeholder="Unlimited if blank"/></label><label>Starts At<input type="datetime-local" value={form.startsAt} onChange={e=>setForm({...form,startsAt:e.target.value})}/></label><label>Expires At<input type="datetime-local" value={form.expiresAt} onChange={e=>setForm({...form,expiresAt:e.target.value})}/></label><label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div><div className="form-actions"><button type="button" className="ghost-btn" onClick={()=>{setForm(blank);setEditing(null)}}>Reset</button><button className="gold-btn">{editing?<Pencil size={16}/>:<Plus size={17}/>} {editing?'Save Coupon':'Create Coupon'}</button></div></form>{loading?<EmptyState title="Loading coupons..." text="Supabase se coupons fetch ho rahe hain." icon={TicketPercent}/>:rows.length?<div className="coupon-list">{rows.map(c=><div className="coupon-card" key={c.id}><div className="coupon-code"><TicketPercent size={18}/><strong>{c.code.toUpperCase()}</strong><span>{c.discount_type==='percent'?`${c.discount_value}% off`:c.discount_type==='free_shipping'?'Free Delivery':`Rs. ${Number(c.discount_value).toLocaleString()} off`}</span><small className="coupon-display-name">{c.display_name||'Custom offer'}</small></div><div className="coupon-meta"><span>Min: Rs. {Number(c.min_order_amount||0).toLocaleString()}</span><span>Used: {c.used_count}{c.usage_limit?` / ${c.usage_limit}`:''}</span><span className={`status status-${c.status}`}>{c.status}</span></div><div className="row-actions"><button onClick={()=>beginEdit(c)}><Pencil size={15}/></button><button onClick={()=>remove(c.id)}><Trash2 size={15}/></button></div></div>)}</div>:<EmptyState title="No Coupons Yet" text="Pehla coupon create karein; checkout par customer code apply kar sakega." icon={TicketPercent}/>}</AdminLayout>;
 }
 
+/* ===== Shipping labels (admin only): Code128 barcode + QR + printable 100 x 150 mm label ===== */
+/* Pure functions (no outside variables) so they can also be sent to the label popup window as text. */
+function hmCode128Svg(text, height) {
+  var P = ["11011001100", "11001101100", "11001100110", "10010011000", "10010001100", "10001001100", "10011001000", "10011000100", "10001100100", "11001001000", "11001000100", "11000100100", "10110011100", "10011011100", "10011001110", "10111001100", "10011101100", "10011100110", "11001110010", "11001011100", "11001001110", "11011100100", "11001110100", "11101101110", "11101001100", "11100101100", "11100100110", "11101100100", "11100110100", "11100110010", "11011011000", "11011000110", "11000110110", "10100011000", "10001011000", "10001000110", "10110001000", "10001101000", "10001100010", "11010001000", "11000101000", "11000100010", "10110111000", "10110001110", "10001101110", "10111011000", "10111000110", "10001110110", "11101110110", "11010001110", "11000101110", "11011101000", "11011100010", "11011101110", "11101011000", "11101000110", "11100010110", "11101101000", "11101100010", "11100011010", "11101111010", "11001000010", "11110001010", "10100110000", "10100001100", "10010110000", "10010000110", "10000101100", "10000100110", "10110010000", "10110000100", "10011010000", "10011000010", "10000110100", "10000110010", "11000010010", "11001010000", "11110111010", "11000010100", "10001111010", "10100111100", "10010111100", "10010011110", "10111100100", "10011110100", "10011110010", "11110100100", "11110010100", "11110010010", "11011011110", "11011110110", "11110110110", "10101111000", "10100011110", "10001011110", "10111101000", "10111100010", "11110101000", "11110100010", "10111011110", "10111101110", "11101011110", "11110101110", "11010000100", "11010010000", "11010011100"];
+  var STOP = "1100011101011"; // stop pattern + final bar
+  var s = String(text == null ? "" : text).replace(/[^\x20-\x7e]/g, "?");
+  if (!s) s = " ";
+  var values = [104]; // Start Code B
+  var sum = 104;
+  for (var i = 0; i < s.length; i++) { var v = s.charCodeAt(i) - 32; values.push(v); sum += v * (i + 1); }
+  values.push(sum % 103);
+  var bits = "";
+  for (var j = 0; j < values.length; j++) bits += P[values[j]];
+  bits += STOP;
+  var quiet = 10, h = height || 80, x = quiet, path = "";
+  for (var k = 0; k < bits.length; ) {
+    if (bits.charAt(k) === "1") { var run = 0; while (k + run < bits.length && bits.charAt(k + run) === "1") run++; path += "M" + (quiet + k) + " 0h" + run + "v" + h + "h-" + run + "z"; k += run; }
+    else k++;
+  }
+  var w = bits.length + quiet * 2;
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" shape-rendering="crispEdges"><rect width="' + w + '" height="' + h + '" fill="#fff"/><path d="' + path + '" fill="#000"/></svg>';
+}
+
+function hmQrMatrix(text) {
+  // QR code, byte mode, error correction level M, versions 1-6 (up to 106 bytes)
+  var utf8 = unescape(encodeURIComponent(String(text == null ? "" : text)));
+  var data = []; for (var q = 0; q < utf8.length; q++) data.push(utf8.charCodeAt(q));
+  var VERS = [null, [16, 10, 1], [28, 16, 1], [44, 26, 1], [64, 18, 2], [86, 24, 2], [108, 16, 4]]; // [data codewords, ecc per block, blocks]
+  var ver = 0;
+  for (var v = 1; v <= 6; v++) { if (data.length * 8 + 12 <= VERS[v][0] * 8) { ver = v; break; } }
+  if (!ver) { data = data.slice(0, 100); ver = 6; for (var v2 = 1; v2 <= 6; v2++) { if (data.length * 8 + 12 <= VERS[v2][0] * 8) { ver = v2; break; } } }
+  var dataCw = VERS[ver][0], eccLen = VERS[ver][1], nBlocks = VERS[ver][2];
+  // bit stream
+  var bb = [];
+  function put(val, len) { for (var i = len - 1; i >= 0; i--) bb.push((val >>> i) & 1); }
+  put(4, 4); put(data.length, 8);
+  for (var d = 0; d < data.length; d++) put(data[d], 8);
+  var cap = dataCw * 8;
+  for (var t = 0; t < 4 && bb.length < cap; t++) bb.push(0);
+  while (bb.length % 8) bb.push(0);
+  for (var pad = 0xEC; bb.length < cap; pad ^= 0xEC ^ 0x11) put(pad, 8);
+  var cws = []; for (var b = 0; b < bb.length; b += 8) { var byte = 0; for (var c = 0; c < 8; c++) byte = (byte << 1) | bb[b + c]; cws.push(byte); }
+  // Reed-Solomon over GF(256)
+  var EXP = [], LOG = []; var xx = 1; for (var e = 0; e < 255; e++) { EXP[e] = xx; LOG[xx] = e; xx <<= 1; if (xx & 0x100) xx ^= 0x11D; }
+  function mul(a, bq) { return (a === 0 || bq === 0) ? 0 : EXP[(LOG[a] + LOG[bq]) % 255]; }
+  var gen = [1];
+  for (var gi = 0; gi < eccLen; gi++) { var next = new Array(gen.length + 1).fill(0); for (var gj = 0; gj < gen.length; gj++) { next[gj] ^= gen[gj]; next[gj + 1] ^= mul(gen[gj], EXP[gi]); } gen = next; }
+  var per = dataCw / nBlocks, blocks = [], eccs = [];
+  for (var bi = 0; bi < nBlocks; bi++) {
+    var blk = cws.slice(bi * per, (bi + 1) * per); blocks.push(blk);
+    var rem = new Array(eccLen).fill(0);
+    for (var ci = 0; ci < blk.length; ci++) { var factor = blk[ci] ^ rem.shift(); rem.push(0); for (var ri = 0; ri < eccLen; ri++) rem[ri] ^= mul(gen[ri + 1], factor); }
+    eccs.push(rem);
+  }
+  var all = [];
+  for (var col = 0; col < per; col++) for (var bk = 0; bk < nBlocks; bk++) all.push(blocks[bk][col]);
+  for (var ec = 0; ec < eccLen; ec++) for (var bk2 = 0; bk2 < nBlocks; bk2++) all.push(eccs[bk2][ec]);
+  // matrix
+  var size = 17 + 4 * ver, M = [], F = [];
+  for (var r = 0; r < size; r++) { M.push(new Array(size).fill(false)); F.push(new Array(size).fill(false)); }
+  function setF(x, y, dark) { M[y][x] = dark; F[y][x] = true; }
+  function finder(cx, cy) { for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) { var xx2 = cx + dx, yy = cy + dy; if (xx2 < 0 || yy < 0 || xx2 >= size || yy >= size) continue; var dist = Math.max(Math.abs(dx), Math.abs(dy)); setF(xx2, yy, dist !== 2 && dist !== 4); } }
+  finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+  for (var ti = 0; ti < size; ti++) { if (!F[6][ti]) setF(ti, 6, ti % 2 === 0); if (!F[ti][6]) setF(6, ti, ti % 2 === 0); }
+  if (ver >= 2) { var ac = size - 7; for (var ay = -2; ay <= 2; ay++) for (var ax = -2; ax <= 2; ax++) setF(ac + ax, ac + ay, Math.max(Math.abs(ax), Math.abs(ay)) !== 1); }
+  function formatBits(mask) { var dat = (0 << 3) | mask, rm = dat; for (var i = 0; i < 10; i++) rm = (rm << 1) ^ ((rm >>> 9) * 0x537); return ((dat << 10) | rm) ^ 0x5412; }
+  function drawFormat(mask) {
+    var bits = formatBits(mask); function gb(i) { return ((bits >>> i) & 1) !== 0; }
+    for (var i = 0; i <= 5; i++) setF(8, i, gb(i)); setF(8, 7, gb(6)); setF(8, 8, gb(7)); setF(7, 8, gb(8));
+    for (var i2 = 9; i2 < 15; i2++) setF(14 - i2, 8, gb(i2));
+    for (var i3 = 0; i3 < 8; i3++) setF(size - 1 - i3, 8, gb(i3));
+    for (var i4 = 8; i4 < 15; i4++) setF(8, size - 15 + i4, gb(i4));
+    setF(8, size - 8, true);
+  }
+  drawFormat(0); // reserve the format areas
+  // data placement
+  var idx = 0;
+  for (var right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (var vert = 0; vert < size; vert++) for (var j = 0; j < 2; j++) {
+      var x = right - j, upward = ((right + 1) & 2) === 0, y = upward ? size - 1 - vert : vert;
+      if (!F[y][x] && idx < all.length * 8) { M[y][x] = ((all[idx >>> 3] >>> (7 - (idx & 7))) & 1) !== 0; idx++; }
+    }
+  }
+  function maskFn(m, x, y) { switch (m) { case 0: return (x + y) % 2 === 0; case 1: return y % 2 === 0; case 2: return x % 3 === 0; case 3: return (x + y) % 3 === 0; case 4: return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; case 5: return x * y % 2 + x * y % 3 === 0; case 6: return (x * y % 2 + x * y % 3) % 2 === 0; default: return ((x + y) % 2 + x * y % 3) % 2 === 0; } }
+  function applyMask(m) { for (var y = 0; y < size; y++) for (var x = 0; x < size; x++) if (!F[y][x] && maskFn(m, x, y)) M[y][x] = !M[y][x]; }
+  function penalty() {
+    var res = 0, x, y, k;
+    for (y = 0; y < size; y++) { var run = 1; for (x = 1; x < size; x++) { if (M[y][x] === M[y][x - 1]) { run++; if (run === 5) res += 3; else if (run > 5) res++; } else run = 1; } }
+    for (x = 0; x < size; x++) { var run2 = 1; for (y = 1; y < size; y++) { if (M[y][x] === M[y - 1][x]) { run2++; if (run2 === 5) res += 3; else if (run2 > 5) res++; } else run2 = 1; } }
+    for (y = 0; y < size - 1; y++) for (x = 0; x < size - 1; x++) { var cc = M[y][x]; if (cc === M[y][x + 1] && cc === M[y + 1][x] && cc === M[y + 1][x + 1]) res += 3; }
+    var pat1 = [true, false, true, true, true, false, true, false, false, false, false], pat2 = [false, false, false, false, true, false, true, true, true, false, true];
+    for (y = 0; y < size; y++) for (x = 0; x <= size - 11; x++) { var m1 = true, m2 = true; for (k = 0; k < 11; k++) { if (M[y][x + k] !== pat1[k]) m1 = false; if (M[y][x + k] !== pat2[k]) m2 = false; } if (m1) res += 40; if (m2) res += 40; }
+    for (x = 0; x < size; x++) for (y = 0; y <= size - 11; y++) { var n1 = true, n2 = true; for (k = 0; k < 11; k++) { if (M[y + k][x] !== pat1[k]) n1 = false; if (M[y + k][x] !== pat2[k]) n2 = false; } if (n1) res += 40; if (n2) res += 40; }
+    var dark = 0; for (y = 0; y < size; y++) for (x = 0; x < size; x++) if (M[y][x]) dark++;
+    res += Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10;
+    return res;
+  }
+  var best = 0, bestPen = Infinity;
+  for (var m = 0; m < 8; m++) { applyMask(m); drawFormat(m); var pen = penalty(); if (pen < bestPen) { bestPen = pen; best = m; } applyMask(m); }
+  applyMask(best); drawFormat(best);
+  return M;
+}
+
+function hmQrSvg(text) {
+  var M = hmQrMatrix(text), n = M.length, quiet = 3, path = "";
+  for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (M[y][x]) path += "M" + (x + quiet) + " " + (y + quiet) + "h1v1h-1z";
+  var w = n + quiet * 2;
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + w + '" shape-rendering="crispEdges"><rect width="' + w + '" height="' + w + '" fill="#fff"/><path d="' + path + '" fill="#000"/></svg>';
+}
+
+if (typeof window !== 'undefined') window.__hmLabelCodes = { code128: hmCode128Svg, qr: hmQrSvg };
+
+function hmEsc(value) { return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function hmBuildLabelData(order, items, productMap, general) {
+  const method = String(order.payment_method || 'COD');
+  // "JazzCash" contains the word cash, so prepaid words are checked first
+  const isCod = !/online|card|jazz|easy|paid|bank|wallet|prepaid|transfer/i.test(method);
+  let weightKg = 0; let pieces = 0;
+  (items || []).forEach(item => {
+    const qty = Number(item.quantity || 0); pieces += qty;
+    const attrs = (productMap[String(item.product_id)] || {}).attributes;
+    const w = attrs && attrs._package ? Number(attrs._package.weightKg) : 0;
+    if (w > 0) weightKg += w * qty;
+  });
+  const contents = (items || []).slice(0, 4).map(item => `${item.product_name || (productMap[String(item.product_id)] || {}).name || 'Item'} x${Number(item.quantity || 0)}`);
+  if ((items || []).length > 4) contents.push(`+${items.length - 4} more`);
+  const created = new Date(order.created_at);
+  return {
+    tracking: String(order.order_number || String(order.id || '').slice(0, 8)),
+    orderNumber: String(order.order_number || String(order.id || '').slice(0, 8)),
+    storeName: String(general.storeName || 'Hafiz Mart'),
+    senderAddress: String(general.address || ''),
+    senderPhone: String(general.supportPhone || STORE_SUPPORT_PHONE_LOCAL),
+    recipient: String(order.customer_name || 'Customer'),
+    address: String(order.address || ''),
+    city: String(order.city || ''),
+    phone: String(order.phone || ''),
+    isCod, amount: Number(order.total || 0),
+    weight: weightKg > 0 ? String(Number(weightKg.toFixed(3))) : '',
+    pieces, contents: contents.join(', '),
+    createdText: Number.isNaN(created.getTime()) ? '' : created.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    printDate: new Date().toISOString().slice(0, 10)
+  };
+}
+
+function hmLabelHtml(data) {
+  const e = hmEsc;
+  const code = data.city.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'PK';
+  return `<section class="label">
+    <div class="row top"><span>${e(data.storeName)}</span><span>Online order</span></div>
+    <div class="barcode" data-role="barcode">${hmCode128Svg(data.tracking, 80)}</div>
+    <div class="tracking">Tracking Number <b class="edit" contenteditable="true" spellcheck="false" data-field="tracking">${e(data.tracking)}</b></div>
+    <div class="mid">
+      <div class="brand"><div class="mark">HM</div><b>${e(data.storeName)}</b><small>Shop more • Save more</small><div class="courier">Courier: <span class="edit" contenteditable="true" spellcheck="false" data-field="courier" data-placeholder="type name"></span></div><div class="citycode">PK-${e(code)}</div></div>
+      <div class="meta"><div class="cell">STANDARD</div><div class="cell"><b class="edit" contenteditable="true" spellcheck="false" data-field="weight" data-placeholder="0.0">${e(data.weight)}</b> KG</div><div class="cell">HOME</div><div class="cell strong">${data.isCod ? 'COD' : 'PREPAID'}</div><div class="cell amount">PKR ${data.isCod ? data.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</div></div>
+    </div>
+    <div class="orderno">Order Number: ${e(data.orderNumber)}</div>
+    <div class="dates"><span>Order Creation Date ${e(data.createdText)}</span><span>AWB Print Date ${e(data.printDate)}</span></div>
+    <div class="lower">
+      <div class="qr" data-role="qr">${hmQrSvg(data.tracking)}</div>
+      <div class="parties">
+        <div class="recipient"><b>Recipient</b> <span dir="auto">${e(data.recipient)}</span><div dir="auto">${e(data.address)}${data.city ? ', ' + e(data.city) : ''}</div><div>Phone ${e(data.phone)}</div></div>
+        <div class="sender"><b>Sender</b> <span dir="auto">${e(data.storeName)}</span><div dir="auto">${e(data.senderAddress)}</div><div>Phone ${e(data.senderPhone)}</div></div>
+      </div>
+    </div>
+    <div class="contents"><b>${data.pieces} pc${data.pieces === 1 ? '' : 's'}:</b> ${e(data.contents)}</div>
+  </section>`;
+}
+
+function hmOpenShippingLabels(entries, general) {
+  if (!entries.length) { alert('Print karne ke liye koi order nahi.'); return; }
+  const win = window.open('', '_blank');
+  if (!win) { alert('Popup block ho gaya. Browser mein is site ke liye popups allow karein.'); return; }
+  const labels = entries.map(entry => hmLabelHtml(hmBuildLabelData(entry.order, entry.items, entry.productMap, general))).join('');
+  const css = `@page{size:100mm 150mm;margin:0}*{box-sizing:border-box}body{margin:0;background:#e9e6df;font-family:Arial,Helvetica,sans-serif;color:#000}
+.toolbar{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 18px;background:#164832;color:#fff;font-size:13px}
+.toolbar button{padding:10px 20px;border:0;border-radius:8px;background:#d8f36c;color:#164832;font-weight:700;font-size:14px;cursor:pointer}
+.sheet{display:grid;gap:18px;justify-content:center;padding:18px}
+.label{width:100mm;height:150mm;background:#fff;padding:2.5mm;display:flex;flex-direction:column;gap:0;overflow:hidden;page-break-after:always;break-after:page;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.label>div,.label>section{border:1.2px solid #000;border-top-width:0}.label>.top{border-top-width:1.2px}
+.row.top{display:grid;grid-template-columns:1fr 1fr;text-align:center;font-size:11pt;padding:0}.row.top span{padding:1.6mm 1mm;border-right:1.2px solid #000}.row.top span:last-child{border-right:0}
+.barcode{height:20mm;padding:2mm 3mm 0;border-top-width:0;border-bottom:0}.barcode svg{width:100%;height:100%;display:block}
+.tracking{text-align:center;font-size:12.5pt;padding:1mm 0 1.5mm;border-top-width:0;font-weight:700}.tracking .edit{font-weight:800}
+.mid{display:grid;grid-template-columns:1fr 36mm;border-top-width:1.2px;height:41mm}
+.brand{padding:2mm;border-right:1.2px solid #000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:.6mm;overflow:hidden}
+.brand .mark{width:13mm;height:13mm;border-radius:3mm;background:#164832;color:#d8f36c;display:grid;place-items:center;font-weight:800;font-size:15pt}
+.brand b{font-size:15pt}.brand small{font-size:7.5pt;letter-spacing:.06em;text-transform:uppercase}.brand .courier{margin-top:1.5mm;font-size:8.5pt}.brand .citycode{font-weight:800;font-size:11pt;margin-top:.5mm}
+.meta{display:grid;grid-template-rows:repeat(5,minmax(0,1fr));min-height:0;overflow:hidden}.cell{display:flex;align-items:center;justify-content:center;gap:1.2mm;text-align:center;font-size:10.5pt;font-weight:700;border-bottom:1.2px solid #000;padding:.4mm 1mm;min-height:0;overflow:hidden}.cell:last-child{border-bottom:0}.cell.amount{font-size:10pt}.cell.strong{font-size:11.5pt}
+.orderno{text-align:center;font-size:11pt;padding:1.8mm 1mm}
+.dates{display:grid;grid-template-columns:1.1fr 1fr;font-size:8pt;padding:0}.dates span{padding:1.6mm 1.4mm;border-right:1.2px solid #000}.dates span:last-child{border-right:0}
+.label>*{flex:0 0 auto}.label>.lower{flex:1 1 0;min-height:0;overflow:hidden}.lower{display:grid;grid-template-columns:34mm 1fr}
+.qr{padding:2mm;border-right:1.2px solid #000;display:flex;align-items:flex-start;justify-content:center}.qr svg{width:100%;height:auto;display:block}
+.parties{display:grid;grid-template-rows:1.25fr 1fr;font-size:8pt;line-height:1.28;min-height:0;overflow:hidden}
+.recipient,.sender{padding:1.6mm 2mm;overflow:hidden}.recipient{border-bottom:1.2px solid #000}.recipient b,.sender b{font-size:9pt}
+.contents{font-size:7.6pt;padding:1.4mm 2mm;border-top-width:0;max-height:11mm;overflow:hidden;line-height:1.3}
+.edit{outline:none}.edit:empty::before{content:attr(data-placeholder);color:#999}
+@media screen{.edit{border-bottom:1px dashed #9a6d1c;background:rgba(216,243,108,.35);padding:0 1px;min-width:12px;display:inline-block}}
+@media print{body{background:#fff}.toolbar{display:none}.sheet{display:block;padding:0}.label{box-shadow:none;margin:0}}`;
+  const script = `
+    var codes = window.opener && window.opener.__hmLabelCodes;
+    document.querySelectorAll('.label').forEach(function(label){
+      var trackingEl = label.querySelector('[data-field=tracking]');
+      function refresh(){ if(!codes) return; var t=(trackingEl.textContent||'').trim()||' '; label.querySelector('[data-role=barcode]').innerHTML=codes.code128(t,80); label.querySelector('[data-role=qr]').innerHTML=codes.qr(t); }
+      trackingEl.addEventListener('input', refresh);
+      label.querySelectorAll('.edit').forEach(function(el){ el.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); el.blur(); } }); });
+    });
+    document.getElementById('printBtn').addEventListener('click', function(){ window.print(); });`;
+  win.document.open();
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Shipping labels (${entries.length})</title><style>${css}</style></head><body><div class="toolbar"><span>${entries.length} shipping label${entries.length === 1 ? '' : 's'} · Tracking number, courier aur weight par click kar ke badal sakte hain. Print size: 100 x 150 mm.</span><button id="printBtn" type="button">Print</button></div><div class="sheet">${labels}</div><script>${script}<\/script></body></html>`);
+  win.document.close();
+}
+
 function AdminOrders(){
+  const {store:shopStore}=useStore();
   const [orders,setOrders]=useState([]);
   const [items,setItems]=useState([]);
   const [products,setProducts]=useState([]);
@@ -6391,7 +7030,7 @@ function AdminOrders(){
 
     const productIds=[...new Set((i.data||[]).map(item=>item.product_id).filter(Boolean))];
     if(productIds.length){
-      const {data:p,error:pError}=await supabase.from('products').select('id,name,sku').in('id',productIds);
+      const {data:p,error:pError}=await supabase.from('products').select('id,name,sku,attributes').in('id',productIds);
       if(pError) alert(pError.message); else setProducts(p||[]);
     } else setProducts([]);
     setLoading(false);
@@ -6433,10 +7072,13 @@ function AdminOrders(){
     return haystack.includes(normalizedSearch);
   });
 
+  const labelGeneral={...DEFAULT_ADMIN_SETTINGS.general,...((shopStore.adminSettings&&shopStore.adminSettings.general)||{})};
+  const printLabels=list=>hmOpenShippingLabels(list.map(order=>({order,items:itemsForOrder(order.id),productMap})),labelGeneral);
+  const labelable=visible.filter(o=>o.status!=='cancelled');
   return <AdminLayout>
     <div className="admin-head">
       <div><p className="eyebrow">ORDERS</p><h1>Orders</h1><p>{orders.length} real order(s) from Supabase.</p></div>
-      <button className="ghost-btn" type="button" onClick={load}><RotateCcw size={15}/> Refresh</button>
+      <div className="hm-orders-head-actions"><button className="gold-btn hm-print-labels" type="button" onClick={()=>printLabels(labelable)} disabled={!labelable.length}><FileText size={16}/> Print labels ({labelable.length})</button><button className="ghost-btn" type="button" onClick={load}><RotateCcw size={15}/> Refresh</button></div>
     </div>
 
     <div className="order-filters">
@@ -6462,6 +7104,7 @@ function AdminOrders(){
           <div><span className="order-number">{o.order_number||o.id.slice(0,8)}</span><strong>{o.customer_name||'Customer'}</strong><small>{new Date(o.created_at).toLocaleString()} · {o.phone||'No phone'}</small></div>
           <div className="order-total"><strong>Rs. {Number(o.total||0).toLocaleString()}</strong><select aria-label={`Order status for ${o.order_number||o.id.slice(0,8)}`} disabled={saving===o.id} value={o.status||'pending'} onChange={e=>updateStatus(o.id,e.target.value)}>{['pending','confirmed','packed','shipped','out_for_delivery','delivered','cancelled'].map(s=><option key={s} value={s}>{s.replaceAll('_',' ')}</option>)}</select></div>
         </div>
+        <div className="order-quick-actions"><button className="hm-label-btn" type="button" onClick={()=>printLabels([o])}><FileText size={15}/> Shipping label</button></div>
         <button className="order-detail-toggle" type="button" onClick={()=>{setSelected(selected===o.id?null:o.id);if(selected===o.id)setReceiptOrder(null)}}>{selected===o.id?'Hide details':'View order details'} <ChevronRight size={15} className={selected===o.id?'rotate':''}/></button>
         {selected===o.id&&<div className="order-details">
           <div className="order-customer"><div><span>Customer</span><strong>{o.customer_name||'Customer'}</strong></div><div><span>Email</span><strong>{o.email||'—'}</strong></div><div><span>Phone</span><strong>{o.phone||'—'}</strong></div><div><span>Address</span><strong>{o.address||'—'}, {o.city||''}</strong></div><div><span>Payment</span><strong>{o.payment_method||'COD'}</strong></div><div><span>Order Date</span><strong>{new Date(o.created_at).toLocaleString()}</strong></div></div>
@@ -6870,7 +7513,7 @@ function AdminSettings(){
     {loading?<div className="settings-loading"><LoaderCircle size={22}/><span>Loading settings...</span></div>:<>
       <div className="settings-panel-heading"><div><p className="eyebrow">SETTINGS / {section.toUpperCase()}</p><h2>{sections.find(x=>x[0]===section)?.[1]}</h2></div></div>
       {section==='general'&&<div className="settings-grid">{field('Store name',current.storeName,v=>setField('general','storeName',v))}{field('Tagline',current.tagline,v=>setField('general','tagline',v))}{field('Support email',current.supportEmail,v=>setField('general','supportEmail',v),'email')}{field('Support phone',current.supportPhone,v=>setField('general','supportPhone',v))}{field('WhatsApp number',current.whatsapp,v=>setField('general','whatsapp',v))}{field('Currency',current.currency,v=>setField('general','currency',v))}{field('Timezone',current.timezone,v=>setField('general','timezone',v))}{field('Facebook URL',current.facebook,v=>setField('general','facebook',v))}{field('Instagram URL',current.instagram,v=>setField('general','instagram',v))}{field('TikTok URL',current.tiktok,v=>setField('general','tiktok',v))}{field('YouTube URL',current.youtube,v=>setField('general','youtube',v))}{area('Store address',current.address,v=>setField('general','address',v))}</div>}
-      {section==='shipping'&&<div className="settings-stack">{toggle('Shipping enabled',current.enabled,v=>setField('shipping','enabled',v))}<div className="settings-grid">{field('Default delivery fee (PKR)',current.defaultRate,v=>setField('shipping','defaultRate',v),'number')}{field('Free delivery threshold (PKR)',current.freeDeliveryThreshold,v=>setField('shipping','freeDeliveryThreshold',v),'number')}{field('Minimum delivery days',current.minDays,v=>setField('shipping','minDays',v),'number')}{field('Maximum delivery days',current.maxDays,v=>setField('shipping','maxDays',v),'number')}</div><div className="settings-subheading"><div><h3>City-wise rates</h3><p>Multan Rs.270; fallback default Rs.300.</p></div></div><div className="settings-city-list">{(current.cityRates||[]).map((row,i)=><div className="settings-city-row" key={i}>{field('City',row.city,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,city:v}:r)}})))}{field('Rate (PKR)',row.rate,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,rate:v}:r)}})),'number')}<button type="button" className="settings-remove" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.filter((_,j)=>j!==i)}}))} aria-label={`Remove city rate ${row.city || i+1}`} title="Remove city"><Trash2 aria-hidden="true" size={15}/></button></div>)}</div><button type="button" className="ghost-btn" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:[...(x.shipping.cityRates||[]),{city:'',rate:x.shipping.defaultRate||300}]}}))}><Plus size={15}/> Add city</button></div>}
+      {section==='shipping'&&<div className="settings-stack">{toggle('Shipping enabled',current.enabled,v=>setField('shipping','enabled',v))}<div className="settings-grid">{field('Default delivery fee (PKR)',current.defaultRate,v=>setField('shipping','defaultRate',v),'number')}{field('Free delivery threshold (PKR)',current.freeDeliveryThreshold,v=>setField('shipping','freeDeliveryThreshold',v),'number')}{field('Minimum delivery days',current.minDays,v=>setField('shipping','minDays',v),'number')}{field('Maximum delivery days',current.maxDays,v=>setField('shipping','maxDays',v),'number')}</div><div className="settings-subheading"><div><h3>City-wise rates</h3></div></div><div className="settings-city-list">{(current.cityRates||[]).map((row,i)=><div className="settings-city-row" key={i}>{field('City',row.city,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,city:v}:r)}})))}{field('Rate (PKR)',row.rate,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,rate:v}:r)}})),'number')}<button type="button" className="settings-remove" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.filter((_,j)=>j!==i)}}))} aria-label={`Remove city rate ${row.city || i+1}`} title="Remove city"><Trash2 aria-hidden="true" size={15}/></button></div>)}</div><button type="button" className="ghost-btn" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:[...(x.shipping.cityRates||[]),{city:'',rate:x.shipping.defaultRate||300}]}}))}><Plus size={15}/> Add city</button></div>}
       {section==='charges'&&<div className="settings-stack"><div className="settings-info-card"><DollarSign size={22}/><div><strong>Cash Handling Charges</strong><p>Configure the fee shown between Discount and Delivery at checkout. Existing orders retain their saved fee.</p></div></div>{toggle('Enable cash handling charges',current.cashHandlingEnabled,v=>setField('charges','cashHandlingEnabled',v))}<label className="settings-field"><span>Charge calculation</span><select value={current.cashHandlingMode||'fixed'} onChange={e=>setField('charges','cashHandlingMode',e.target.value)}><option value="fixed">Fixed amount (PKR)</option><option value="percentage">Percentage of discounted subtotal</option></select></label>{field(current.cashHandlingMode==='percentage'?'Percentage (%)':'Amount (PKR)',current.cashHandlingValue,v=>setField('charges','cashHandlingValue',v),'number')}{toggle('Apply only to Cash on Delivery',current.cashHandlingCodOnly!==false,v=>setField('charges','cashHandlingCodOnly',v),'Recommended: keep enabled unless your policy applies this fee to every payment method.')}</div>}{section==='storefront'&&<div className="settings-stack">{toggle('Announcement bar',current.announcementEnabled,v=>setField('storefront','announcementEnabled',v))}<div className="settings-grid">{area('Announcement text',current.announcementText,v=>setField('storefront','announcementText',v))}{field('Button text',current.announcementButton,v=>setField('storefront','announcementButton',v))}{field('Button link',current.announcementLink,v=>setField('storefront','announcementLink',v))}<label className="settings-field"><span>Theme</span><select value={current.announcementTheme||'gold'} onChange={e=>setField('storefront','announcementTheme',e.target.value)}><option value="gold">Gold</option><option value="dark">Black</option><option value="light">White</option><option value="green">Forest Green</option><option value="lime">Lime</option><option value="mint">Mint</option><option value="teal">Teal</option><option value="blue">Royal Blue</option><option value="sky">Sky Blue</option><option value="purple">Purple</option><option value="rose">Rose Pink</option><option value="orange">Orange</option><option value="red">Crimson Red</option></select><div className={`announcement-bar hm-theme-preview theme-${current.announcementTheme||'gold'}`} aria-label="Preview"><div className="announcement-inner"><span>{current.announcementText || 'Your announcement text'}</span></div></div></label></div>{toggle('Maintenance mode',current.maintenanceMode,v=>setField('storefront','maintenanceMode',v),'Customer storefront ko maintenance screen dikhayega.')}{area('Maintenance message',current.maintenanceMessage,v=>setField('storefront','maintenanceMessage',v))}</div>}
       {section==='payments'&&<div className="settings-stack">{toggle('Cash on Delivery',current.codEnabled,v=>setField('payments','codEnabled',v))}{toggle('Online payments',current.onlinePaymentsEnabled,v=>setField('payments','onlinePaymentsEnabled',v),'Gateway integration complete hone ke baad enable karein.')}<div className="settings-info-card"><CreditCard size={22}/><div><strong>Payment & Transaction tracking</strong><p>Failed payments, refunds aur commission ko Admin → Transactions se track karein. Real gateway data provider integration par depend karega.</p><span className="settings-status-pill">GATEWAY DEPENDENT</span></div></div></div>}
       {section==='policies'&&<div className="settings-stack"><div className="settings-grid">{field('Cancellation window (hours)',current.cancellationWindowHours,v=>setField('policies','cancellationWindowHours',v),'number')}{field('Return window (days)',current.returnWindowDays,v=>setField('policies','returnWindowDays',v),'number')}</div>{area('Returns & refunds policy',current.returnsPolicy,v=>setField('policies','returnsPolicy',v))}{area('Shipping policy',current.shippingPolicy,v=>setField('policies','shippingPolicy',v))}{area('Privacy policy',current.privacyPolicy,v=>setField('policies','privacyPolicy',v))}{area('Terms & conditions',current.terms,v=>setField('policies','terms',v))}</div>}
@@ -7071,13 +7714,12 @@ function HmfLogo() {
   </Link>;
 }
 
-function HmfPayments() {
+function HmfPayments({ cards = false }) {
   return <ul className="hmf-pay" aria-label="Accepted payment methods">
-    <li className="hmf-pay-visa">VISA</li>
-    <li className="hmf-pay-mc" aria-label="Mastercard"><span/><span/></li>
+    {cards && <li className="hmf-pay-visa">VISA</li>}
+    {cards && <li className="hmf-pay-mc" aria-label="Mastercard"><span/><span/></li>}
     <li className="hmf-pay-jazz">Jazz<b>Cash</b></li>
     <li className="hmf-pay-easy">easypaisa</li>
-    <li className="hmf-pay-paypal"><b>P</b>ayPal</li>
   </ul>;
 }
 
@@ -7137,6 +7779,7 @@ function HafizFooter() {
   const phoneHref = phone.replace(/[^\d+]/g, '');
   const supportEmail = String(general.supportEmail || '').trim();
   const address = String(general.address || '').trim() || 'Pakistan';
+  const cardsOn = ((settings && settings.payments) || {}).onlinePaymentsEnabled === true;
   const waNumber = getStoreWhatsAppNumber(general.whatsapp || import.meta.env.VITE_WHATSAPP_NUMBER);
   const categories = sortMainCategories(store.categories || []).slice(0, 8);
 
@@ -7207,7 +7850,7 @@ function HafizFooter() {
         <div className="hmf-bottom">
           <p className="hmf-thanks"><span className="hmf-script">Thank you</span><small>For choosing Hafiz Mart <HmfIcon name="heart" size={16}/></small></p>
           <p className="hmf-copy">© {year} Hafiz Mart. All Rights Reserved.</p>
-          <HmfPayments/>
+          <HmfPayments cards={cardsOn}/>
         </div>
         <nav className="hmf-legal" aria-label="Store policies"><ul>{HM_LEGAL_LINKS.map(([label, to]) => <li key={to}><Link to={to}>{label}</Link></li>)}</ul></nav>
       </div>
@@ -7235,7 +7878,7 @@ function HafizFooter() {
         <ul>{items.map(item => <li key={item[0]}><Link to={item[1]} className={activeFor(item) ? 'is-active' : ''} aria-current={activeFor(item) ? 'page' : undefined}>{item[0]}</Link></li>)}</ul>
       </nav>
       {socialList}
-      <HmfPayments/>
+      <HmfPayments cards={cardsOn}/>
       <p className="hmf-copy">© {year} Hafiz Mart. All rights reserved.</p>
     </div>
     <nav className="hmf-legal" aria-label="Store policies"><ul>{HM_LEGAL_LINKS.map(([label, to]) => <li key={to}><Link to={to}>{label}</Link></li>)}</ul></nav>
@@ -7251,4 +7894,4 @@ function AppRoutes(){
     <Route path="/admin/security/mfa" element={<AdminMfaSecurityPage/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="This page does not exist." action="Back Home" to="/"/></main>}/>
   </Routes>}<WhatsAppButton/><HafizFooter/></>;
 }
-export default function App(){ useEffect(()=>{ try { document.documentElement.removeAttribute('data-theme'); localStorage.removeItem('hafiz-mart-theme'); } catch {} },[]); return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
+export default function App(){ useEffect(()=>{ try { document.documentElement.removeAttribute('data-theme'); localStorage.removeItem('hafiz-mart-theme'); } catch {} },[]); return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><Scroll3D/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
