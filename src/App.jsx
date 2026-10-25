@@ -257,7 +257,7 @@ function replaceLegacyStorePhoneText(value) {
 
 const DEFAULT_ADMIN_SETTINGS = {
   general: { storeName: 'Hafiz Mart', tagline: 'Everything You Need, Delivered', supportEmail: '', supportPhone: '', whatsapp: '', address: '', currency: 'PKR', timezone: 'Asia/Karachi', facebook: '', instagram: '', youtube: '', tiktok: '' },
-  shipping: { enabled: true, defaultRate: 300, freeDeliveryThreshold: 5000, minDays: 2, maxDays: 5, cityRates: [{ city: 'Multan', rate: 270 }] },
+  shipping: { enabled: true, defaultRate: 300, freeDeliveryThreshold: 0, minDays: 2, maxDays: 5, cityRates: [{ city: 'Multan', rate: 270 }] },
   storefront: { announcementEnabled: true, announcementText: 'Shop your favourites at Hafiz Mart', announcementLink: '/deals', announcementButton: 'Shop Deals', announcementTheme: 'gold', maintenanceMode: false, maintenanceMessage: 'We are improving your shopping experience. Please check back soon.' },
   payments: { codEnabled: true, onlinePaymentsEnabled: false },
   policies: { cancellationWindowHours: 2, returnWindowDays: 7, returnsPolicy: '', shippingPolicy: '', privacyPolicy: '', terms: '' },
@@ -266,7 +266,7 @@ const DEFAULT_ADMIN_SETTINGS = {
   content: { showCategoriesOnHome: true, showDealsSection: true, featuredProductsLimit: 8, heroHeadline: 'Upgrade Your Lifestyle Today', heroEyebrow: 'NEW COLLECTION', heroDescription: 'Discover the best products at unbeatable prices. Shop smarter, live better!', heroProductIds: [], promoCards: [{id:'seasonal-sale',eyebrow:'SEASONAL SPECIAL',title:'Summer Sale',subtitle:'Fresh picks for sunny days',description:'Discover this season’s trending favourites.',buttonText:'Shop the Sale',buttonLink:'/deals',theme:'summer',visible:true},{id:'fashion-trends',eyebrow:'YOUR STYLE, YOUR STORY',title:'Fashion Trends',subtitle:'Look Good, Feel Great',description:'Trendy Styles for Every You',buttonText:'Explore Fashion',buttonLink:'/shop',theme:'fashion',visible:true}], homepageSections: [{ id: 'new-arrivals', title: 'New Arrivals', type: 'new_arrivals', visible: true, order: 1 }, { id: 'popular-products', title: 'Popular Products', type: 'popular_products', visible: true, order: 2 }, { id: 'featured-products', title: 'Featured Products', type: 'product_collection', visible: true, order: 3 }] },
   charges: { cashHandlingEnabled: true, cashHandlingMode: 'fixed', cashHandlingValue: 30, cashHandlingCodOnly: true },
   users: { requireManualVerification: false, allowGuestCheckout: false, defaultAccountStatus: 'active' },
-  reports: { defaultRange: '30', includeCustomerPhone: false }
+  reports: { defaultRange: '30', includeCustomerPhone: false, revenueResetAt: '' }
 };
 
 function mergeAdminSettings(base, incoming) {
@@ -1022,7 +1022,7 @@ function buildReturnPolicy({ returnDays, cancelHours, payments }) {
 }
 
 function buildShippingPolicy({ shipping, payments }) {
-  const threshold = Number(shipping.freeDeliveryThreshold) || 0;
+  const threshold = 0; // free-delivery threshold removed
   const cities = (shipping.cityRates || []).filter(item => item && item.city);
   return [
     { id: 'overview', number: '01', navLabel: 'Overview', title: 'Delivery to your door', lead: 'How and when Hafiz Mart delivers your order.',
@@ -2038,7 +2038,7 @@ function SaleBanner() {
   const saleProducts = store.products.filter(product => chosen.has(String(product.id)) && product.status !== "inactive").slice(0, 3);
   const shipping = store.adminSettings?.shipping || DEFAULT_ADMIN_SETTINGS.shipping;
   const payments = store.adminSettings?.payments || DEFAULT_ADMIN_SETTINGS.payments;
-  const threshold = Number(shipping.freeDeliveryThreshold) || 0;
+  const threshold = 0; // free-delivery threshold removed
   const chips = [];
   if (active.endDate) chips.push(`Ends ${new Date(active.endDate).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`);
   if (shipping.enabled !== false && threshold > 0) chips.push(`Free delivery over ${hmMoney(threshold)}`);
@@ -2051,6 +2051,85 @@ function EmptyState({ title, text, action, to, icon: Icon = ShoppingBag }) {
   return <motion.div className="empty-state" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}><div className="empty-icon"><Icon size={30}/></div><h3>{title}</h3><p>{text}</p>{action && <Link className="gold-btn" to={to}>{action}<ArrowRight size={17}/></Link>}</motion.div>;
 }
 
+function hmFlyToCart(fromEl, imageSrc) {
+  try {
+    const targets = [...document.querySelectorAll('.cart-icon')];
+    const target = targets.find(t => t.getClientRects().length > 0) || targets[0];
+    if (!target) return;
+    const bump = () => {
+      target.classList.remove('hm-cart-bump'); void target.offsetWidth; target.classList.add('hm-cart-bump');
+      window.setTimeout(() => target.classList.remove('hm-cart-bump'), 800);
+    };
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !fromEl || !fromEl.getBoundingClientRect || !document.body.animate) { bump(); return; }
+    const a = fromEl.getBoundingClientRect();
+    const b = target.getBoundingClientRect();
+    const size = 56;
+    const startX = a.left + a.width / 2 - size / 2;
+    const startY = a.top + a.height / 2 - size / 2;
+    const dx = b.left + b.width / 2 - size / 2 - startX;
+    const dy = b.top + b.height / 2 - size / 2 - startY;
+    const lift = Math.min(180, Math.abs(dy) * 0.3 + 70);
+    const el = document.createElement('div');
+    el.className = 'hm-fly-item';
+    el.setAttribute('aria-hidden', 'true');
+    el.style.left = startX + 'px'; el.style.top = startY + 'px'; el.style.width = size + 'px'; el.style.height = size + 'px';
+    if (imageSrc) { const img = document.createElement('img'); img.src = imageSrc; img.alt = ''; el.appendChild(img); } else { el.textContent = '🛍️'; }
+    document.body.appendChild(el);
+    const anim = el.animate([
+      { transform: 'translate(0px,0px) scale(1) rotate(0deg)', opacity: 1, offset: 0 },
+      { transform: `translate(${dx * 0.5}px,${dy * 0.5 - lift}px) scale(.82) rotate(150deg)`, opacity: 1, offset: 0.55 },
+      { transform: `translate(${dx}px,${dy}px) scale(.16) rotate(340deg)`, opacity: 0.3, offset: 1 }
+    ], { duration: 780, easing: 'cubic-bezier(.45,.1,.3,1)', fill: 'forwards' });
+    const done = () => { el.remove(); bump(); };
+    anim.onfinish = done;
+    window.setTimeout(() => { if (el.isConnected) done(); }, 1600);
+  } catch { /* animation is optional */ }
+}
+
+function ProductLightbox({ name, images, startIndex = 0, onClose }) {
+  const count = images.length;
+  const [index, setIndex] = useState(Math.min(Math.max(0, startIndex), Math.max(0, count - 1)));
+  const [zoomed, setZoomed] = useState(false);
+  const [origin, setOrigin] = useState('50% 50%');
+  const touchStart = useRef(null);
+  const go = step => { setZoomed(false); setIndex(i => (i + step + count) % count); };
+  useEffect(() => {
+    const onKey = event => {
+      if (event.key === 'Escape') onClose();
+      else if (event.key === 'ArrowRight' && count > 1) go(1);
+      else if (event.key === 'ArrowLeft' && count > 1) go(-1);
+    };
+    window.addEventListener('keydown', onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = previous; };
+  }, [count]);
+  const moveOrigin = event => {
+    if (!zoomed) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    setOrigin(`${((event.clientX - rect.left) / rect.width) * 100}% ${((event.clientY - rect.top) / rect.height) * 100}%`);
+  };
+  const toggleZoom = event => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setOrigin(`${((event.clientX - rect.left) / rect.width) * 100}% ${((event.clientY - rect.top) / rect.height) * 100}%`);
+    setZoomed(z => !z);
+  };
+  return <div className="hm-gallery-box" role="dialog" aria-modal="true" aria-label={`${name} image gallery`} onClick={onClose}>
+    {count > 1 && <span className="hm-gallery-count">{index + 1} / {count}</span>}
+    <button type="button" className="hm-gallery-close" aria-label="Close image gallery" onClick={event => { event.stopPropagation(); onClose(); }}><X size={22}/></button>
+    {count > 1 && <button type="button" className="hm-gallery-nav is-prev" aria-label="Previous image" onClick={event => { event.stopPropagation(); go(-1); }}><ChevronLeft size={24}/></button>}
+    <div className="hm-gallery-stage" onClick={event => event.stopPropagation()}
+      onTouchStart={event => { touchStart.current = event.touches[0].clientX; }}
+      onTouchEnd={event => { if (touchStart.current === null || zoomed || count < 2) return; const diff = event.changedTouches[0].clientX - touchStart.current; touchStart.current = null; if (Math.abs(diff) > 45) go(diff < 0 ? 1 : -1); }}>
+      <img key={index} className={zoomed ? 'is-zoomed' : ''} style={{ transformOrigin: origin }} src={images[index]} alt={`${name} view ${index + 1}`} draggable={false} onClick={toggleZoom} onMouseMove={moveOrigin}/>
+    </div>
+    {count > 1 && <button type="button" className="hm-gallery-nav is-next" aria-label="Next image" onClick={event => { event.stopPropagation(); go(1); }}><ChevronRight size={24}/></button>}
+    {count > 1 && <div className="hm-gallery-thumbs" onClick={event => event.stopPropagation()}>{images.map((src, i) => <button type="button" key={src + i} className={i === index ? 'active' : ''} aria-label={`Show image ${i + 1}`} onClick={() => { setZoomed(false); setIndex(i); }}><img src={src} alt=""/></button>)}</div>}
+    <span className="hm-gallery-hint">{zoomed ? 'Click again to zoom out' : 'Click image to zoom'}</span>
+  </div>;
+}
+
 function ProductCard({ product, onToast }) {
   const { store, update, addToCart } = useStore();
   const wished = store.wishlist.includes(product.id);
@@ -2058,7 +2137,7 @@ function ProductCard({ product, onToast }) {
   const toggleWish = () => update({ wishlist: wished ? store.wishlist.filter(id=>id!==product.id) : [...store.wishlist, product.id] });
   return <motion.article className="product-card" layout whileHover={{ y:-5, scale:1.015 }}>
     <div className="product-image-wrap"><Link to={`/product/${product.id}`}><img src={product.image || logo} alt={product.name}/></Link><button type="button" className={`wish-btn ${wished ? "active" : ""}`} onClick={toggleWish} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"}><Heart aria-hidden="true" size={18} fill={wished ? "currentColor" : "none"}/></button>{product.salePrice && <span className="product-badge">SALE</span>}</div>
-    <div className="product-info"><p className="product-category">{product.category || "Uncategorized"}</p><Link to={`/product/${product.id}`}><h3>{product.name}</h3></Link><div className="product-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice && <del>Rs. {Number(product.price).toLocaleString()}</del>}</div><button className="add-cart" onClick={()=>{addToCart(product); onToast?.("Product added to cart")}}><ShoppingBag size={15}/> Add to Cart</button></div>
+    <div className="product-info"><p className="product-category">{product.category || "Uncategorized"}</p><Link to={`/product/${product.id}`}><h3>{product.name}</h3></Link><div className="product-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice && <del>Rs. {Number(product.price).toLocaleString()}</del>}</div><button className="add-cart" onClick={event=>{const card=event.currentTarget.closest('.product-card'); addToCart(product); hmFlyToCart(card?.querySelector('.product-image-wrap img')||event.currentTarget, product.image); onToast?.("Product added to cart")}}><ShoppingBag size={15}/> Add to Cart</button></div>
   </motion.article>;
 }
 
@@ -2066,7 +2145,7 @@ function HomeExtraSections({ products, categories, excludeIds, settings, onToast
   const shipping = (settings && settings.shipping) || DEFAULT_ADMIN_SETTINGS.shipping;
   const policies = (settings && settings.policies) || DEFAULT_ADMIN_SETTINGS.policies;
   const payments = (settings && settings.payments) || DEFAULT_ADMIN_SETTINGS.payments;
-  const threshold = Number(shipping.freeDeliveryThreshold || 0);
+  const threshold = 0; // free-delivery threshold removed
   const returnDays = Number(policies.returnWindowDays || 0);
   const discountOf = product => {
     const regular = Number(product.price || 0);
@@ -2887,7 +2966,7 @@ function ProductDetails() {
 
         <div className="hm-product-buy-row">
           <div className="hm-product-quantity" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={() => setQty(Math.max(1, qty - 1))} aria-label="Decrease quantity"><Minus size={15}/></button><span aria-live="polite">{qty}</span><button type="button" onClick={() => setQty(Math.min(Math.max(1, stock), qty + 1))} aria-label="Increase quantity" disabled={qty >= stock}><Plus size={15}/></button></div>
-          <button className="hm-add-cart-button" type="button" disabled={!stock} onClick={() => { addToCart(product, qty, selectedVariant); setToast("Product added to cart"); }}><ShoppingBag size={18}/> Add to Cart</button>
+          <button className="hm-add-cart-button" type="button" disabled={!stock} onClick={event => { addToCart(product, qty, selectedVariant); hmFlyToCart(document.querySelector('.hm-product-image-stage img') || event.currentTarget, currentImage); setToast("Product added to cart"); }}><ShoppingBag size={18}/> Add to Cart</button>
           <button type="button" className={`hm-wishlist-button ${wished ? "active" : ""}`} aria-pressed={wished} aria-label={wished ? "Remove from wishlist" : "Add to wishlist"} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={() => update({ wishlist: wished ? store.wishlist.filter(x => String(x) !== String(product.id) && String(x) !== String(id)) : [...store.wishlist, product.id] })}><Heart size={20} fill={wished ? "currentColor" : "none"}/></button>
         </div>
         <p className="hm-product-stock-note">{stock > 0 ? <><Check size={15}/> {stock} available to order</> : "This item is currently unavailable."}</p>
@@ -2933,7 +3012,7 @@ function ProductDetails() {
       <ProductReviews productId={product.id}/>
     </section>
 
-    {zoomOpen && <div className="hm-lightbox" role="dialog" aria-modal="true" aria-label={`${product.name} image zoom`} onClick={() => setZoomOpen(false)}><button type="button" aria-label="Close image zoom" onClick={() => setZoomOpen(false)}><X size={22}/></button><img src={currentImage} alt={product.name} onClick={e => e.stopPropagation()}/></div>}
+    {zoomOpen && <ProductLightbox name={product.name} images={images} startIndex={Math.max(0, images.indexOf(currentImage))} onClose={() => setZoomOpen(false)}/>}
   </main>;
 }
 
@@ -3020,7 +3099,6 @@ function Shop() {
 
   const [saleOnly, setSaleOnly] = useState(false);
   const [inStock, setInStock] = useState(false);
-  const [freeDeliveryOnly, setFreeDeliveryOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   /*
@@ -3100,12 +3178,10 @@ function Shop() {
     setSort("newest");
     setSaleOnly(false);
     setInStock(false);
-    setFreeDeliveryOnly(false);
 
     navigate("/shop");
   };
 
-  const freeDeliveryThreshold = Number(store.adminSettings?.shipping?.freeDeliveryThreshold ?? 5000);
 
   let products = store.products
     .filter((p) => p.status !== "inactive")
@@ -3121,7 +3197,7 @@ function Shop() {
     )
     .filter((p) => !saleOnly || Boolean(p.salePrice))
     .filter((p) => !inStock || Number(p.stock || 0) > 0)
-    .filter((p) => !freeDeliveryOnly || Boolean(p.free_delivery || p.freeDelivery) || Number(p.salePrice || p.price || 0) >= freeDeliveryThreshold);
+    ;
 
   products = [...products].sort((a, b) =>
     sort === "price-low"
@@ -3255,18 +3331,6 @@ function Shop() {
                   <span className="check-filter-card-copy">
                     <strong>In stock only</strong>
                     <small>Hide unavailable products</small>
-                  </span>
-                </label>
-
-                <label className={`check-filter check-filter-card${freeDeliveryOnly ? " is-active" : ""}`} title={`Shows products whose single-item price qualifies for the current free delivery threshold of Rs. ${freeDeliveryThreshold.toLocaleString()}.`}>
-                  <input
-                    type="checkbox"
-                    checked={freeDeliveryOnly}
-                    onChange={(e) => setFreeDeliveryOnly(e.target.checked)}
-                  />
-                  <span className="check-filter-card-copy">
-                    <strong>Free delivery</strong>
-                    <small>Eligible at current store threshold</small>
                   </span>
                 </label>
               </div>
@@ -3459,7 +3523,7 @@ function Checkout(){
 
   const normalizedCity = String(form.city || '').trim().toLowerCase();
   const cityRate = (shippingSettings.cityRates || []).find(row => String(row.city || '').trim().toLowerCase() === normalizedCity);
-  const freeThreshold = Number(shippingSettings.freeDeliveryThreshold ?? 5000);
+  const freeThreshold = 0; // free-delivery threshold removed
   const deliveryFee = freeThreshold > 0 && subtotal >= freeThreshold
     ? 0
     : Math.max(0, Number(cityRate?.rate ?? shippingSettings.defaultRate ?? (normalizedCity === 'multan' ? 270 : 300)));
@@ -5174,9 +5238,11 @@ function Account(){
   };
 
   if (!user) return (
-    <main className="page container account-login-page">
+    <main className="page account-login-page">
+      <div className="container">
       <section className="account-login-panel" aria-labelledby="account-login-title">
         <div className="account-login-glow" aria-hidden="true" />
+        <span className="account-login-teddy" aria-hidden="true">🧸</span>
 
         <div className="account-login-icon">
           <User size={29} strokeWidth={1.7} />
@@ -5206,6 +5272,7 @@ function Account(){
           <span><Package size={16} /> Order Tracking</span>
         </div>
       </section>
+      </div>
     </main>
   );
 
@@ -5755,6 +5822,89 @@ function OrderTracker() {
     </main>
   );
 }
+// ---- Login teddy: pops out of the Login button, flies away on success, keeps falling on failure ----
+const hmTeddyState = { el: null, lift: 0, timers: [] };
+const hmTeddyReduced = () => !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+function hmTeddyClear() {
+  hmTeddyState.timers.forEach(timer => window.clearTimeout(timer));
+  hmTeddyState.timers = [];
+  const el = hmTeddyState.el;
+  hmTeddyState.el = null;
+  if (el) { try { el.getAnimations().forEach(animation => animation.cancel()); } catch { /* ignore */ } el.remove(); }
+}
+function hmTeddyStart(anchor) {
+  hmTeddyClear();
+  try {
+    if (!anchor || hmTeddyReduced() || !document.body.animate) return;
+    const r = anchor.getBoundingClientRect();
+    const size = 46;
+    const el = document.createElement('div');
+    el.setAttribute('aria-hidden', 'true');
+    el.textContent = '🧸';
+    el.style.cssText = `position:fixed;z-index:9999;pointer-events:none;left:${r.left + r.width / 2 - size / 2}px;top:${r.top + r.height / 2 - size / 2}px;width:${size}px;height:${size}px;font-size:${size - 8}px;line-height:${size}px;text-align:center;filter:drop-shadow(0 6px 8px rgba(0,0,0,.28));will-change:transform,opacity;`;
+    document.body.appendChild(el);
+    const lift = -(r.height / 2 + size / 2 + 6);
+    hmTeddyState.el = el;
+    hmTeddyState.lift = lift;
+    const pop = el.animate([
+      { transform: 'translateY(6px) scale(0) rotate(-30deg)', opacity: 0, offset: 0 },
+      { transform: `translateY(${lift - 16}px) scale(1.2) rotate(10deg)`, opacity: 1, offset: 0.6 },
+      { transform: `translateY(${lift}px) scale(1) rotate(0deg)`, opacity: 1, offset: 1 }
+    ], { duration: 450, easing: 'cubic-bezier(.3,1.3,.5,1)', fill: 'forwards' });
+    pop.onfinish = () => {
+      if (hmTeddyState.el !== el) return;
+      el.animate([
+        { transform: `translateY(${lift}px) rotate(-8deg)` },
+        { transform: `translateY(${lift - 9}px) rotate(8deg)` }
+      ], { duration: 520, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
+    };
+    hmTeddyState.timers.push(window.setTimeout(hmTeddyClear, 15000));
+  } catch { /* the teddy is only decoration */ }
+}
+function hmTeddyFly() {
+  try {
+    const el = hmTeddyState.el;
+    if (!el) return;
+    const lift = hmTeddyState.lift;
+    el.getAnimations().forEach(animation => animation.cancel());
+    hmTeddyState.timers.forEach(timer => window.clearTimeout(timer));
+    hmTeddyState.timers = [];
+    const r = el.getBoundingClientRect();
+    const dx = window.innerWidth - r.left + 90;
+    const dy = -(r.top + 160);
+    const fly = el.animate([
+      { transform: `translate(0px,${lift}px) rotate(0deg) scale(1)`, opacity: 1, offset: 0 },
+      { transform: `translate(${dx * 0.22}px,${lift - 70}px) rotate(220deg) scale(1.3)`, opacity: 1, offset: 0.3 },
+      { transform: `translate(${dx * 0.6}px,${dy * 0.55}px) rotate(560deg) scale(1)`, opacity: 1, offset: 0.7 },
+      { transform: `translate(${dx}px,${dy}px) rotate(920deg) scale(.5)`, opacity: 0, offset: 1 }
+    ], { duration: 1100, easing: 'cubic-bezier(.4,.1,.4,1)', fill: 'forwards' });
+    fly.onfinish = () => { if (hmTeddyState.el === el) hmTeddyClear(); };
+    hmTeddyState.timers.push(window.setTimeout(hmTeddyClear, 2200));
+  } catch { hmTeddyClear(); }
+}
+function hmTeddyFail() {
+  try {
+    const el = hmTeddyState.el;
+    if (!el) return;
+    const lift = hmTeddyState.lift;
+    el.getAnimations().forEach(animation => animation.cancel());
+    hmTeddyState.timers.forEach(timer => window.clearTimeout(timer));
+    hmTeddyState.timers = [];
+    const up = lift - 74;
+    const down = lift + 40;
+    const frame = (offset, y, rotate, scale = '1,1', opacity = 1) => ({ transform: `translateY(${y}px) rotate(${rotate}deg) scale(${scale})`, opacity, offset });
+    const fall = el.animate([
+      frame(0, lift, 0),
+      frame(0.09, up, -14), frame(0.19, down, 118, '1.15,.8'), frame(0.23, down - 18, 100), frame(0.27, down, 120, '1.1,.85'),
+      frame(0.40, up + 10, 14), frame(0.50, down, -112, '1.15,.8'), frame(0.54, down - 14, -96), frame(0.58, down, -110, '1.1,.85'),
+      frame(0.70, up + 34, -10), frame(0.80, down, 96, '1.15,.8'), frame(0.85, down - 8, 86), frame(0.89, down, 96, '1.1,.85'),
+      frame(0.95, down, 96, '1.1,.85', 1), frame(1, down, 96, '1.1,.85', 0)
+    ], { duration: 3200, easing: 'ease-in-out', fill: 'forwards' });
+    fall.onfinish = () => { if (hmTeddyState.el === el) hmTeddyClear(); };
+    hmTeddyState.timers.push(window.setTimeout(hmTeddyClear, 4200));
+  } catch { hmTeddyClear(); }
+}
+
 function Login() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
@@ -5804,6 +5954,7 @@ function Login() {
       const target = safeNext || (profile.role === "admin" ? "/admin" : "/account");
       const go = () => navigate(target);
       if (justSignedIn.current && !reduce) {
+        hmTeddyFly(); // the teddy flies away while the card flips
         // the card flips away and the site opens
         cardControls.start({ rotateY: 90, scale: 0.94, opacity: 0.4, transition: { duration: 0.42, ease: "easeIn" } }).then(() => {
           const root = document.documentElement;
@@ -5819,6 +5970,7 @@ function Login() {
 
   const submit = async (e) => {
     e.preventDefault();
+    hmTeddyStart(e.currentTarget.querySelector('button[type="submit"]'));
 
     setBusy(true);
     setError("");
@@ -5847,6 +5999,7 @@ function Login() {
     if (result.error) {
 
       shake();
+      hmTeddyFail();
       if (mode === "login") {
 
         setError(
@@ -5885,6 +6038,7 @@ function Login() {
       !result.data.session
     ) {
 
+      hmTeddyFly();
       setMessage(
         "Your account has been created. If email confirmation is enabled, please confirm your email address."
       );
@@ -6341,8 +6495,8 @@ function AdminLayout({children}){
 }
 
 function Admin(){
-  const {store}=useStore(); const [stats,setStats]=useState({orders:0,customers:0,revenue:0}); const [recent,setRecent]=useState([]);
-  useEffect(()=>{ let active=true; (async()=>{ const [orders,customers]=await Promise.all([supabase.from('orders').select('id,total,status,created_at,customer_name,order_number').order('created_at',{ascending:false}),supabase.from('profiles').select('id,role',{count:'exact',head:true}).eq('role','customer')]); if(!active)return; const rows=orders.data||[]; setStats({orders:rows.length,customers:customers.count||0,revenue:rows.filter(o=>o.status!=='cancelled').reduce((n,o)=>n+Number(o.total||0),0)}); setRecent(rows.slice(0,5)); })(); return()=>{active=false}; },[]);
+  const {store}=useStore(); const revenueResetAt=store.adminSettings?.reports?.revenueResetAt||''; const [stats,setStats]=useState({orders:0,customers:0,revenue:0}); const [recent,setRecent]=useState([]);
+  useEffect(()=>{ let active=true; (async()=>{ const [orders,customers]=await Promise.all([supabase.from('orders').select('id,total,status,created_at,customer_name,order_number').order('created_at',{ascending:false}),supabase.from('profiles').select('id,role',{count:'exact',head:true}).eq('role','customer')]); if(!active)return; const rows=orders.data||[]; setStats({orders:rows.length,customers:customers.count||0,revenue:rows.filter(o=>o.status!=='cancelled'&&(!revenueResetAt||new Date(o.created_at).getTime()>new Date(revenueResetAt).getTime())).reduce((n,o)=>n+Number(o.total||0),0)}); setRecent(rows.slice(0,5)); })(); return()=>{active=false}; },[revenueResetAt]);
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">ADMIN PANEL</p><h1>Dashboard</h1><p>Real Supabase-backed Hafiz Mart control center.</p></div><Link className="gold-btn" to="/admin/products/new"><Plus size={17}/> Add Product</Link></div><div className="stats-grid six">{[[Package,'Products',store.products.length,'Live catalog'],[Tag,'Categories',store.categories.length,'Live categories'],[ShoppingCart,'Orders',stats.orders,'Database orders'],[Users,'Customers',stats.customers,'Registered customers'],[Sparkles,'Active Sales',store.banners.length,'Promotional banners'],[ShoppingBag,'Revenue',`Rs. ${stats.revenue.toLocaleString()}`,'Non-cancelled orders']].map(([I,n,v,small],i)=><motion.div className="stat-card" key={n} initial={{opacity:0,y:15}} animate={{opacity:1,y:0}} transition={{delay:i*.04}}><I size={18}/><span>{n}</span><strong>{v}</strong><small>{small}</small></motion.div>)}</div><div className="admin-grid"><div className="panel"><div className="panel-head-row"><div><p className="eyebrow">RECENT ORDERS</p><h2>Latest Activity</h2></div><Link className="text-link" to="/admin/orders">View all <ArrowRight size={15}/></Link></div>{recent.length?<div className="recent-orders">{recent.map(o=><Link to="/admin/orders" className="recent-order" key={o.id}><div><strong>{o.order_number||o.id.slice(0,8)}</strong><span>{o.customer_name||'Customer'} · {new Date(o.created_at).toLocaleString()}</span></div><div><b>Rs. {Number(o.total||0).toLocaleString()}</b><em className={`status status-${o.status}`}>{o.status}</em></div></Link>)}</div>:<div className="mini-empty"><ShoppingCart size={25}/><strong>No orders yet</strong><span>Customer checkout complete hone ke baad orders yahan appear honge.</span></div>}</div><div className="panel"><p className="eyebrow">QUICK START</p><h2>Store Setup</h2><Link className="check-row hm-quick-card" to="/admin/products"><span>01</span><div><strong>Add products</strong><small>Real catalog items with images and stock.</small></div><ChevronRight size={16}/></Link><Link className="check-row hm-quick-card" to="/admin/orders"><span>02</span><div><strong>Manage orders</strong><small>Confirm, pack, ship and deliver customer orders.</small></div><ChevronRight size={16}/></Link><Link className="check-row hm-quick-card" to="/admin/banners"><span>03</span><div><strong>Create a sale</strong><small>Publish promotional banners from admin.</small></div><ChevronRight size={16}/></Link></div></div></AdminLayout>;
 }
 
@@ -7536,7 +7690,7 @@ function AdminReports(){
   const [orders,setOrders]=useState([]);const [customers,setCustomers]=useState(0);const [loading,setLoading]=useState(true);const [range,setRange]=useState('all');
   useEffect(()=>{(async()=>{setLoading(true);const [o,c]=await Promise.all([supabase.from('orders').select('*').order('created_at',{ascending:false}),supabase.from('profiles').select('id',{count:'exact',head:true}).eq('role','customer')]);if(o.error)alert(o.error.message);setOrders(o.data||[]);setCustomers(c.count||0);setLoading(false)})()},[]);
   const startDate=range==='7'?Date.now()-7*86400000:range==='30'?Date.now()-30*86400000:range==='90'?Date.now()-90*86400000:null;
-  const filtered=orders.filter(o=>!startDate||new Date(o.created_at).getTime()>=startDate);const revenue=filtered.filter(o=>o.status!=='cancelled').reduce((n,o)=>n+Number(o.total||0),0);const delivered=filtered.filter(o=>o.status==='delivered').length;const active=filtered.filter(o=>['pending','confirmed','packed','shipped','out_for_delivery'].includes(o.status)).length;
+  const filtered=orders.filter(o=>!startDate||new Date(o.created_at).getTime()>=startDate);const revenueResetAt=store.adminSettings?.reports?.revenueResetAt||'';const revenue=filtered.filter(o=>o.status!=='cancelled'&&(!revenueResetAt||new Date(o.created_at).getTime()>new Date(revenueResetAt).getTime())).reduce((n,o)=>n+Number(o.total||0),0);const delivered=filtered.filter(o=>o.status==='delivered').length;const active=filtered.filter(o=>['pending','confirmed','packed','shipped','out_for_delivery'].includes(o.status)).length;
   const exportCsv=()=>{const includePhone=Boolean(store.adminSettings?.reports?.includeCustomerPhone);const headers=includePhone?['Order Number','Customer','Phone','City','Status','Subtotal','Discount','Delivery Fee','Total','Created At']:['Order Number','Customer','City','Status','Subtotal','Discount','Delivery Fee','Total','Created At'];const data=filtered.map(o=>includePhone?[o.order_number||'',o.customer_name||'',o.phone||'',o.city||'',o.status||'',o.subtotal||0,o.discount||0,o.delivery_fee||0,o.total||0,new Date(o.created_at).toISOString()]:[o.order_number||'',o.customer_name||'',o.city||'',o.status||'',o.subtotal||0,o.discount||0,o.delivery_fee||0,o.total||0,new Date(o.created_at).toISOString()]);const csv=[headers,...data].map(row=>row.map(v=>`"${String(v).replaceAll('\"','\"\"')}"`).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`hafiz-mart-report-${range}.csv`;a.click();URL.revokeObjectURL(url)};
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">REPORTS</p><h1>Business Reports</h1><p>Orders, revenue aur customer metrics.</p></div><div className="report-head-actions"><select value={range} onChange={e=>setRange(e.target.value)}><option value="all">All time</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select><button className="gold-btn" onClick={exportCsv}><Download size={15}/> Export CSV</button></div></div>{loading?<div className="mini-empty">Reports calculate ho rahi hain...</div>:<><div className="stats-grid six"><div className="stat-card"><BarChart3 size={18}/><span>Orders</span><strong>{filtered.length}</strong><small>Selected period</small></div><div className="stat-card"><DollarSign size={18}/><span>Revenue</span><strong>Rs. {revenue.toLocaleString()}</strong><small>Non-cancelled</small></div><div className="stat-card"><Users size={18}/><span>Customers</span><strong>{customers}</strong><small>Registered</small></div><div className="stat-card"><Check size={18}/><span>Delivered</span><strong>{delivered}</strong><small>Orders delivered</small></div><div className="stat-card"><LoaderCircle size={18}/><span>In Progress</span><strong>{active}</strong><small>Active orders</small></div><div className="stat-card"><ShoppingBag size={18}/><span>Average Order</span><strong>Rs. {filtered.length?Math.round(revenue/Math.max(1,filtered.filter(o=>o.status!=='cancelled').length)).toLocaleString():'0'}</strong><small>Average value</small></div></div><div className="panel report-table"><div className="section-heading"><div><p className="eyebrow">ORDER DATA</p><h2>Recent report rows</h2></div></div>{filtered.slice(0,30).map(o=><div className="report-row" key={o.id}><span>{o.order_number||o.id.slice(0,8)}</span><span>{o.customer_name||'Customer'}</span><span>{o.status}</span><strong>Rs. {Number(o.total||0).toLocaleString()}</strong></div>)}</div></>}</AdminLayout>;
 }
@@ -7596,6 +7750,74 @@ function AdminReviews(){
   return <AdminLayout><div className="admin-head"><div><p className="eyebrow">CUSTOMER VOICE</p><h1>Reviews</h1><p>Customer reviews ko approve, reject aur manage karein.</p></div><button className="ghost-btn" onClick={load}><RotateCcw size={15}/> Refresh</button></div><div className="order-filters">{['pending','approved','rejected','all'].map(s=><button className={filter===s?'active':''} key={s} onClick={()=>setFilter(s)}>{s.charAt(0).toUpperCase()+s.slice(1)}</button>)}</div>{loading?<EmptyState title="Loading reviews..." text="Reviews fetch ho rahi hain." icon={Star}/>:visible.length?<div className="admin-review-list">{visible.map(r=>{const reviewedProduct=store.products.find(p=>String(p.id)===String(r.product_id));return <article className="admin-review-card" key={r.id}><div className="review-card-head"><div><strong className="reviewer-display-name">{r.reviewer_name||'Customer'}</strong><span>{new Date(r.created_at).toLocaleString()}</span></div><StarRating value={r.rating}/></div><small className="review-product-ref">Product: <strong>{reviewedProduct?.name || 'Product unavailable'}</strong>{reviewedProduct?.sku ? ` · SKU ${reviewedProduct.sku}` : ''}</small>{r.title&&<h3>{r.title}</h3>}{r.comment&&<p>{r.comment}</p>}<div className="row-actions"><span className={`status review-status-pill status-${r.status}`}>{String(r.status||'pending').replace(/^./,value=>value.toUpperCase())}</span>{r.status!=='approved'&&<button type="button" className="review-approve-btn" onClick={()=>moderate(r.id,'approved')}><Check size={15}/> Approve</button>}{r.status!=='rejected'&&<button type="button" className="review-reject-btn" onClick={()=>moderate(r.id,'rejected')}><X size={15}/> Reject</button>}</div></article>})}</div>:<EmptyState title={`No ${filter} reviews`} text="Is moderation queue mein abhi koi review nahi hai." icon={Star}/>}</AdminLayout>;
 }
 
+const HM_RESET_ACTIONS = [
+  { id: 'revenue', title: 'Reset revenue to zero', desc: 'Dashboard aur Reports ka revenue 0 se dobara shuru hoga. Orders delete nahi hote, sirf revenue ki ginti nayi shuru hoti hai.', button: 'Reset Revenue', tone: 'soft' },
+  { id: 'orders', title: 'Reset order history', desc: 'Saare orders, order items aur transactions hamesha ke liye delete ho jayenge. Revenue bhi 0 ho jayega.', button: 'Delete All Orders', tone: 'danger' },
+  { id: 'complaints', title: 'Reset complaints', desc: 'Customers ki saari complaints aur unke jawab delete ho jayenge.', button: 'Delete All Complaints', tone: 'danger' },
+  { id: 'reviews', title: 'Reset reviews', desc: 'Saare product reviews delete ho jayenge. Products ki rating dobara khali se shuru hogi.', button: 'Delete All Reviews', tone: 'danger' },
+  { id: 'notifications', title: 'Reset notifications', desc: 'Saari in-app notifications delete ho jayengi.', button: 'Delete All Notifications', tone: 'danger' }
+];
+function AdminResetPanel({ user, saved, setSettings, setSaved }) {
+  const { profile } = useAuth();
+  const { update } = useStore();
+  const [pending, setPending] = useState(null);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const resetAt = saved?.reports?.revenueResetAt || '';
+  const isAdmin = profile?.role === 'admin';
+
+  const wipe = async table => {
+    const { error, count } = await supabase.from(table).delete({ count: 'exact' }).not('id', 'is', null);
+    if (error) throw error;
+    return count || 0;
+  };
+  const saveRevenueMarker = async value => {
+    const next = { ...saved, reports: { ...(saved?.reports || {}), revenueResetAt: value } };
+    const { error } = await supabase.from('admin_store_settings').upsert({ id: 'default', settings: next, updated_at: new Date().toISOString(), updated_by: user?.id || null }, { onConflict: 'id' });
+    if (error) throw error;
+    setSaved(next);
+    setSettings(s => ({ ...s, reports: { ...(s.reports || {}), revenueResetAt: value } }));
+    update({ adminSettings: next });
+    try { window.__HAFIZ_STORE_SETTINGS__ = next; } catch { /* ignore */ }
+  };
+  const run = async id => {
+    setBusy(true); setResult(null);
+    try {
+      let text = '';
+      if (id === 'revenue') { await saveRevenueMarker(new Date().toISOString()); text = 'Revenue reset ho gaya. Ab dashboard par revenue 0 se shuru hoga.'; }
+      else if (id === 'orders') { await wipe('transactions'); await wipe('order_items'); const n = await wipe('orders'); text = `${n} order(s) delete ho gaye. Order history aur revenue ab khali hain.`; }
+      else if (id === 'complaints') { const n = await wipe('complaints'); text = `${n} complaint(s) delete ho gayi.`; }
+      else if (id === 'reviews') { const n = await wipe('reviews'); text = `${n} review(s) delete ho gaye.`; }
+      else if (id === 'notifications') { const n = await wipe('notifications'); text = `${n} notification(s) delete ho gayi.`; }
+      setResult({ ok: true, text });
+    } catch (error) {
+      const denied = String(error?.code || '') === '42501' || /row-level security|permission denied/i.test(String(error?.message || ''));
+      setResult({ ok: false, text: denied ? 'Supabase ne delete allow nahi kiya (database permission / RLS policy). Pehle admin delete policy add karni hogi.' : getFriendlyErrorMessage(error, 'Reset nahi ho saka. Dobara try karein.') });
+    } finally { setBusy(false); setPending(null); setTyped(''); }
+  };
+  const active = HM_RESET_ACTIONS.find(item => item.id === pending);
+
+  return <div className="settings-stack hm-reset-panel">
+    <div className="settings-info-card"><RotateCcw size={22}/><div><strong>Reset Store Data</strong><p>Naya store shuru karne ya test data saaf karne ke liye. Customers ke accounts kabhi reset nahi hote.</p></div></div>
+    {!isAdmin && <div className="settings-notice hm-reset-warning"><X size={16}/><span>Sirf main admin ye reset options use kar sakta hai.</span></div>}
+    {HM_RESET_ACTIONS.map(item => <div className={`hm-reset-card ${item.tone}`} key={item.id}>
+      <div><strong>{item.title}</strong><p>{item.desc}</p>{item.id === 'revenue' && resetAt && <small>Revenue is date se ginta ja raha hai: {new Date(resetAt).toLocaleString()}</small>}</div>
+      <div className="hm-reset-actions">
+        {item.id === 'revenue' && resetAt && <button type="button" className="ghost-btn" disabled={busy || !isAdmin} onClick={async () => { setBusy(true); setResult(null); try { await saveRevenueMarker(''); setResult({ ok: true, text: 'Poora purana revenue dobara dikhne laga.' }); } catch (error) { setResult({ ok: false, text: getFriendlyErrorMessage(error, 'Revenue restore nahi ho saka.') }); } finally { setBusy(false); } }}>Show all-time revenue</button>}
+        <button type="button" className={item.tone === 'danger' ? 'hm-reset-btn danger' : 'hm-reset-btn'} disabled={busy || !isAdmin} onClick={() => { setPending(item.id); setTyped(''); setResult(null); }}>{item.button}</button>
+      </div>
+    </div>)}
+    <div className="hm-reset-card hm-reset-locked"><div><strong>Customers</strong><p>Customer accounts reset nahi kiye jate. Ye hamesha safe rehte hain.</p></div></div>
+    {active && <div className="hm-reset-confirm" role="alertdialog" aria-label="Confirm reset">
+      <strong>{active.title}</strong>
+      <p>{active.id === 'revenue' ? 'Is se revenue 0 se shuru hoga.' : 'Ye kaam wapas nahi ho sakta.'} Confirm karne ke liye neeche <b>RESET</b> likhein.</p>
+      <input value={typed} onChange={e => setTyped(e.target.value)} placeholder="RESET" autoComplete="off" autoFocus/>
+      <div><button type="button" className="ghost-btn" disabled={busy} onClick={() => { setPending(null); setTyped(''); }}>Cancel</button><button type="button" className="hm-reset-btn danger" disabled={busy || typed.trim().toUpperCase() !== 'RESET'} onClick={() => run(active.id)}>{busy ? 'Please wait...' : 'Confirm Reset'}</button></div>
+    </div>}
+    {result && <div className={`settings-notice hm-reset-result ${result.ok ? 'ok' : 'bad'}`} role="status">{result.ok ? <Check size={16}/> : <X size={16}/>}<span>{result.text}</span></div>}
+  </div>;
+}
 function AdminSettings(){
   const { user }=useAuth();
   const { update, store }=useStore();
@@ -7609,7 +7831,7 @@ function AdminSettings(){
   const sections=[
     ['general','General',Store],['shipping','Shipping',Truck],['charges','Charges & Fees',DollarSign],['storefront','Storefront',Megaphone],
     ['payments','Payments',CreditCard],['policies','Policies & Legal',FileText],['notifications','Notifications',Bell],
-    ['inventory','Inventory',Boxes],['content','Content',Sparkles],['users','Users & Roles',Users],['reports','Reports & Data',BarChart3],['security','Security',ShieldCheck]
+    ['inventory','Inventory',Boxes],['content','Content',Sparkles],['users','Users & Roles',Users],['reports','Reports & Data',BarChart3],['reset','Reset Data',RotateCcw],['security','Security',ShieldCheck]
   ];
 
   useEffect(()=>{let active=true;(async()=>{setLoading(true);try{const {data,error}=await supabase.from('admin_store_settings').select('settings').eq('id','default').maybeSingle();if(error)throw error;const merged=mergeAdminSettings(DEFAULT_ADMIN_SETTINGS,data?.settings||{});if(active){setSettings(merged);setSaved(merged);setNotice('');}}catch(error){if(active)setNotice(getFriendlyErrorMessage(error,'Admin settings could not be loaded.'));}finally{if(active)setLoading(false)}})();return()=>{active=false}},[]);
@@ -7625,7 +7847,7 @@ function AdminSettings(){
     {loading?<div className="settings-loading"><LoaderCircle size={22}/><span>Loading settings...</span></div>:<>
       <div className="settings-panel-heading"><div><p className="eyebrow">SETTINGS / {section.toUpperCase()}</p><h2>{sections.find(x=>x[0]===section)?.[1]}</h2></div></div>
       {section==='general'&&<div className="settings-grid">{field('Store name',current.storeName,v=>setField('general','storeName',v))}{field('Tagline',current.tagline,v=>setField('general','tagline',v))}{field('Support email',current.supportEmail,v=>setField('general','supportEmail',v),'email')}{field('Support phone',current.supportPhone,v=>setField('general','supportPhone',v))}{field('WhatsApp number',current.whatsapp,v=>setField('general','whatsapp',v))}{field('Currency',current.currency,v=>setField('general','currency',v))}{field('Timezone',current.timezone,v=>setField('general','timezone',v))}{field('Facebook URL',current.facebook,v=>setField('general','facebook',v))}{field('Instagram URL',current.instagram,v=>setField('general','instagram',v))}{field('TikTok URL',current.tiktok,v=>setField('general','tiktok',v))}{field('YouTube URL',current.youtube,v=>setField('general','youtube',v))}{area('Store address',current.address,v=>setField('general','address',v))}</div>}
-      {section==='shipping'&&<div className="settings-stack">{toggle('Shipping enabled',current.enabled,v=>setField('shipping','enabled',v))}<div className="settings-grid">{field('Default delivery fee (PKR)',current.defaultRate,v=>setField('shipping','defaultRate',v),'number')}{field('Free delivery threshold (PKR)',current.freeDeliveryThreshold,v=>setField('shipping','freeDeliveryThreshold',v),'number')}{field('Minimum delivery days',current.minDays,v=>setField('shipping','minDays',v),'number')}{field('Maximum delivery days',current.maxDays,v=>setField('shipping','maxDays',v),'number')}</div><div className="settings-subheading"><div><h3>City-wise rates</h3></div></div><div className="settings-city-list">{(current.cityRates||[]).map((row,i)=><div className="settings-city-row" key={i}>{field('City',row.city,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,city:v}:r)}})))}{field('Rate (PKR)',row.rate,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,rate:v}:r)}})),'number')}<button type="button" className="settings-remove" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.filter((_,j)=>j!==i)}}))} aria-label={`Remove city rate ${row.city || i+1}`} title="Remove city"><Trash2 aria-hidden="true" size={15}/></button></div>)}</div><button type="button" className="ghost-btn" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:[...(x.shipping.cityRates||[]),{city:'',rate:x.shipping.defaultRate||300}]}}))}><Plus size={15}/> Add city</button></div>}
+      {section==='shipping'&&<div className="settings-stack">{toggle('Shipping enabled',current.enabled,v=>setField('shipping','enabled',v))}<div className="settings-grid">{field('Default delivery fee (PKR)',current.defaultRate,v=>setField('shipping','defaultRate',v),'number')}{field('Minimum delivery days',current.minDays,v=>setField('shipping','minDays',v),'number')}{field('Maximum delivery days',current.maxDays,v=>setField('shipping','maxDays',v),'number')}</div><div className="settings-subheading"><div><h3>City-wise rates</h3></div></div><div className="settings-city-list">{(current.cityRates||[]).map((row,i)=><div className="settings-city-row" key={i}>{field('City',row.city,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,city:v}:r)}})))}{field('Rate (PKR)',row.rate,v=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.map((r,j)=>j===i?{...r,rate:v}:r)}})),'number')}<button type="button" className="settings-remove" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:x.shipping.cityRates.filter((_,j)=>j!==i)}}))} aria-label={`Remove city rate ${row.city || i+1}`} title="Remove city"><Trash2 aria-hidden="true" size={15}/></button></div>)}</div><button type="button" className="ghost-btn" onClick={()=>setSettings(x=>({...x,shipping:{...x.shipping,cityRates:[...(x.shipping.cityRates||[]),{city:'',rate:x.shipping.defaultRate||300}]}}))}><Plus size={15}/> Add city</button></div>}
       {section==='charges'&&<div className="settings-stack"><div className="settings-info-card"><DollarSign size={22}/><div><strong>Cash Handling Charges</strong><p>Configure the fee shown between Discount and Delivery at checkout. Existing orders retain their saved fee.</p></div></div>{toggle('Enable cash handling charges',current.cashHandlingEnabled,v=>setField('charges','cashHandlingEnabled',v))}<label className="settings-field"><span>Charge calculation</span><select value={current.cashHandlingMode||'fixed'} onChange={e=>setField('charges','cashHandlingMode',e.target.value)}><option value="fixed">Fixed amount (PKR)</option><option value="percentage">Percentage of discounted subtotal</option></select></label>{field(current.cashHandlingMode==='percentage'?'Percentage (%)':'Amount (PKR)',current.cashHandlingValue,v=>setField('charges','cashHandlingValue',v),'number')}{toggle('Apply only to Cash on Delivery',current.cashHandlingCodOnly!==false,v=>setField('charges','cashHandlingCodOnly',v),'Recommended: keep enabled unless your policy applies this fee to every payment method.')}</div>}{section==='storefront'&&<div className="settings-stack">{toggle('Announcement bar',current.announcementEnabled,v=>setField('storefront','announcementEnabled',v))}<div className="settings-grid">{area('Announcement text',current.announcementText,v=>setField('storefront','announcementText',v))}{field('Button text',current.announcementButton,v=>setField('storefront','announcementButton',v))}{field('Button link',current.announcementLink,v=>setField('storefront','announcementLink',v))}<label className="settings-field"><span>Theme</span><select value={current.announcementTheme||'gold'} onChange={e=>setField('storefront','announcementTheme',e.target.value)}><option value="gold">Gold</option><option value="dark">Black</option><option value="light">White</option><option value="green">Forest Green</option><option value="lime">Lime</option><option value="mint">Mint</option><option value="teal">Teal</option><option value="blue">Royal Blue</option><option value="sky">Sky Blue</option><option value="purple">Purple</option><option value="rose">Rose Pink</option><option value="orange">Orange</option><option value="red">Crimson Red</option></select><div className={`announcement-bar hm-theme-preview theme-${current.announcementTheme||'gold'}`} aria-label="Preview"><div className="announcement-inner"><span>{current.announcementText || 'Your announcement text'}</span></div></div></label></div>{toggle('Maintenance mode',current.maintenanceMode,v=>setField('storefront','maintenanceMode',v),'Customer storefront ko maintenance screen dikhayega.')}{area('Maintenance message',current.maintenanceMessage,v=>setField('storefront','maintenanceMessage',v))}</div>}
       {section==='payments'&&<div className="settings-stack">{toggle('Cash on Delivery',current.codEnabled,v=>setField('payments','codEnabled',v))}{toggle('Online payments',current.onlinePaymentsEnabled,v=>setField('payments','onlinePaymentsEnabled',v),'Gateway integration complete hone ke baad enable karein.')}<div className="settings-info-card"><CreditCard size={22}/><div><strong>Payment & Transaction tracking</strong><p>Failed payments, refunds aur commission ko Admin → Transactions se track karein. Real gateway data provider integration par depend karega.</p><span className="settings-status-pill">GATEWAY DEPENDENT</span></div></div></div>}
       {section==='policies'&&<div className="settings-stack"><div className="settings-grid">{field('Cancellation window (hours)',current.cancellationWindowHours,v=>setField('policies','cancellationWindowHours',v),'number')}{field('Return window (days)',current.returnWindowDays,v=>setField('policies','returnWindowDays',v),'number')}</div>{area('Returns & refunds policy',current.returnsPolicy,v=>setField('policies','returnsPolicy',v))}{area('Shipping policy',current.shippingPolicy,v=>setField('policies','shippingPolicy',v))}{area('Privacy policy',current.privacyPolicy,v=>setField('policies','privacyPolicy',v))}{area('Terms & conditions',current.terms,v=>setField('policies','terms',v))}</div>}
@@ -7633,9 +7855,10 @@ function AdminSettings(){
       {section==='inventory'&&<div className="settings-stack"><div className="settings-grid">{field('Low-stock threshold',current.lowStockThreshold,v=>setField('inventory','lowStockThreshold',v),'number')}{field('Maximum review images',current.maxReviewImages,v=>setField('inventory','maxReviewImages',v),'number')}</div>{toggle('Hide out-of-stock products',current.hideOutOfStock,v=>setField('inventory','hideOutOfStock',v))}{toggle('Allow backorders',current.allowBackorders,v=>setField('inventory','allowBackorders',v))}{toggle('Reviews require approval',current.reviewsRequireApproval,v=>setField('inventory','reviewsRequireApproval',v),'When disabled, reviews appear in the public list immediately.')}</div>}
       {section==='content'&&<div className="settings-stack"><div className="settings-info-card"><Sparkles size={22}/><div><strong>Content Management</strong><p>Manage homepage sections, banners, categories, and storefront content without changing application code.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/banners"><Sparkles size={15}/> Manage Banners</Link><Link className="ghost-btn" to="/admin/categories"><Tag size={15}/> Manage Categories</Link><Link className="ghost-btn" to="/admin/products"><Package size={15}/> Manage Products</Link></div></div></div>{toggle('Show categories on home',current.showCategoriesOnHome,v=>setField('content','showCategoriesOnHome',v))}<div className="hm-section-manager"><div className="hm-section-manager-head"><strong>Homepage Section Manager</strong><button type="button" className="ghost-btn" onClick={()=>setField('content','homepageSections',[...(current.homepageSections||[]),{id:`custom-${Date.now()}`,title:'New Section',type:'selected_products',visible:true,order:(current.homepageSections||[]).length+1,productIds:[],categoryId:''}])}><Plus size={14}/> Add section</button></div><p>Manage section titles, visibility, placement order, section type and optional product/category selections.</p>{(current.homepageSections||[]).map((item,index)=><div className="hm-section-manager-row" key={item.id||index}><label>Title<input value={item.title||''} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,title:e.target.value}:row))}/></label><label>Type<select value={item.type||'selected_products'} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,type:e.target.value}:row))}><option value="new_arrivals">New Arrivals</option><option value="popular_products">Popular Products</option><option value="product_collection">Product Collection</option><option value="category_collection">Category Collection</option><option value="selected_products">Selected Products</option></select></label><label>Order<input type="number" min="1" value={item.order??index+1} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,order:Number(e.target.value)}:row))}/></label><label>Category<select value={item.categoryId||''} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,categoryId:e.target.value}:row))}><option value="">No category</option>{store.categories.map(category=><option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Product IDs<input value={(item.productIds||[]).join(',')} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,productIds:e.target.value.split(',').map(value=>value.trim()).filter(Boolean)}:row))} placeholder="ID, ID, ID"/></label><label>Desktop columns<input type="number" min="1" max="6" value={item.desktopColumns||4} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,desktopColumns:Number(e.target.value)}:row))}/></label><label>Mobile columns<input type="number" min="1" max="2" value={item.mobileColumns||2} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,mobileColumns:Number(e.target.value)}:row))}/></label><label className="hm-section-visible"><input type="checkbox" checked={item.visible!==false} onChange={e=>setField('content','homepageSections',current.homepageSections.map((row,i)=>i===index?{...row,visible:e.target.checked}:row))}/> Visible</label><button type="button" className="row-actions" aria-label={`Delete ${item.title||'section'}`} onClick={()=>setField('content','homepageSections',current.homepageSections.filter((_,i)=>i!==index))}><Trash2 size={16}/></button></div>)}</div><div className="hm-admin-home-editor"><div className="hm-admin-editor-heading"><Sparkles size={20}/><div><strong>Homepage Hero / Mega Sale</strong><p>Yahan se hero text aur collage mein dikhne wale products select karein.</p></div></div><div className="settings-grid">{field('Hero badge text',current.heroEyebrow||'MEGA SALE',v=>setField('content','heroEyebrow',v))}{field('Hero headline',current.heroHeadline||'Upgrade Your Lifestyle Today',v=>setField('content','heroHeadline',v))}{area('Hero description',current.heroDescription||'Discover the best products at unbeatable prices. Shop smarter, live better!',v=>setField('content','heroDescription',v))}</div><div className="hm-admin-product-picker"><strong>Hero collage products (select up to 4)</strong><div className="hm-admin-product-options">{store.products.filter(p=>p.status!=='inactive').map(product=><label key={product.id}><input type="checkbox" checked={(current.heroProductIds||[]).map(String).includes(String(product.id))} onChange={e=>{const prev=(current.heroProductIds||[]).map(String);const next=e.target.checked?[...prev,String(product.id)].slice(-4):prev.filter(id=>id!==String(product.id));setField('content','heroProductIds',next);}}/><span>{product.image&&<img src={product.image} alt=""/>}<span>{product.name}</span></span></label>)}</div><small>If no product is selected, the collage automatically uses the latest active products.</small></div></div><div className="hm-admin-promo-editor"><div className="hm-admin-editor-heading"><Megaphone size={20}/><div><strong>Seasonal & Promo Cards</strong><p>Summer sale, winter sale, fashion ya koi bhi campaign add/edit/hide kar sakte hain.</p></div><button type="button" className="ghost-btn" onClick={()=>setField('content','promoCards',[...(current.promoCards||[]),{id:'promo-'+Date.now(),eyebrow:'SPECIAL OFFER',title:'New Sale',subtitle:'Discover something new',description:'Explore our latest collection and offers.',buttonText:'Shop Now',buttonLink:'/deals',theme:'summer',visible:true}])}><Plus size={14}/> Add card</button></div>{(current.promoCards||[]).map((card,index)=><div className="hm-admin-promo-row" key={card.id||index}><div className="hm-admin-promo-row-top"><strong>Promo card {index+1}</strong><label className="hm-section-visible"><input type="checkbox" checked={card.visible!==false} onChange={e=>setField('content','promoCards',current.promoCards.map((item,i)=>i===index?{...item,visible:e.target.checked}:item))}/> Visible</label><button type="button" className="settings-remove" onClick={()=>setField('content','promoCards',current.promoCards.filter((_,i)=>i!==index))} aria-label="Delete promo card"><Trash2 size={15}/></button></div><div className="settings-grid">{field('Small heading',card.eyebrow||'',v=>setField('content','promoCards',current.promoCards.map((item,i)=>i===index?{...item,eyebrow:v}:item)))}{field('Card title',card.title||'',v=>setField('content','promoCards',current.promoCards.map((item,i)=>i===index?{...item,title:v}:item)))}{field('Subtitle',card.subtitle||'',v=>setField('content','promoCards',current.promoCards.map((item,i)=>i===index?{...item,subtitle:v}:item)))}{field('Description',card.description||'',v=>setField('content','promoCards',current.promoCards.map((item,i)=>i===index?{...item,description:v}:item)))}{field('Button text',card.buttonText||'',v=>setField('content','promoCards',current.promoCards.map((item,i)=>i===index?{...item,buttonText:v}:item)))}{field('Button link',card.buttonLink||'/deals',v=>setField('content','promoCards',current.promoCards.map((item,i)=>i===index?{...item,buttonLink:v}:item)))}<label className="settings-field"><span>Card theme</span><select value={card.theme||'summer'} onChange={e=>setField('content','promoCards',current.promoCards.map((item,i)=>i===index?{...item,theme:e.target.value}:item))}><option value="summer">Summer Sale</option><option value="winter">Winter Sale</option><option value="fashion">Fashion</option><option value="sale">General Sale</option></select></label></div></div>)}</div>{toggle('Show deals section',current.showDealsSection,v=>setField('content','showDealsSection',v))}{field('Featured products limit',current.featuredProductsLimit,v=>setField('content','featuredProductsLimit',v),'number')}</div>}
       {section==='users'&&<div className="settings-stack"><div className="settings-info-card"><Users size={22}/><div><strong>User Management & Roles</strong><p>Verify and manage customers, team roles, and granular permissions.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/customers"><Users size={15}/> Open User Management</Link></div></div></div>{toggle('Require manual customer verification',current.requireManualVerification,v=>setField('users','requireManualVerification',v))}{toggle('Allow guest checkout',current.allowGuestCheckout,v=>setField('users','allowGuestCheckout',v))}<label className="settings-field"><span>Default account status</span><select value={current.defaultAccountStatus||'active'} onChange={e=>setField('users','defaultAccountStatus',e.target.value)}><option value="active">Active</option><option value="blocked">Blocked</option></select></label><div className="settings-permission-list"><h3>Team roles</h3><p>Actual team membership Users screen se manage hoga.</p><div><span>Owner — full access</span><span>Manager — selected operational access</span><span>Content Editor — products/categories/banners</span><span>Support — orders/complaints/notifications</span></div></div></div>}
+      {section==='reset'&&<AdminResetPanel user={user} saved={saved} setSettings={setSettings} setSaved={setSaved}/>}
       {section==='security'&&<div className="settings-stack"><div className="settings-info-card"><ShieldCheck size={22}/><div><strong>Security & Audit</strong><p>Admin access permissions aur database RLS se protected hain. API keys, SMTP passwords aur WhatsApp secrets yahan store na karein.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/customers"><Users size={15}/> Manage Roles</Link><Link className="ghost-btn" to="/admin/notifications"><Bell size={15}/> Notification Center</Link></div></div></div><div className="settings-permission-list"><h3>Security controls</h3><p>Owner ko full access dein; team members ko minimum required permissions dein.</p><div><span>Permission-based admin routes</span><span>Admin action audit log</span><span>Protected database writes</span></div></div></div>}
       {section==='reports'&&<div className="settings-stack"><div className="settings-info-card"><BarChart3 size={22}/><div><strong>Business Reports</strong><p>Revenue, orders, customers aur delivery metrics generate aur CSV export kar sakte hain.</p><div className="settings-inline-links"><Link className="ghost-btn" to="/admin/reports"><BarChart3 size={15}/> Open Reports</Link></div></div></div><label className="settings-field"><span>Default report period</span><select value={current.defaultRange||'30'} onChange={e=>setField('reports','defaultRange',e.target.value)}><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option></select></label>{toggle('Include customer phone in exported reports',current.includeCustomerPhone,v=>setField('reports','includeCustomerPhone',v),'Sirf zaroorat par enable karein.')}</div>}
-      {notice&&<div className="settings-notice"><Check size={16}/><span>{notice}</span></div>}<div className="settings-actions"><button type="button" className="ghost-btn" onClick={()=>{setSettings(saved);setNotice('Unsaved changes discarded.')}}><RotateCcw size={15}/> Discard</button><button className="gold-btn" disabled={saving}>{saving?'Saving...':'Save settings'} <Save size={16}/></button></div>
+      {notice&&<div className="settings-notice"><Check size={16}/><span>{notice}</span></div>}{section!=='reset'&&<div className="settings-actions"><button type="button" className="ghost-btn" onClick={()=>{setSettings(saved);setNotice('Unsaved changes discarded.')}}><RotateCcw size={15}/> Discard</button><button className="gold-btn" disabled={saving}>{saving?'Saving...':'Save settings'} <Save size={16}/></button></div>}
     </>}
   </form></div></AdminLayout>;
 }

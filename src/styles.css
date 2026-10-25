@@ -11521,3 +11521,109 @@ html body .hm-complaint-code-search input::placeholder{text-transform:none;font-
 html body .hm-complaint-code-search>div>button{position:absolute;right:8px;width:26px;height:26px;border:0;border-radius:50%;background:#eef2ea;color:#164832;font-size:16px;line-height:1;cursor:pointer}
 html body .hm-complaint-code-search small{display:block;margin-top:6px;color:#6b7280;font-size:12px}
 html body .hm-complaint-code{display:inline-block;margin-bottom:4px;padding:2px 9px;border-radius:999px;background:#e8f1e1;color:#164832;font-size:11px;font-weight:800;letter-spacing:.06em}
+
+/* ==========================================================================
+   v16 additions (appended; nothing above was edited)
+   1. Product cards: Add to Cart buttons line up on one row
+   2. Fly-to-cart animation + cart icon bump
+   3. Product image gallery (zoom + next/previous)
+   4. Admin: Reset Data panel
+   ========================================================================== */
+
+/* ---- 1. Equal-height cards, button always at the bottom ---- */
+html body *:has(> .product-card){align-items:stretch}
+html body .product-card{display:flex!important;flex-direction:column;height:100%}
+html body .product-card .product-info{display:flex;flex-direction:column;flex:1 1 auto}
+html body .product-card .product-info .product-price{margin-bottom:12px}
+html body .product-card .product-info .add-cart{margin-top:auto;width:100%}
+
+/* ---- 2. Fly to cart ---- */
+.hm-fly-item{position:fixed;z-index:9999;pointer-events:none;display:grid;place-items:center;border-radius:50%;overflow:hidden;background:#fff;border:3px solid #fff;box-shadow:0 10px 26px rgba(22,72,50,.38),0 0 0 2px rgba(216,243,108,.9);font-size:26px;will-change:transform,opacity}
+.hm-fly-item img{width:100%;height:100%;object-fit:cover;display:block}
+@keyframes hm-cart-bump{0%{transform:scale(1)}25%{transform:scale(1.28) rotate(-8deg)}50%{transform:scale(.94) rotate(6deg)}75%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes hm-badge-pop{0%{transform:scale(1)}40%{transform:scale(1.6)}100%{transform:scale(1)}}
+.cart-icon.hm-cart-bump{animation:hm-cart-bump .7s ease}
+.cart-icon.hm-cart-bump span{animation:hm-badge-pop .7s ease}
+@media (prefers-reduced-motion: reduce){.cart-icon.hm-cart-bump,.cart-icon.hm-cart-bump span{animation:none}}
+
+/* ---- 3. Product image gallery ---- */
+.hm-gallery-box{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;gap:12px;padding:56px 70px 118px;background:rgba(8,12,10,.94);cursor:zoom-out}
+.hm-gallery-stage{flex:1 1 auto;min-width:0;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:default}
+.hm-gallery-stage img{max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;cursor:zoom-in;transition:transform .25s ease;user-select:none;-webkit-user-drag:none;animation:hm-gallery-in .25s ease}
+.hm-gallery-stage img.is-zoomed{transform:scale(2.2);cursor:zoom-out}
+@keyframes hm-gallery-in{from{opacity:0}to{opacity:1}}
+.hm-gallery-count{position:absolute;top:18px;left:50%;transform:translateX(-50%);padding:5px 14px;border-radius:999px;background:rgba(255,255,255,.92);color:#1d2230;font-size:13px;font-weight:700}
+.hm-gallery-close,.hm-gallery-nav{display:grid;place-items:center;border:0;border-radius:50%;background:#fff;color:#1d2230;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35);transition:transform .15s ease,background .15s ease}
+.hm-gallery-close:hover,.hm-gallery-nav:hover{background:#d8f36c;transform:scale(1.07)}
+.hm-gallery-close{position:absolute;top:14px;right:18px;width:44px;height:44px}
+.hm-gallery-nav{flex:0 0 auto;width:48px;height:48px}
+.hm-gallery-thumbs{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);display:flex;gap:8px;max-width:calc(100% - 32px);padding:8px;overflow-x:auto;border-radius:12px;background:rgba(255,255,255,.12);cursor:default}
+.hm-gallery-thumbs button{flex:0 0 auto;width:58px;height:58px;padding:0;border:2px solid transparent;border-radius:8px;overflow:hidden;background:#222;opacity:.65;cursor:pointer;transition:opacity .15s ease,border-color .15s ease}
+.hm-gallery-thumbs button.active,.hm-gallery-thumbs button:hover{opacity:1;border-color:#d8f36c}
+.hm-gallery-thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+.hm-gallery-hint{position:absolute;bottom:94px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.7);font-size:12px;pointer-events:none;white-space:nowrap}
+@media (max-width:700px){
+  .hm-gallery-box{padding:60px 8px 112px;gap:0}
+  .hm-gallery-nav{position:absolute;top:50%;margin-top:-22px;width:40px;height:40px;z-index:2}
+  .hm-gallery-nav.is-prev{left:8px}.hm-gallery-nav.is-next{right:8px}
+  .hm-gallery-thumbs button{width:48px;height:48px}
+  .hm-gallery-hint{display:none}
+}
+
+/* ---- 4. Admin: Reset Data ---- */
+html body .hm-reset-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border:1px solid #e5dfd4;border-radius:14px;background:#fff}
+html body .hm-reset-card strong{display:block;font-size:15px;color:#1d2230}
+html body .hm-reset-card p{margin:4px 0 0;color:#5c6275;font-size:13px;line-height:1.5}
+html body .hm-reset-card small{display:block;margin-top:6px;color:#164832;font-weight:700;font-size:12px}
+html body .hm-reset-card.danger{border-color:#ecd0cc}
+html body .hm-reset-card.hm-reset-locked{background:#f1f6ec;border-color:#cfdcc3}
+html body .hm-reset-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;flex:0 0 auto}
+html body .hm-reset-btn{padding:10px 16px;border:0;border-radius:10px;background:#164832;color:#fff;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap}
+html body .hm-reset-btn.danger{background:#b3261e}
+html body .hm-reset-btn:disabled,html body .hm-reset-actions .ghost-btn:disabled{opacity:.45;cursor:not-allowed}
+html body .hm-reset-confirm{display:grid;gap:10px;padding:18px;border:2px solid #b3261e;border-radius:14px;background:#fff6f5}
+html body .hm-reset-confirm p{margin:0;color:#5c6275;font-size:13px}
+html body .hm-reset-confirm input{padding:11px 14px;border:1px solid #d7a9a4;border-radius:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;max-width:240px}
+html body .hm-reset-confirm>div{display:flex;gap:10px;flex-wrap:wrap}
+html body .hm-reset-result.ok{background:#e8f5e9;color:#164832}
+html body .hm-reset-result.bad,html body .hm-reset-warning{background:#fdecea;color:#b3261e}
+@media (max-width:640px){html body .hm-reset-card{flex-direction:column;align-items:stretch}html body .hm-reset-actions{justify-content:flex-start}}
+
+/* v16b: an older rule (.add-cart{margin-top:12px !important}) was stopping the buttons from sitting at the bottom of the card */
+html body .product-card .product-info .add-cart{margin-top:auto!important}
+html body .product-card .product-info .product-price{margin-bottom:14px!important}
+html body .home-product-grid,
+html body .hm-featured-grid{align-items:stretch!important}
+html body .home-product-grid>.product-card,
+html body .hm-featured-grid>.product-card{height:100%}
+
+/* ==========================================================================
+   v17: logged-out Account page (full width, matches the green store theme)
+   ========================================================================== */
+body:has(.account-login-page){background:#f8f6f1!important}
+html body .account-login-page{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:clamp(22px,4vw,52px) 0 clamp(34px,6vw,76px)!important;background:#f8f6f1!important}
+html body .account-login-page>.container{width:100%;max-width:1180px;margin:0 auto;padding-left:16px;padding-right:16px}
+html body .account-login-panel{position:relative;min-height:clamp(430px,60vh,580px);justify-content:center;border:0!important;border-radius:28px!important;background:radial-gradient(circle at 88% 10%,rgba(216,243,108,.30),transparent 34%),radial-gradient(circle at 6% 104%,rgba(255,255,255,.16),transparent 42%),linear-gradient(120deg,#164832 0%,#1f5f45 55%,#2b7a58 100%)!important;box-shadow:0 22px 50px rgba(22,72,50,.24)!important}
+html body .account-login-panel::before{content:"";position:absolute;right:-90px;bottom:-120px;width:340px;height:340px;border:42px solid rgba(216,243,108,.12);border-radius:50%;pointer-events:none;z-index:-1}
+html body .account-login-panel::after{content:"";position:absolute;left:7%;top:12%;width:84px;height:84px;border:13px solid rgba(255,255,255,.09);border-radius:50%;pointer-events:none;z-index:-1}
+html body .account-login-glow{display:none}
+html body .account-login-icon{color:#164832!important;border:0!important;background:#d8f36c!important;box-shadow:0 10px 26px rgba(0,0,0,.2)!important}
+html body .account-login-panel>.eyebrow{color:#d8f36c!important}
+html body .account-login-panel h1{color:#fff!important}
+html body .account-login-panel h1 span{color:#d8f36c!important}
+html body .account-login-copy{color:rgba(255,255,255,.9)!important}
+html body .account-login-primary{background:#d8f36c!important;background-image:none!important;color:#164832!important;border:0!important;font-weight:800!important;box-shadow:0 12px 26px rgba(0,0,0,.22)!important}
+html body .account-login-primary:hover{background:#e6fa95!important;transform:translateY(-2px)}
+html body .account-register-link{color:rgba(255,255,255,.88)!important}
+html body .account-register-link strong,html body .account-register-link:hover strong{color:#d8f36c!important}
+html body .account-login-benefits{border-top:1px solid rgba(255,255,255,.22)!important}
+html body .account-login-benefits span{color:rgba(255,255,255,.9)!important}
+html body .account-login-benefits svg{color:#d8f36c!important}
+html body .account-login-teddy{position:absolute;right:clamp(18px,6%,64px);top:clamp(18px,10%,52px);font-size:clamp(34px,5vw,58px);line-height:1;filter:drop-shadow(0 8px 10px rgba(0,0,0,.25));animation:hm-teddy-float 3.2s ease-in-out infinite;pointer-events:none}
+@keyframes hm-teddy-float{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-10px) rotate(7deg)}}
+@media (prefers-reduced-motion: reduce){html body .account-login-teddy{animation:none}}
+@media (max-width:600px){
+  html body .account-login-page>.container{padding-left:12px;padding-right:12px}
+  html body .account-login-panel{min-height:0;border-radius:22px!important;padding:34px 18px 28px!important}
+  html body .account-login-teddy{top:12px;right:14px}
+}
