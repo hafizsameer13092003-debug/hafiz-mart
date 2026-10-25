@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut, Eye, EyeOff, Bell, BarChart3, Download, Send, UserCheck, UserX, DollarSign, FileText, Store, Truck, Megaphone, CreditCard, Boxes, Save } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ShoppingBag, Search, Heart, User, Menu, X, MessageCircle, ArrowRight, Sparkles, Plus, Trash2, Pencil, Tag, Package, Users, ShoppingCart, Settings, LayoutDashboard, ChevronRight, TicketPercent, Minus, Check, Star, Upload, Image as ImageIcon, LoaderCircle, SlidersHorizontal, RotateCcw, MessageSquare, ShieldCheck, LogOut, Eye, EyeOff, Bell, BarChart3, Download, Send, UserCheck, UserX, DollarSign, FileText, Store, Truck, Megaphone, CreditCard, Boxes, Save } from "lucide-react";
+import { motion, AnimatePresence, useAnimation, useReducedMotion } from "framer-motion";
+import { createPortal } from "react-dom";
 import { supabase } from "./lib_supabase";
 
 const logo = `${import.meta.env.BASE_URL}logo/hafiz-mart-logo.png`;
@@ -1753,6 +1754,85 @@ function HmMobileCategoryNode({ category, categories, products, depth, trail, on
   </div>;
 }
 
+/* ===== Mobile drawer menu: slides in from the left, panels drill down with staggered animation ===== */
+function HmMobileDrawer({ open, onClose, categories, products, user }) {
+  const location = useLocation();
+  const reduce = useReducedMotion();
+  const [stack, setStack] = useState([]);
+  const [direction, setDirection] = useState(1);
+  const closeRef = useRef(null);
+  const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''));
+  const kidsOf = parentId => categories.filter(item => String(item.parent_category_id || '') === String(parentId)).sort(byName);
+  const node = stack.length ? categories.find(item => String(item.id) === String(stack[stack.length - 1])) : null;
+  const items = node ? kidsOf(node.id) : sortMainCategories(categories);
+
+  // the section you are in turns red (a parent stays red while one of its children is open)
+  const params = new URLSearchParams(location.search);
+  const onCategoryPage = location.pathname === '/shop' || location.pathname === '/categories';
+  const activeCategory = onCategoryPage ? pickCategory(categories, products, params.get('category') || '', params.get('categoryId') || '') : null;
+  const activeChain = new Set(activeCategory ? getCategoryPathNames(categories, activeCategory.id).map(item => String(item.id)) : []);
+
+  const goDeeper = id => { setDirection(1); setStack(prev => [...prev, String(id)]); };
+  const goBack = () => { setDirection(-1); setStack(prev => prev.slice(0, -1)); };
+
+  useEffect(() => { if (!open) { setStack([]); setDirection(1); } }, [open]);
+  useEffect(() => { onClose(); }, [location.pathname, location.search]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const timer = setTimeout(() => { if (closeRef.current) closeRef.current.focus(); }, 60);
+    const onKey = event => { if (event.key === 'Escape') { if (stack.length) goBack(); else onClose(); } };
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.style.overflow = previous; clearTimeout(timer); window.removeEventListener('keydown', onKey); };
+  }, [open, stack.length]);
+
+  const ease = [0.2, 0.75, 0.25, 1];
+  const panelVariants = {
+    enter: dir => ({ x: reduce ? 0 : (dir > 0 ? '55%' : '-30%'), opacity: 0 }),
+    center: { x: 0, opacity: 1, transition: { duration: reduce ? 0 : 0.38, ease, staggerChildren: reduce ? 0 : 0.05, delayChildren: reduce ? 0 : 0.07 } },
+    exit: dir => ({ x: reduce ? 0 : (dir > 0 ? '-30%' : '55%'), opacity: 0, transition: { duration: reduce ? 0 : 0.22 } })
+  };
+  const itemVariants = { enter: { opacity: 0, x: reduce ? 0 : -24 }, center: { opacity: 1, x: 0, transition: { duration: reduce ? 0 : 0.42, ease } }, exit: { opacity: 0 } };
+
+  const linkRow = (key, to, label, active) => <motion.li key={key} variants={itemVariants}><Link className={`hmd-row${active ? ' is-active' : ''}`} to={to}><span>{label}</span></Link></motion.li>;
+  const categoryRow = category => {
+    const kids = kidsOf(category.id);
+    const active = activeChain.has(String(category.id));
+    if (kids.length) return <motion.li key={category.id} variants={itemVariants}><button type="button" className={`hmd-row${active ? ' is-active' : ''}`} onClick={() => goDeeper(category.id)}><span>{category.name}</span><ChevronRight size={22} aria-hidden="true"/></button></motion.li>;
+    if (getCategoryProductCount(categories, products, category.id) === 0) return <motion.li key={category.id} variants={itemVariants}><span className="hmd-row is-soon"><span>{category.name}</span><small>Coming soon</small></span></motion.li>;
+    return linkRow(category.id, hmmShopPath(category), category.name, active);
+  };
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(<AnimatePresence>
+    {open && [
+      <motion.div key="overlay" className="hmd-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.3 }} onClick={onClose} aria-hidden="true"/>,
+      <motion.aside key="drawer" id="mobile-navigation" className="hmd-drawer" role="dialog" aria-modal="true" aria-label="Menu" initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ duration: reduce ? 0 : 0.4, ease }}>
+        <div className="hmd-top">
+          {node
+            ? <button type="button" className="hmd-icon-btn" onClick={goBack} aria-label="Back"><ChevronLeft size={26}/></button>
+            : <button type="button" ref={closeRef} className="hmd-icon-btn" onClick={onClose} aria-label="Close menu"><X size={26}/></button>}
+          <AnimatePresence mode="wait" initial={false}>{node && <motion.span key={node.id} className="hmd-title" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.2 }}>{node.name}</motion.span>}</AnimatePresence>
+          {node && <button type="button" className="hmd-icon-btn hmd-close-right" onClick={onClose} aria-label="Close menu"><X size={24}/></button>}
+        </div>
+        <div className="hmd-panels">
+          <AnimatePresence custom={direction}>
+            <motion.ul key={node ? node.id : 'root'} className="hmd-list" custom={direction} variants={panelVariants} initial="enter" animate="center" exit="exit">
+              {node
+                ? [linkRow('all', hmmShopPath(node), `All ${node.name}`, false), ...items.map(categoryRow)]
+                : [linkRow('home', '/', 'Home', location.pathname === '/'), linkRow('shop', '/shop', 'Shop All', location.pathname === '/shop' && !activeCategory), ...items.map(categoryRow), linkRow('deals', '/deals', 'Deals', location.pathname === '/deals')]}
+            </motion.ul>
+          </AnimatePresence>
+        </div>
+        <motion.div className="hmd-foot" initial={{ opacity: 0, y: reduce ? 0 : 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reduce ? 0 : 0.3, duration: reduce ? 0 : 0.4 }}>
+          <Link className="hmd-login" to={user ? '/account' : '/login'}><User size={24}/><span>{user ? 'My account' : 'Login'}</span></Link>
+        </motion.div>
+      </motion.aside>
+    ]}
+  </AnimatePresence>, document.body);
+}
+
 function Navbar() {
   const { store, cartItems } = useStore();
   const { user, profile } = useAuth();
@@ -1884,59 +1964,18 @@ function Navbar() {
               type="button"
               className="menu-btn"
               onClick={() => setOpen(v => !v)}
-              aria-label={open ? "Close menu" : "Open menu"}
+              aria-label="Open menu"
               aria-expanded={open}
               aria-controls="mobile-navigation"
             >
-              {open ? <X size={22} /> : <Menu size={22} />}
+              <Menu size={24} />
             </button>
 
           </div>
         </div>
 
-        {/* Mobile Menu Panel */}
-        <AnimatePresence>
-          {open && (
-            <motion.div
-              id="mobile-navigation"
-              className="mobile-menu"
-              role="navigation"
-              aria-label="Mobile navigation"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-            >
-              <div className="container mobile-menu-inner">
-
-                <Link to="/" onClick={closeMenu}>
-                  Home
-                </Link>
-
-                <Link to="/shop" onClick={closeMenu}>
-                  Shop All
-                </Link>
-
-                <Link
-                  className="mobile-account-link"
-                  to={user ? "/account" : "/login"}
-                  onClick={closeMenu}
-                >
-                  <User size={17} />
-                  {user ? "My Account" : "Login / Sign Up"}
-                </Link>
-
-                <div className="hmm-m-tree">
-                  {sortMainCategories(store.categories).map(root => <HmMobileCategoryNode key={root.id} category={root} categories={store.categories} products={store.products} depth={0} trail={[]} onNavigate={closeMenu}/>)}
-                </div>
-
-                <Link to="/deals" onClick={closeMenu}>
-                  Deals
-                </Link>
-
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Mobile Menu (drawer) */}
+        <HmMobileDrawer open={open} onClose={closeMenu} categories={store.categories} products={store.products} user={user}/>
 
         {/* Search */}
         <AnimatePresence>
@@ -5692,18 +5731,50 @@ function Login() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const reduce = useReducedMotion();
+  const cardControls = useAnimation();
+  const flipping = useRef(false);
+  const justSignedIn = useRef(false);
+  const redirecting = useRef(false);
+
+  // card rises in when the page opens
+  useEffect(() => {
+    cardControls.start({ opacity: 1, y: 0, rotateX: 0, rotateY: 0, scale: 1, transition: { duration: reduce ? 0 : 0.75, ease: [0.2, 0.75, 0.25, 1] } });
+  }, []);
+
+  // coin flip: card turns edge-on, the form swaps while it is invisible, then turns back
+  const switchMode = async () => {
+    if (flipping.current) return;
+    const next = mode === "login" ? "register" : "login";
+    if (reduce) { setMode(next); setError(""); setMessage(""); return; }
+    flipping.current = true;
+    await cardControls.start({ rotateY: 90, scale: 0.97, transition: { duration: 0.24, ease: "easeIn" } });
+    setMode(next); setError(""); setMessage("");
+    cardControls.set({ rotateY: -90 });
+    await cardControls.start({ rotateY: 0, scale: 1, transition: { duration: 0.3, ease: [0.2, 0.75, 0.25, 1] } });
+    flipping.current = false;
+  };
 
   useEffect(() => {
-    if (user && profile) {
+    if (user && profile && !redirecting.current) {
+      redirecting.current = true;
       const next = new URLSearchParams(location.search).get("next");
       const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "";
-      navigate(
-        safeNext || (profile.role === "admin"
-          ? "/admin"
-          : "/account")
-      );
+      const target = safeNext || (profile.role === "admin" ? "/admin" : "/account");
+      const go = () => navigate(target);
+      if (justSignedIn.current && !reduce) {
+        // the card flips away and the site opens
+        cardControls.start({ rotateY: 90, scale: 0.94, opacity: 0.4, transition: { duration: 0.42, ease: "easeIn" } }).then(() => {
+          const root = document.documentElement;
+          root.classList.add("hm-site-open");
+          go();
+          setTimeout(() => root.classList.remove("hm-site-open"), 1100);
+        });
+      } else go();
     }
   }, [user, profile, navigate, location.search]);
+
+  const shake = () => { if (!reduce) cardControls.start({ x: [0, -12, 10, -8, 6, 0], transition: { duration: 0.45 } }); };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -5734,6 +5805,7 @@ function Login() {
 
     if (result.error) {
 
+      shake();
       if (mode === "login") {
 
         setError(
@@ -5778,10 +5850,12 @@ function Login() {
 
     } else if (mode === "login") {
 
+      justSignedIn.current = true;
       setMessage(
         "Sign-in successful. Opening your account..."
       );
     }
+    if (!result.error && result.data && result.data.session) justSignedIn.current = true;
 
     setBusy(false);
   };
@@ -5789,7 +5863,8 @@ function Login() {
   return (
     <main className="auth-page">
 
-      <div className="auth-card">
+      <div className="hm-auth-stage">
+      <motion.div className="auth-card" initial={{ opacity: 0, y: reduce ? 0 : 40, rotateX: reduce ? 0 : -16, scale: reduce ? 1 : 0.96 }} animate={cardControls}>
 
         <img
           src={logo}
@@ -5918,16 +5993,7 @@ function Login() {
         <button
           className="text-link center"
           type="button"
-          onClick={() => {
-            setMode(
-              mode === "login"
-                ? "register"
-                : "login"
-            );
-
-            setError("");
-            setMessage("");
-          }}
+          onClick={switchMode}
         >
           {mode === "login"
             ? "Create a new account"
@@ -5941,6 +6007,7 @@ function Login() {
           Back to store
         </Link>
 
+      </motion.div>
       </div>
 
     </main>

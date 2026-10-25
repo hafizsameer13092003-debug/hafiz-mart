@@ -11270,8 +11270,6 @@ html body .hm-weight-note{display:block;margin-top:10px;font-size:12px;line-heig
    v11 additions (appended; nothing above was edited)
    Admin product form only: custom size + product weight
    ========================================================================== */
-html body .hm-custom-option .hm-custom-option-chip{justify-self:start;width:fit-content;display:inline-flex;margin:6px 8px 0 0}
-html body .hm-weight-note{display:block;margin-top:10px;font-size:12px;line-height:1.5;color:#5c6275}
 
 /* ==========================================================================
    v12 additions: category-based product form + Shipping & Warranty
@@ -11380,3 +11378,73 @@ html body .hm-label-btn:hover{background:#e3eeda;border-color:#164832}
 @media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
   html body .hm-tilting{transform:perspective(900px) translate3d(0,-6px,0) rotateX(var(--hm-rx,0deg)) rotateY(var(--hm-ry,0deg)) scale(1.025)!important;transition:transform .12s ease-out,box-shadow .2s ease!important;box-shadow:var(--hm-sx,0px) calc(20px + var(--hm-sy,0px)) 40px rgba(30,24,10,.22)!important;position:relative;z-index:3}
 }
+
+/* ==========================================================================
+   v15 additions: mobile drawer menu (like a boutique app) + animated login
+   ========================================================================== */
+
+/* ---- header on small screens: menu button left, logo centred, icons right ---- */
+@media (max-width:900px){
+  html body .nav-inner{display:flex!important;align-items:center;gap:4px}
+  html body .nav-inner .nav-actions{display:contents!important}
+  html body .nav-inner{padding-left:10px!important;padding-right:10px!important}
+  html body .nav-inner .menu-btn{order:0;flex:0 0 auto;margin:0 2px 0 0;width:44px;height:44px}
+  html body .nav-inner .brand{order:1;flex:1 1 auto;display:flex;justify-content:center}
+  html body .nav-inner .nav-actions > *:not(.menu-btn){order:2}
+  html body .nav-inner .brand img{max-height:56px;width:auto}
+}
+
+/* ---- drawer ---- */
+.hmd-overlay{position:fixed;inset:0;z-index:2000;background:rgba(10,10,10,.58);-webkit-tap-highlight-color:transparent}
+.hmd-drawer{position:fixed;top:0;left:0;bottom:0;z-index:2001;width:min(88vw,420px);display:flex;flex-direction:column;background:#fff;color:#1a1a1a;box-shadow:12px 0 40px rgba(0,0,0,.28);padding-top:env(safe-area-inset-top,0px);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+.hmd-top{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:68px;padding:10px 14px 10px 12px;flex:0 0 auto}
+.hmd-icon-btn{display:grid;place-items:center;width:46px;height:46px;border:0;border-radius:50%;background:transparent;color:#1a1a1a;cursor:pointer;transition:background .2s,transform .2s}
+.hmd-icon-btn:hover,.hmd-icon-btn:focus-visible{background:#f2efe8;transform:scale(1.06)}
+.hmd-title{position:absolute;left:64px;right:64px;text-align:center;font-size:13px;font-weight:600;letter-spacing:.28em;text-transform:uppercase;color:#1a1a1a;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hmd-panels{position:relative;flex:1 1 auto;min-height:0;overflow:hidden}
+.hmd-list{position:absolute;inset:0;margin:0;padding:6px 0 24px;list-style:none;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff}
+.hmd-list li{margin:0}
+.hmd-row{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:62px;padding:12px 24px 12px 26px;border:0;background:transparent;color:#1a1a1a;font:400 16.5px/1.3 Inter,system-ui,sans-serif;letter-spacing:.24em;text-transform:uppercase;text-align:left;text-decoration:none;cursor:pointer;transition:color .2s,padding-left .28s cubic-bezier(.2,.75,.25,1),background .2s}
+.hmd-row svg{flex:0 0 auto;color:#1a1a1a;transition:transform .28s cubic-bezier(.2,.75,.25,1)}
+.hmd-row::after{content:"";position:absolute;left:26px;bottom:10px;height:1px;width:34px;background:currentColor;opacity:0;transform:scaleX(0);transform-origin:left;transition:transform .35s cubic-bezier(.2,.75,.25,1),opacity .2s}
+.hmd-row:hover,.hmd-row:focus-visible,.hmd-row:active{padding-left:34px;background:#faf8f3}
+.hmd-row:hover svg,.hmd-row:focus-visible svg,.hmd-row:active svg{transform:translateX(4px)}
+.hmd-row:hover::after,.hmd-row:focus-visible::after,.hmd-row:active::after{opacity:.55;transform:scaleX(1)}
+.hmd-row.is-active{color:#e00000;font-weight:500}
+.hmd-row.is-active svg{color:#e00000}
+.hmd-row.is-soon{color:#9a9a9a;cursor:default;padding-left:26px}
+.hmd-row.is-soon:hover{padding-left:26px;background:transparent}
+.hmd-row.is-soon::after{display:none}
+.hmd-row.is-soon small{padding:3px 9px;border-radius:999px;background:#f4efe2;color:#8a6a1f;font-size:9px;font-weight:700;letter-spacing:.08em}
+.hmd-foot{flex:0 0 auto;padding:12px 26px calc(18px + env(safe-area-inset-bottom,0px));border-top:1px solid #efece5;background:#fff}
+.hmd-login{display:inline-flex;align-items:center;gap:16px;padding:10px 0;color:#1a1a1a;text-decoration:none;font-size:14px;letter-spacing:.26em;text-transform:uppercase;transition:color .2s,transform .25s}
+.hmd-login:hover,.hmd-login:focus-visible{color:#9a6d1c;transform:translateX(4px)}
+
+/* ---- login / sign-up card ---- */
+.hm-auth-stage{perspective:1500px;width:100%;display:flex;justify-content:center}
+.hm-auth-stage .auth-card{transform-style:preserve-3d;backface-visibility:hidden;will-change:transform,opacity}
+@media (prefers-reduced-motion: no-preference){
+  .hm-auth-stage .auth-card > *{animation:hm-auth-rise .65s cubic-bezier(.2,.75,.25,1) both}
+  .hm-auth-stage .auth-card > *:nth-child(1){animation-delay:.12s}
+  .hm-auth-stage .auth-card > *:nth-child(2){animation-delay:.2s}
+  .hm-auth-stage .auth-card > *:nth-child(3){animation-delay:.26s}
+  .hm-auth-stage .auth-card > *:nth-child(4){animation-delay:.32s}
+  .hm-auth-stage .auth-card > *:nth-child(5){animation-delay:.38s}
+  .hm-auth-stage .auth-card > *:nth-child(6){animation-delay:.44s}
+  .hm-auth-stage .auth-card > *:nth-child(n+7){animation-delay:.5s}
+  .hm-auth-stage .auth-card .auth-form > *,.hm-auth-stage .auth-card form > *{animation:hm-auth-rise .6s cubic-bezier(.2,.75,.25,1) both}
+  .hm-auth-stage .auth-card form > *:nth-child(1){animation-delay:.3s}
+  .hm-auth-stage .auth-card form > *:nth-child(2){animation-delay:.38s}
+  .hm-auth-stage .auth-card form > *:nth-child(3){animation-delay:.46s}
+  .hm-auth-stage .auth-card form > *:nth-child(n+4){animation-delay:.54s}
+  @keyframes hm-auth-rise{from{opacity:0;transform:translate3d(0,16px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+  /* after signing in, the whole site "opens" with a turn */
+  html.hm-site-open #root{animation:hm-site-open .85s cubic-bezier(.2,.75,.25,1) both;transform-origin:50% 40%}
+  @keyframes hm-site-open{from{opacity:0;transform:perspective(1600px) rotateY(-22deg) scale(.94)}to{opacity:1;transform:perspective(1600px) rotateY(0) scale(1)}}
+}
+
+/* password "eye" button sits inside the field, at the right */
+html body .password-wrap{position:relative;display:block}
+html body .password-wrap input{width:100%;padding-right:48px!important}
+html body .password-wrap .password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:36px;height:36px;margin:0;padding:0;border:0;border-radius:10px;background:transparent;color:#6b7280;cursor:pointer;transition:background .2s,color .2s}
+html body .password-wrap .password-toggle:hover,html body .password-wrap .password-toggle:focus-visible{background:#f3efe4;color:#1d2230}
