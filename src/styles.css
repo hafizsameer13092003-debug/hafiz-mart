@@ -11448,3 +11448,76 @@ html body .password-wrap{position:relative;display:block}
 html body .password-wrap input{width:100%;padding-right:48px!important}
 html body .password-wrap .password-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:36px;height:36px;margin:0;padding:0;border:0;border-radius:10px;background:transparent;color:#6b7280;cursor:pointer;transition:background .2s,color .2s}
 html body .password-wrap .password-toggle:hover,html body .password-wrap .password-toggle:focus-visible{background:#f3efe4;color:#1d2230}
+
+/* ==========================================================================
+   v15 fixes (appended; nothing above was edited)
+   1. Sale banner: a little taller on desktop, balanced logo/copy on mobile
+   2. Colour swatches: real colour dot + disabled look for out-of-stock colours/sizes
+   3. Faster scroll-reveal animation
+   4. Admin: per-colour stock block and complaint code search
+   ========================================================================== */
+
+/* ---- 1. Sale banner: desktop (same width, slightly taller) ---- */
+@media (min-width:901px){
+  html body .sale-hero .sale-hero-inner{height:clamp(300px,25vw,360px)!important;min-height:0!important}
+  html body .sale-hero .sale-hero-inner.has-image:not(.has-products){grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+  html body .sale-hero .sale-hero-inner>img{height:100%!important;object-fit:cover!important;object-position:center!important}
+  html body .sale-hero .sale-hero-inner .sale-hero-copy{padding:26px 42px!important;gap:10px!important}
+}
+
+/* ---- 1b. Sale banner: mobile (logo bigger, text compact) ---- */
+@media (max-width:900px){
+  html body .sale-hero{padding:10px 0 12px!important}
+  html body .sale-hero .sale-hero-inner{height:auto!important;border-radius:18px!important}
+  html body .sale-hero .sale-hero-inner>img{width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:1.85/1;object-fit:cover!important;object-position:center!important}
+  html body .sale-hero .sale-hero-inner .sale-hero-copy{padding:16px 18px 18px!important;gap:7px!important}
+  html body .sale-hero .sale-hero-inner .sale-hero-copy h2{font-size:clamp(22px,6.4vw,28px)!important;line-height:1.1!important}
+  html body .sale-hero .sale-hero-inner .sale-hero-copy p:not(.eyebrow){font-size:14px!important}
+  html body .sale-hero .sale-hero-inner .sale-hero-copy .eyebrow{font-size:11px!important}
+  html body .sale-hero .sale-hero-inner .sale-hero-copy .gold-btn{padding:9px 16px!important;font-size:13px!important;margin-top:2px}
+  html body .sale-hero .sale-hero-chips{gap:6px;margin-top:2px}
+  html body .sale-hero .sale-hero-chips li{padding:4px 10px;font-size:11px}
+  html body .sale-hero .sale-hero-products{padding:0 18px 16px!important}
+  html body .sale-hero .sale-hero-product{flex-basis:220px;padding:8px 10px}
+}
+/* the ring decorations are only for the desktop banner */
+@media (max-width:900px){
+  html body .sale-hero-inner.has-image:not(.has-products)::before,
+  html body .sale-hero-inner.has-image:not(.has-products) .sale-hero-copy::after{display:none!important}
+}
+
+/* ---- 2. Colour swatches ---- */
+html body .hm-swatch{position:relative;flex:0 0 auto;width:18px;height:18px;border:1px solid rgba(0,0,0,.18);border-radius:50%}
+html body .hm-product-swatches button.is-out,
+html body .hm-product-sizes button.is-out{opacity:.5;cursor:not-allowed;background:#f6f4ef;box-shadow:none}
+html body .hm-product-swatches button.is-out>span:nth-of-type(2),
+html body .hm-product-sizes button.is-out{text-decoration:line-through;text-decoration-color:rgba(179,38,30,.7)}
+html body .hm-product-swatches button.is-out .hm-swatch::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:#b3261e;transform:rotate(45deg)}
+html body .hm-product-swatches .hm-swatch-note{margin-left:2px;color:#b3261e;font-size:10px;font-weight:700;white-space:nowrap}
+
+/* ---- 3. Faster scroll reveal (quicker fade, almost no stagger) ---- */
+@media (prefers-reduced-motion: no-preference){
+  html body .scroll-reveal{transition:opacity .32s ease calc(var(--hm-i,0) * 20ms),transform .45s cubic-bezier(.2,.75,.25,1) calc(var(--hm-i,0) * 20ms),box-shadow .25s ease,border-color .25s ease}
+  html body .scroll-reveal:not(.is-visible){transform:perspective(1200px) translate3d(0,26px,-36px) rotateX(4deg) scale(.985)}
+  html body .product-card.scroll-reveal:not(.is-visible),
+  html body .hm-category-reference-card.scroll-reveal:not(.is-visible){transform:perspective(900px) translate3d(0,24px,-44px) rotateX(8deg) scale(.97)}
+}
+
+/* ---- 4a. Admin product form: per-colour stock ---- */
+html body .hm-color-stock p{margin:2px 0 10px;color:#6b7280;font-size:12px}
+html body .hm-color-stock-row{display:flex;align-items:center;gap:10px;padding:8px 10px;margin-bottom:6px;border:1px solid #e5dfd4;border-radius:10px;background:#fff}
+html body .hm-color-stock-row strong{flex:1 1 auto;font-size:13px}
+html body .hm-color-stock-row select{flex:0 0 auto;width:auto;min-width:130px;padding:6px 10px}
+html body .hm-color-stock-row.is-out{background:#fbf3f2;border-color:#e8c9c5}
+html body .hm-color-stock-row.is-out strong{color:#b3261e}
+
+/* ---- 4b. Admin complaints: complaint code + search ---- */
+html body .hm-complaint-code-search{margin:0 0 14px;max-width:460px}
+html body .hm-complaint-code-search label{display:block;margin-bottom:6px;font-size:12px;font-weight:700;color:#164832}
+html body .hm-complaint-code-search>div{position:relative;display:flex;align-items:center}
+html body .hm-complaint-code-search>div>svg{position:absolute;left:12px;color:#6b7280;pointer-events:none}
+html body .hm-complaint-code-search input{width:100%;padding:11px 36px 11px 38px;border:1px solid #cfdcc3;border-radius:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+html body .hm-complaint-code-search input::placeholder{text-transform:none;font-weight:400;letter-spacing:0}
+html body .hm-complaint-code-search>div>button{position:absolute;right:8px;width:26px;height:26px;border:0;border-radius:50%;background:#eef2ea;color:#164832;font-size:16px;line-height:1;cursor:pointer}
+html body .hm-complaint-code-search small{display:block;margin-top:6px;color:#6b7280;font-size:12px}
+html body .hm-complaint-code{display:inline-block;margin-bottom:4px;padding:2px 9px;border-radius:999px;background:#e8f1e1;color:#164832;font-size:11px;font-weight:800;letter-spacing:.06em}
