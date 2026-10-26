@@ -495,9 +495,10 @@ function StoreProvider({ children }) {
 const useStore = () => useContext(StoreContext);
 
 function Toast({ message, onClose }) {
-  useEffect(() => { if (!message) return; const t = setTimeout(onClose, 2500); return () => clearTimeout(t); }, [message, onClose]);
+  useEffect(() => { if (!message) return; const t = setTimeout(onClose, 3200); return () => clearTimeout(t); }, [message, onClose]);
   if (!message) return null;
-  return <motion.div className="toast" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:20 }}><Check size={16}/>{message}</motion.div>;
+  const node = <motion.div className="toast" role="status" aria-live="polite" initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:20 }}><Check size={16}/>{message}{/added to cart/i.test(String(message)) && <Link to="/cart" onClick={onClose}>View cart</Link>}</motion.div>;
+  return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 }
 
 function WhatsAppButton() {
@@ -2063,7 +2064,8 @@ function hmFlyToCart(fromEl, imageSrc) {
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce || !fromEl || !fromEl.getBoundingClientRect || !document.body.animate) { bump(); return; }
     const a = fromEl.getBoundingClientRect();
-    const b = target.getBoundingClientRect();
+    let b = target.getBoundingClientRect();
+    if (b.bottom < 0 || b.top > window.innerHeight || b.width === 0) b = { left: window.innerWidth - 56, top: 8, width: 40, height: 40 };
     const size = 56;
     const startX = a.left + a.width / 2 - size / 2;
     const startY = a.top + a.height / 2 - size / 2;
@@ -2093,7 +2095,19 @@ function ProductLightbox({ name, images, startIndex = 0, onClose }) {
   const [zoomed, setZoomed] = useState(false);
   const [origin, setOrigin] = useState('50% 50%');
   const touchStart = useRef(null);
+  const touchLast = useRef(0);
   const go = step => { setZoomed(false); setIndex(i => (i + step + count) % count); };
+  // the phone's Back button closes the gallery instead of leaving the product page
+  useEffect(() => {
+    let closedByBack = false;
+    try { window.history.pushState({ ...(window.history.state || {}), hmGallery: true }, ''); } catch { /* ignore */ }
+    const onPop = () => { closedByBack = true; onClose(); };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      try { if (!closedByBack && window.history.state && window.history.state.hmGallery) window.history.back(); } catch { /* ignore */ }
+    };
+  }, []);
   useEffect(() => {
     const onKey = event => {
       if (event.key === 'Escape') onClose();
@@ -2115,29 +2129,36 @@ function ProductLightbox({ name, images, startIndex = 0, onClose }) {
     setOrigin(`${((event.clientX - rect.left) / rect.width) * 100}% ${((event.clientY - rect.top) / rect.height) * 100}%`);
     setZoomed(z => !z);
   };
-  return <div className="hm-gallery-box" role="dialog" aria-modal="true" aria-label={`${name} image gallery`} onClick={onClose}>
+  const view = <div className="hm-gallery-box" role="dialog" aria-modal="true" aria-label={`${name} image gallery`} onClick={onClose}>
     {count > 1 && <span className="hm-gallery-count">{index + 1} / {count}</span>}
     <button type="button" className="hm-gallery-close" aria-label="Close image gallery" onClick={event => { event.stopPropagation(); onClose(); }}><X size={22}/></button>
     {count > 1 && <button type="button" className="hm-gallery-nav is-prev" aria-label="Previous image" onClick={event => { event.stopPropagation(); go(-1); }}><ChevronLeft size={24}/></button>}
     <div className="hm-gallery-stage" onClick={event => event.stopPropagation()}
-      onTouchStart={event => { touchStart.current = event.touches[0].clientX; }}
-      onTouchEnd={event => { if (touchStart.current === null || zoomed || count < 2) return; const diff = event.changedTouches[0].clientX - touchStart.current; touchStart.current = null; if (Math.abs(diff) > 45) go(diff < 0 ? 1 : -1); }}>
+      onTouchStart={event => { touchStart.current = event.touches[0].clientX; touchLast.current = event.touches[0].clientX; }}
+      onTouchMove={event => {
+        touchLast.current = event.touches[0].clientX;
+        if (zoomed) { const rect = event.currentTarget.getBoundingClientRect(); setOrigin(`${((event.touches[0].clientX - rect.left) / rect.width) * 100}% ${((event.touches[0].clientY - rect.top) / rect.height) * 100}%`); }
+      }}
+      onTouchEnd={() => { if (touchStart.current === null || zoomed || count < 2) { touchStart.current = null; return; } const diff = touchLast.current - touchStart.current; touchStart.current = null; if (Math.abs(diff) > 40) go(diff < 0 ? 1 : -1); }}
+      onTouchCancel={() => { touchStart.current = null; }}>
       <img key={index} className={zoomed ? 'is-zoomed' : ''} style={{ transformOrigin: origin }} src={images[index]} alt={`${name} view ${index + 1}`} draggable={false} onClick={toggleZoom} onMouseMove={moveOrigin}/>
     </div>
     {count > 1 && <button type="button" className="hm-gallery-nav is-next" aria-label="Next image" onClick={event => { event.stopPropagation(); go(1); }}><ChevronRight size={24}/></button>}
     {count > 1 && <div className="hm-gallery-thumbs" onClick={event => event.stopPropagation()}>{images.map((src, i) => <button type="button" key={src + i} className={i === index ? 'active' : ''} aria-label={`Show image ${i + 1}`} onClick={() => { setZoomed(false); setIndex(i); }}><img src={src} alt=""/></button>)}</div>}
-    <span className="hm-gallery-hint">{zoomed ? 'Click again to zoom out' : 'Click image to zoom'}</span>
+    <span className="hm-gallery-hint">{zoomed ? 'Tap again to zoom out' : 'Tap image to zoom, swipe for next'}</span>
   </div>;
+  return typeof document !== 'undefined' ? createPortal(view, document.body) : view;
 }
 
 function ProductCard({ product, onToast }) {
   const { store, update, addToCart } = useStore();
+  const [added, setAdded] = useState(false);
   const wished = store.wishlist.includes(product.id);
   const price = Number(product.salePrice || product.price || 0);
   const toggleWish = () => update({ wishlist: wished ? store.wishlist.filter(id=>id!==product.id) : [...store.wishlist, product.id] });
   return <motion.article className="product-card" layout whileHover={{ y:-5, scale:1.015 }}>
     <div className="product-image-wrap"><Link to={`/product/${product.id}`}><img src={product.image || logo} alt={product.name}/></Link><button type="button" className={`wish-btn ${wished ? "active" : ""}`} onClick={toggleWish} aria-pressed={wished} aria-label={wished ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`} title={wished ? "Remove from wishlist" : "Add to wishlist"}><Heart aria-hidden="true" size={18} fill={wished ? "currentColor" : "none"}/></button>{product.salePrice && <span className="product-badge">SALE</span>}</div>
-    <div className="product-info"><p className="product-category">{product.category || "Uncategorized"}</p><Link to={`/product/${product.id}`}><h3>{product.name}</h3></Link><div className="product-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice && <del>Rs. {Number(product.price).toLocaleString()}</del>}</div><button className="add-cart" onClick={event=>{const card=event.currentTarget.closest('.product-card'); addToCart(product); hmFlyToCart(card?.querySelector('.product-image-wrap img')||event.currentTarget, product.image); onToast?.("Product added to cart")}}><ShoppingBag size={15}/> Add to Cart</button></div>
+    <div className="product-info"><p className="product-category">{product.category || "Uncategorized"}</p><Link to={`/product/${product.id}`}><h3>{product.name}</h3></Link><div className="product-price"><strong>Rs. {price.toLocaleString()}</strong>{product.salePrice && <del>Rs. {Number(product.price).toLocaleString()}</del>}</div><button className="add-cart" onClick={event=>{const card=event.currentTarget.closest('.product-card'); addToCart(product); hmFlyToCart(card?.querySelector('.product-image-wrap img')||event.currentTarget, product.image); setAdded(true); window.setTimeout(()=>setAdded(false),1600); onToast?.("Product added to cart")}}>{added ? <><Check size={15}/> Added</> : <><ShoppingBag size={15}/> Add to Cart</>}</button></div>
   </motion.article>;
 }
 
@@ -2895,6 +2916,9 @@ function ProductDetails() {
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [zoomOpen, setZoomOpen] = useState(false);
+  const [justAdded, setJustAdded] = useState(false);
+  const swipeRef = useRef(null);
+  const swipedAt = useRef(0);
   const [activeInfoTab, setActiveInfoTab] = useState("description");
   useEffect(() => { setSelectedVariant(null); setSelectedImage(0); setQty(1); setActiveInfoTab("description"); }, [id]);
   if (!product) return <main className="page container"><EmptyState title="Product Not Found" text="This product is not available." action="Back to Shop" to="/shop"/></main>;
@@ -2943,10 +2967,22 @@ function ProductDetails() {
         <div className="hm-product-thumbnails" aria-label={`${product.name} image thumbnails`}>
           {images.map((src, index) => <button type="button" key={src + index} className={src === currentImage ? "active" : ""} onClick={() => { setSelectedImage(index); setSelectedVariant(null); }} aria-label={`View product image ${index + 1}`} aria-pressed={src === currentImage}><img src={src} alt={`${product.name} view ${index + 1}`}/></button>)}
         </div>
-        <div className="hm-product-image-stage" onClick={() => setZoomOpen(true)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setZoomOpen(true); } }} aria-label="Open product image zoom">
+        <div className="hm-product-image-stage" onClick={() => { if (Date.now() - swipedAt.current < 450) return; setZoomOpen(true); }}
+          onTouchStart={event => { swipeRef.current = { x: event.touches[0].clientX, y: event.touches[0].clientY }; }}
+          onTouchEnd={event => {
+            const start = swipeRef.current; swipeRef.current = null;
+            if (!start || images.length < 2) return;
+            const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y;
+            if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+              const current = Math.max(0, images.indexOf(currentImage));
+              setSelectedVariant(null);
+              setSelectedImage((current + (dx < 0 ? 1 : -1) + images.length) % images.length);
+              swipedAt.current = Date.now();
+            }
+          }} role="button" tabIndex={0} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setZoomOpen(true); } }} aria-label="Open product image zoom">
           {hasDiscount && <span className="hm-product-image-badge">{discountPercent}% OFF</span>}
           <img src={currentImage} alt={product.name}/>
-          <span className="hm-product-zoom-hint"><Search size={14}/> Click to zoom</span>
+          <span className="hm-product-zoom-hint"><Search size={14}/> <span className="hm-hint-desktop">Click</span><span className="hm-hint-touch">Tap</span>&nbsp;to zoom</span>
           {images.length > 1 && <span className="hm-product-image-count">{Math.max(0, images.indexOf(currentImage)) + 1} / {images.length}</span>}
         </div>
         {product.videoUrl && isSafeHttpUrl(product.videoUrl) && <a className="ghost-btn hm-product-video-link" href={product.videoUrl} target="_blank" rel="noreferrer"><ImageIcon size={16}/> Watch product video</a>}
@@ -2966,7 +3002,7 @@ function ProductDetails() {
 
         <div className="hm-product-buy-row">
           <div className="hm-product-quantity" aria-label={`Quantity for ${product.name}`}><button type="button" onClick={() => setQty(Math.max(1, qty - 1))} aria-label="Decrease quantity"><Minus size={15}/></button><span aria-live="polite">{qty}</span><button type="button" onClick={() => setQty(Math.min(Math.max(1, stock), qty + 1))} aria-label="Increase quantity" disabled={qty >= stock}><Plus size={15}/></button></div>
-          <button className="hm-add-cart-button" type="button" disabled={!stock} onClick={event => { addToCart(product, qty, selectedVariant); hmFlyToCart(document.querySelector('.hm-product-image-stage img') || event.currentTarget, currentImage); setToast("Product added to cart"); }}><ShoppingBag size={18}/> Add to Cart</button>
+          <button className="hm-add-cart-button" type="button" disabled={!stock} onClick={event => { addToCart(product, qty, selectedVariant); hmFlyToCart(document.querySelector('.hm-product-image-stage img') || event.currentTarget, currentImage); setJustAdded(true); window.setTimeout(() => setJustAdded(false), 1600); setToast("Product added to cart"); }}>{justAdded ? <><Check size={18}/> Added to cart</> : <><ShoppingBag size={18}/> Add to Cart</>}</button>
           <button type="button" className={`hm-wishlist-button ${wished ? "active" : ""}`} aria-pressed={wished} aria-label={wished ? "Remove from wishlist" : "Add to wishlist"} title={wished ? "Remove from wishlist" : "Add to wishlist"} onClick={() => update({ wishlist: wished ? store.wishlist.filter(x => String(x) !== String(product.id) && String(x) !== String(id)) : [...store.wishlist, product.id] })}><Heart size={20} fill={wished ? "currentColor" : "none"}/></button>
         </div>
         <p className="hm-product-stock-note">{stock > 0 ? <><Check size={15}/> {stock} available to order</> : "This item is currently unavailable."}</p>
