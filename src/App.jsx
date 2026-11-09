@@ -822,11 +822,23 @@ function SeoManager() {
   return null;
 }
 
+const CONSENT_KEY = "hafiz-mart-analytics-consent";
+function readConsent() {
+  try { return localStorage.getItem(CONSENT_KEY) || ""; } catch { return ""; }
+}
+
 function GoogleAnalytics() {
   const measurementId = String(import.meta.env.VITE_GA_MEASUREMENT_ID || "").trim();
+  const [consent, setConsent] = useState(readConsent);
 
   useEffect(() => {
-    if (!measurementId || typeof window === "undefined") return undefined;
+    const onChange = () => setConsent(readConsent());
+    window.addEventListener("hafiz:consent", onChange);
+    return () => window.removeEventListener("hafiz:consent", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!measurementId || consent !== "granted" || typeof window === "undefined") return undefined;
 
     window.dataLayer = window.dataLayer || [];
     window.gtag = window.gtag || function() {
@@ -844,9 +856,22 @@ function GoogleAnalytics() {
     window.gtag("js", new Date());
     window.gtag("config", measurementId, { anonymize_ip: true });
     return undefined;
-  }, [measurementId]);
+  }, [measurementId, consent]);
 
-  return null;
+  if (!measurementId || consent) return null;
+  const choose = value => {
+    try { localStorage.setItem(CONSENT_KEY, value); } catch {}
+    window.dispatchEvent(new Event("hafiz:consent"));
+  };
+  return (
+    <div className="hm-consent" role="dialog" aria-label="Analytics cookie consent">
+      <p>We use Google Analytics cookies to understand how the store is used. They stay off unless you accept. See our <Link to="/cookie-policy">Cookie Policy</Link>.</p>
+      <div>
+        <button type="button" className="ghost-btn" onClick={() => choose("denied")}>Decline</button>
+        <button type="button" className="gold-btn" onClick={() => choose("granted")}>Accept</button>
+      </div>
+    </div>
+  );
 }
 
 function HomeTestimonials() {
@@ -880,7 +905,8 @@ function HomeTestimonials() {
     };
   }, []);
 
-  if (loading || !rows.length) return null;
+  if (loading) return <section className="home-testimonials" aria-busy="true"><div className="hm-skeleton hm-skeleton-block"/></section>;
+  if (!rows.length) return null;
 
   return (
     <section className="home-section home-testimonials">
@@ -965,6 +991,7 @@ function FAQPage() {
 const HM_POLICY_UPDATED = '16 October 2026';
 const HM_LEGAL_LINKS = [
   ['Privacy Policy', '/privacy-policy'],
+  ['Cookie Policy', '/cookie-policy'],
   ['Return & Refund Policy', '/return-policy'],
   ['Shipping & Delivery', '/shipping-policy'],
   ['Terms & Conditions', '/terms']
@@ -1092,6 +1119,21 @@ function buildTermsPolicy() {
   ];
 }
 
+function buildCookiePolicy() {
+  return [
+    { id: 'what', number: '01', navLabel: 'What cookies are', title: 'What cookies and browser storage are', lead: 'Small pieces of data saved on your device.',
+      paragraphs: ['Cookies and similar browser storage let a website remember your device between visits. Hafiz Mart uses them for sign-in sessions, your cart and wishlist, and, only if you agree, for analytics.'] },
+    { id: 'essential', number: '02', navLabel: 'Essential', title: 'Essential storage', lead: 'Needed for the store to work.',
+      paragraphs: ['Essential storage keeps you signed in, remembers your cart and wishlist, and remembers your cookie choice. It cannot be switched off in our banner. You can clear it in your browser settings, but parts of the store may stop working.'] },
+    { id: 'analytics', number: '03', navLabel: 'Analytics', title: 'Analytics cookies', lead: 'Off unless you accept.',
+      paragraphs: ['If analytics is configured, Google Analytics loads only after you press Accept in the cookie banner. It helps us see which pages are used so we can improve the store. IP addresses are anonymised. If you press Decline, no analytics script is loaded.'] },
+    { id: 'third', number: '04', navLabel: 'Third parties', title: 'Third-party services', lead: 'Services that may load on some pages.',
+      paragraphs: ['Cloudflare Turnstile may load on forms to block bots, and Google Analytics may load if you accept. These providers have their own privacy policies.'] },
+    { id: 'change', number: '05', navLabel: 'Your choice', title: 'Changing your choice', lead: 'You stay in control.',
+      paragraphs: ['To see the banner again, clear this site\'s data in your browser settings. Contact us through the details below with any question about cookies.'] }
+  ];
+}
+
 const HM_POLICY_PAGES = {
   returns: { title: 'Return & Refund Policy', kicker: 'POLICY CENTRE', settingKey: 'returnsPolicy', build: buildReturnPolicy,
     copy: 'Clear, fair rules for cancelling, returning and getting your money back.',
@@ -1099,6 +1141,9 @@ const HM_POLICY_PAGES = {
   shipping: { title: 'Shipping & Delivery Policy', kicker: 'POLICY CENTRE', settingKey: 'shippingPolicy', build: buildShippingPolicy,
     copy: 'How we deliver, what it costs and how long it takes.',
     highlights: [['Clear charges', 'You see the delivery charge before you order.'], ['Track it', 'Follow your order from dispatch to delivery.'], ['Check on arrival', 'Open and check your parcel when it arrives.']] },
+  cookies: { title: 'Cookie Policy', kicker: 'POLICY CENTRE', settingKey: 'cookiePolicy', build: buildCookiePolicy,
+    copy: 'What we store on your device and the choices you have.',
+    highlights: [['Off by default', 'Analytics runs only after you accept.'], ['Essential only', 'Cart, wishlist and sign-in need basic storage.'], ['Your choice', 'Accept or decline in the banner.']] },
   terms: { title: 'Terms & Conditions', kicker: 'POLICY CENTRE', settingKey: 'terms', build: buildTermsPolicy,
     copy: 'The simple rules for using Hafiz Mart and placing orders.',
     highlights: [['Plain language', 'What you can expect from us and what we expect from you.'], ['Fair for both', 'Your consumer rights are never taken away.'], ['Questions?', 'Contact us any time and we will explain.']] }
@@ -3136,6 +3181,16 @@ function Shop() {
   const [saleOnly, setSaleOnly] = useState(false);
   const [inStock, setInStock] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(24);
+  const sentinelRef = useRef(null);
+  useEffect(() => { setVisibleCount(24); }, [query, sort, saleOnly, inStock, location.search]);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver(entries => { if (entries[0].isIntersecting) setVisibleCount(count => count + 24); }, { rootMargin: '400px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [visibleCount, store.products.length, query, sort, saleOnly, inStock]);
 
   /*
     HashRouter URL:
@@ -3386,13 +3441,14 @@ function Shop() {
         {products.length ? (
           <div className="product-grid">
 
-            {products.map((p) => (
+            {products.slice(0, visibleCount).map((p) => (
               <ProductCard
                 key={p.id}
                 product={p}
                 onToast={setToast}
               />
             ))}
+            {visibleCount < products.length && <div ref={sentinelRef} className="hm-scroll-sentinel" aria-hidden="true"/>}
 
           </div>
         ) : (
@@ -6541,6 +6597,13 @@ function AdminProducts(){
   const currentId = new URLSearchParams(location.search).get('category') || '';
   const [search, setSearch] = useState('');
   const [includeSub, setIncludeSub] = useState(true);
+  const [selected, setSelected] = useState(() => new Set());
+  const toggleSelected = id => setSelected(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const bulkRemove = async () => {
+    if (!selected.size || !confirm(`Delete ${selected.size} selected product(s)? Ye action wapas nahi ho sakta.`)) return;
+    const { error } = await supabase.from('products').delete().in('id', [...selected]);
+    if (error) alert(getFriendlyErrorMessage(error)); else { setSelected(new Set()); refresh(); }
+  };
   const categories = store.categories; const products = store.products;
   const remove = async id => { if (!confirm('Delete this product?')) return; const { error } = await supabase.from('products').delete().eq('id', id); if (error) alert(getFriendlyErrorMessage(error)); else refresh(); };
   const goto = id => navigate(id ? `/admin/products?category=${encodeURIComponent(id)}` : '/admin/products');
@@ -6558,12 +6621,12 @@ function AdminProducts(){
   const term = search.trim().toLowerCase();
 
   const Row = ({ p }) => <div className="table-row" key={p.id}>
-    <div className="table-product"><img src={p.image || logo} alt={p.name || 'Hafiz Mart product'}/><strong>{p.name}</strong><small>{p.sku || 'No SKU'}</small></div>
+    <div className="table-product"><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelected(p.id)} aria-label={`Select ${p.name}`}/><img src={p.image || logo} alt={p.name || 'Hafiz Mart product'}/><strong>{p.name}</strong><small>{p.sku || 'No SKU'}</small></div>
     <span>{pathOf(p)}</span><span>Rs. {Number(p.salePrice || p.price || 0).toLocaleString()}</span><span className={Number(p.stock || 0) <= 0 ? 'hm-stock-out' : ''}>{p.stock || 0}</span>
     <div className="row-actions"><Link to={`/admin/products/${p.id}/edit`} aria-label={`Edit ${p.name}`} title="Edit product"><Pencil aria-hidden="true" size={15}/></Link><button type="button" onClick={() => remove(p.id)} aria-label={`Delete ${p.name}`} title="Delete product"><Trash2 aria-hidden="true" size={15}/></button></div>
   </div>;
   const Table = ({ list }) => list.length
-    ? <div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{list.map(p => <Row key={p.id} p={p}/>)}</div>
+    ? <>{selected.size > 0 && <div className="hm-bulk-bar" role="status"><span>{selected.size} selected</span><button type="button" className="ghost-btn" onClick={() => setSelected(new Set(list.map(p => p.id)))}>Select all here</button><button type="button" className="ghost-btn" onClick={() => setSelected(new Set())}>Clear</button><button type="button" className="gold-btn" onClick={bulkRemove}>Delete selected</button></div>}<div className="admin-table"><div className="table-head"><span>Product</span><span>Category</span><span>Price</span><span>Stock</span><span>Actions</span></div>{list.map(p => <Row key={p.id} p={p}/>)}</div></>
     : <div className="hm-pl-empty">Is jagah abhi koi product nahi.</div>;
   const CategoryCard = ({ category }) => {
     const items = productsIn(category, true); const subs = childrenOf(category.id).length;
@@ -6774,6 +6837,8 @@ function ProductForm(){
   const [selectedHighlights,setSelectedHighlights]=useState([]); const [customHighlight,setCustomHighlight]=useState('');
   const [pkg,setPkg]=useState(emptyPkg); const [warranty,setWarranty]=useState(emptyWarranty); const navigate=useNavigate();
   const family=familyOverride||hmDetectFamily(store.categories,form.categoryId);
+  useEffect(()=>{ if(editing) return; try{ const d=JSON.parse(localStorage.getItem('hm-product-draft')||'null'); if(d&&typeof d==='object') setForm(f=>({...f,...d,categoryId:startCategory||d.categoryId||f.categoryId})); }catch{} },[]);
+  useEffect(()=>{ if(editing) return undefined; const t=setTimeout(()=>{ try{ localStorage.setItem('hm-product-draft',JSON.stringify(form)); }catch{} },800); return ()=>clearTimeout(t); },[form]);
   const specFields=HM_FAMILY_SPECS[family]||HM_FAMILY_SPECS.general;
   const sizeSystemKeys=HM_FAMILY_SIZE_SYSTEMS[family]||[];
   const alwaysOptions=family==='apparel'||family==='footwear';
@@ -6838,6 +6903,7 @@ function ProductForm(){
       const payload={name:String(form.name).trim(),slug,sku:form.sku.trim()||null,category_id:form.categoryId||null,brand:form.brand.trim()||null,short_description:form.shortDescription.trim()||null,description:form.description.trim()||null,price,sale_price:salePrice,stock_quantity:topStock,main_image:cleanImages[0]||null,images:cleanImages,status:form.status,product_type:family==='apparel'?form.productType:'general',variants,attributes,return_policy:form.returnPolicy.trim()||null,warranty_info:warrantyText,size_guide:form.sizeGuide.trim()||null,highlights:selectedHighlights,video_url:form.videoUrl.trim()||null};
       const result=editing?await supabase.from('products').update(payload).eq('id',id).select().single():await supabase.from('products').insert(payload).select().single();
       if(result.error)throw result.error;
+      try{ localStorage.removeItem('hm-product-draft'); }catch{}
       await refresh();navigate('/admin/products');
     } catch(error) { alert(getFriendlyErrorMessage(error,'Product could not be saved. Please try again.')); }
     finally { setBusy(false); }
@@ -8235,7 +8301,7 @@ function HafizFooter() {
   };
   const isShopPage = path === '/shop' || path === '/categories' || path === '/deals' || path.startsWith('/campaign/');
   const isProductPage = path.startsWith('/product/');
-  const isInfoPage = ['/contact', '/contact-us', '/faq', '/privacy-policy', '/store-privacy-policy', '/publisher-privacy-policy', '/return-policy', '/refund-policy', '/shipping-policy', '/terms', '/terms-and-conditions'].includes(path);
+  const isInfoPage = ['/contact', '/contact-us', '/faq', '/privacy-policy', '/cookie-policy', '/store-privacy-policy', '/publisher-privacy-policy', '/return-policy', '/refund-policy', '/shipping-policy', '/terms', '/terms-and-conditions'].includes(path);
   let items;
   if (isShopPage || isProductPage) items = [L.home, L.shop, L.categories, L.about, L.contact];
   else if (isInfoPage) items = [L.home, L.shop, L.about, L.contact, L.faq];
@@ -8256,13 +8322,116 @@ function HafizFooter() {
   </footer>;
 }
 
+
+const HM_PALETTE_ITEMS = [['Home','/'],['Shop','/shop'],['Categories','/categories'],['Deals','/deals'],['Wishlist','/wishlist'],['Cart','/cart'],['Refer & Earn','/referral'],['Checkout','/checkout'],['My Account','/account'],['Track Order','/track-order'],['Complaints','/complaints'],['Notifications','/notifications'],['FAQs','/faq'],['Contact Us','/contact-us'],['Privacy Policy','/privacy-policy'],['Cookie Policy','/cookie-policy'],['Return Policy','/return-policy'],['Shipping Policy','/shipping-policy'],['Terms','/terms']];
+function CommandPalette() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [index, setIndex] = useState(0);
+  const results = HM_PALETTE_ITEMS.filter(([label]) => label.toLowerCase().includes(query.trim().toLowerCase()));
+  useEffect(() => {
+    const onKey = event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setOpen(value => !value); setQuery(''); setIndex(0); }
+      else if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  if (!open) return null;
+  const go = item => { if (item) { navigate(item[1]); setOpen(false); } };
+  const onInputKey = event => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); setIndex(value => Math.min(value + 1, results.length - 1)); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); setIndex(value => Math.max(value - 1, 0)); }
+    else if (event.key === 'Enter') go(results[index]);
+  };
+  return <div className="hm-palette-backdrop" onClick={() => setOpen(false)}>
+    <div className="hm-palette" role="dialog" aria-label="Command palette" onClick={event => event.stopPropagation()}>
+      <input autoFocus value={query} onChange={event => { setQuery(event.target.value); setIndex(0); }} onKeyDown={onInputKey} placeholder="Go to a page… (Esc to close)" aria-label="Search pages"/>
+      <ul>{results.length ? results.map((item, i) => <li key={item[1]}><button type="button" className={i === index ? 'is-active' : ''} onClick={() => go(item)}>{item[0]}</button></li>) : <li className="hm-palette-empty">No matching page</li>}</ul>
+    </div>
+  </div>;
+}
+
+function RouteProgress() {
+  const { pathname } = useLocation();
+  return <div key={pathname} className="hm-route-progress" aria-hidden="true"/>;
+}
+
+
+function PullToRefresh() {
+  const { refresh } = useStore();
+  const [state, setState] = useState('');
+  useEffect(() => {
+    let startY = null;
+    const onStart = event => { startY = window.scrollY <= 0 && event.touches.length === 1 ? event.touches[0].clientY : null; };
+    const onEnd = async event => {
+      if (startY === null) return;
+      const distance = event.changedTouches[0].clientY - startY;
+      startY = null;
+      if (distance < 110 || window.scrollY > 0) return;
+      setState('Refreshing…');
+      try { await refresh(); } catch {}
+      setState('');
+    };
+    window.addEventListener('touchstart', onStart, { passive: true });
+    window.addEventListener('touchend', onEnd, { passive: true });
+    return () => { window.removeEventListener('touchstart', onStart); window.removeEventListener('touchend', onEnd); };
+  }, [refresh]);
+  return state ? <div className="hm-ptr" role="status">{state}</div> : null;
+}
+
+function ReferralCapture() {
+  const { search } = useLocation();
+  const { session } = useAuth();
+  useEffect(() => {
+    const code = new URLSearchParams(search).get('ref');
+    if (code && /^[A-Za-z0-9]{4,20}$/.test(code)) { try { localStorage.setItem('hm-ref', code.toUpperCase()); } catch {} }
+  }, [search]);
+  useEffect(() => {
+    if (!session) return;
+    let code = ''; try { code = localStorage.getItem('hm-ref') || ''; } catch {}
+    if (!code) return;
+    supabase.rpc('claim_referral', { p_code: code }).then(() => { try { localStorage.removeItem('hm-ref'); } catch {} });
+  }, [session]);
+  return null;
+}
+
+function ReferralPage() {
+  const { session } = useAuth();
+  const [info, setInfo] = useState({ code: '', count: 0 });
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      const { data, error: rpcError } = await supabase.rpc('get_or_create_referral_code');
+      if (rpcError) { setError('Referral code abhi load nahi ho saka. Baad mein try karein.'); return; }
+      const { count } = await supabase.from('referrals').select('id', { count: 'exact', head: true }).eq('code', data);
+      setInfo({ code: data || '', count: count || 0 });
+    })();
+  }, [session]);
+  const link = `${window.location.origin}${import.meta.env.BASE_URL}#/?ref=${info.code}`;
+  const copy = async () => { try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch {} };
+  return <main className="page container">
+    <h1>Refer &amp; Earn</h1>
+    {!session ? <p>Apna referral link dekhne ke liye pehle <Link to="/login">sign in</Link> karein.</p>
+      : error ? <p role="alert">{error}</p>
+      : <><p>Apna link dost ko bhejein. Jab wo sign up karega, yahan count barh jayega.</p>
+        <p><strong>Your code:</strong> {info.code || '…'}</p>
+        <p className="hm-ref-link">{info.code ? link : ''}</p>
+        <button type="button" className="gold-btn" onClick={copy} disabled={!info.code}>{copied ? 'Copied' : 'Copy link'}</button>
+        <p><strong>Friends joined:</strong> {info.count}</p></>}
+  </main>;
+}
+
 function AppRoutes(){
   const {store}=useStore(); const {profile}=useAuth(); const location=useLocation();
   const maintenance=Boolean(store.adminSettings?.storefront?.maintenanceMode); const isAdmin=profile?.role==='admin';
   const authAllowed=['/login','/forgot-password','/reset-password'].includes(location.pathname); const adminAllowed=location.pathname.startsWith('/admin'); const bypass=isAdmin||adminAllowed||authAllowed;
   try { window.__HAFIZ_STORE_SETTINGS__ = store.adminSettings || DEFAULT_ADMIN_SETTINGS; } catch {} return <><Navbar/>{(!maintenance||bypass)&&<AnnouncementBar/>}{maintenance&&!bypass?<MaintenancePage/>:<Routes>
-    <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/campaign/:id" element={<CampaignProducts/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/return-policy" element={<StorePolicyPage kind="returns"/>}/><Route path="/refund-policy" element={<StorePolicyPage kind="returns"/>}/><Route path="/shipping-policy" element={<StorePolicyPage kind="shipping"/>}/><Route path="/terms" element={<StorePolicyPage kind="terms"/>}/><Route path="/terms-and-conditions" element={<StorePolicyPage kind="terms"/>}/><Route path="/store-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/publisher-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/contact-us" element={<ContactUsPage/>}/><Route path="/contact" element={<ContactUsPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/join-team/:token" element={<JoinTeam/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
+    <Route path="/" element={<Home/>}/><Route path="/shop" element={<Shop/>}/><Route path="/product/:id" element={<ProductDetails/>}/><Route path="/categories" element={<Categories/>}/><Route path="/deals" element={<Deals/>}/><Route path="/campaign/:id" element={<CampaignProducts/>}/><Route path="/wishlist" element={<Wishlist/>}/><Route path="/cart" element={<Cart/>}/><Route path="/checkout" element={<Checkout/>}/><Route path="/account" element={<Account/>}/><Route path="/track-order" element={<OrderTracker/>}/><Route path="/complaints" element={<Complaints/>}/><Route path="/notifications" element={<CustomerNotifications/>}/><Route path="/faq" element={<FAQPage/>}/><Route path="/privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/return-policy" element={<StorePolicyPage kind="returns"/>}/><Route path="/refund-policy" element={<StorePolicyPage kind="returns"/>}/><Route path="/shipping-policy" element={<StorePolicyPage kind="shipping"/>}/><Route path="/referral" element={<ReferralPage/>}/><Route path="/cookie-policy" element={<StorePolicyPage kind="cookies"/>}/><Route path="/terms" element={<StorePolicyPage kind="terms"/>}/><Route path="/terms-and-conditions" element={<StorePolicyPage kind="terms"/>}/><Route path="/store-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/publisher-privacy-policy" element={<PrivacyPolicyPage/>}/><Route path="/contact-us" element={<ContactUsPage/>}/><Route path="/contact" element={<ContactUsPage/>}/><Route path="/thank-you" element={<ThankYouPage/>}/><Route path="/login" element={<Login/>}/><Route path="/join-team/:token" element={<JoinTeam/>}/><Route path="/forgot-password" element={<ForgotPassword/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
     <Route path="/admin/security/mfa" element={<AdminMfaSecurityPage/>}/><Route path="/admin" element={<Admin/>}/><Route path="/admin/products" element={<AdminProducts/>}/><Route path="/admin/products/new" element={<ProductForm/>}/><Route path="/admin/products/:id/edit" element={<ProductForm/>}/><Route path="/admin/categories" element={<AdminCategories/>}/><Route path="/admin/banners" element={<AdminBanners/>}/><Route path="/admin/coupons" element={<AdminCoupons/>}/><Route path="/admin/orders" element={<AdminOrders/>}/><Route path="/admin/complaints" element={<AdminComplaints/>}/><Route path="/admin/customers" element={<AdminCustomers/>}/><Route path="/admin/reviews" element={<AdminReviews/>}/><Route path="/admin/transactions" element={<AdminTransactions/>}/><Route path="/admin/reports" element={<AdminReports/>}/><Route path="/admin/notifications" element={<AdminNotifications/>}/><Route path="/admin/settings" element={<AdminSettings/>}/><Route path="*" element={<main className="page container"><EmptyState title="Page Not Found" text="This page does not exist." action="Back Home" to="/"/></main>}/>
   </Routes>}<WhatsAppButton/><HafizFooter/></>;
 }
-export default function App(){ useEffect(()=>{ try { document.documentElement.removeAttribute('data-theme'); localStorage.removeItem('hafiz-mart-theme'); } catch {} },[]); return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><ScrollReveal/><Scroll3D/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
+export default function App(){ useEffect(()=>{ try {  } catch {} },[]); return <AppErrorBoundary><AuthProvider><StoreProvider><div className="app"><GlobalErrorNotice/><MobileZoomLock/><GoogleAnalytics/><SeoManager/><ScrollToTop/><RouteProgress/><ReferralCapture/><PullToRefresh/><CommandPalette/><ScrollReveal/><Scroll3D/><AppRoutes/></div></StoreProvider></AuthProvider></AppErrorBoundary>; }
